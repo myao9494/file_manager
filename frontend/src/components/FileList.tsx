@@ -373,12 +373,16 @@ export function FileList({
     const paths = Array.from(selectedItems);
 
     try {
-      // ファイル数をカウント（ネスト3階層まで）
-      const countResult = await countFiles(paths, 3);
-      const totalFileCount = countResult.total_count;
+      // ファイル数をカウント（ネスト3階層まで）はNASで遅いため廃止
+      // 選択されたアイテムの中にディレクトリが含まれているかチェック
+      // allSortedItemsから情報を取得する必要がある
+      const hasDirectory = paths.some(path => {
+        const item = allSortedItems.find(i => i.path === path);
+        return item && item.type === 'directory';
+      });
 
-      // 非同期モード判定: 3ファイル以上
-      const useAsyncMode = totalFileCount >= 3;
+      // 非同期モード判定: 3ファイル以上 または ディレクトリを含む
+      const useAsyncMode = paths.length >= 3 || hasDirectory;
 
       if (useAsyncMode) {
         // 非同期モード: プログレスモーダルを表示
@@ -946,56 +950,53 @@ export function FileList({
         const verifyChecksum = localStorage.getItem('file_manager_verify_checksum') === 'true';
         const debugMode = localStorage.getItem('file_manager_debug_mode') === 'true';
 
-        // ファイル数をカウントして非同期モードかどうかを判定
-        countFiles(srcPaths, 3).then((countResult) => {
-          const totalFileCount = countResult.total_count;
-          const useAsyncMode = totalFileCount >= 3;
+        // クライアントサイドでの再帰カウント（countFiles）はNAS等で遅いため廃止
+        // シンプルに「3つ以上のアイテム」または「フォルダが含まれる」場合は非同期モードとする
+        // （フォルダが含まれる場合、中身が大量にある可能性があるため安全側に倒す）
+        const hasDirectory = items.some(item => item.type === "directory");
+        const useAsyncMode = srcPaths.length >= 3 || hasDirectory;
 
-          if (useAsyncMode) {
-            // 非同期モード: プログレスモーダルを表示
-            moveItemsBatch.mutateAsync({
-              srcPaths,
-              destPath: targetPath,
-              overwrite: false,
-              verifyChecksum,
-              asyncMode: true,
-              debugMode
-            }).then((result) => {
-              if (result.status === 'async' && result.task_id) {
-                setProgressOperationType('move');
-                setProgressTaskId(result.task_id);
-                setProgressModalOpen(true);
-              }
-            }).catch((err) => {
-              console.error("Batch move failed:", err);
-              showError("移動処理中にエラーが発生しました");
-            });
-          } else {
-            // 同期モード: 従来通り
-            moveItemsBatch.mutateAsync({
-              srcPaths,
-              destPath: targetPath,
-              overwrite: false,
-              verifyChecksum,
-              asyncMode: false,
-              debugMode
-            }).then((result) => {
-              if (result.status === 'completed' && result.success_count !== undefined) {
-                handleBatchOperationResult('move', {
-                  success_count: result.success_count,
-                  fail_count: result.fail_count ?? 0,
-                  results: result.results ?? []
-                }, targetPath);
-              }
-            }).catch((err) => {
-              console.error("Batch move failed:", err);
-              showError("移動処理中にエラーが発生しました");
-            });
-          }
-        }).catch((err) => {
-          console.error("Failed to count files:", err);
-          showError(`ファイル数カウントに失敗しました: ${err.message}`);
-        });
+        if (useAsyncMode) {
+          // 非同期モード: プログレスモーダルを表示
+          moveItemsBatch.mutateAsync({
+            srcPaths,
+            destPath: targetPath,
+            overwrite: false,
+            verifyChecksum,
+            asyncMode: true,
+            debugMode
+          }).then((result) => {
+            if (result.status === 'async' && result.task_id) {
+              setProgressOperationType('move');
+              setProgressTaskId(result.task_id);
+              setProgressModalOpen(true);
+            }
+          }).catch((err) => {
+            console.error("Batch move failed:", err);
+            showError("移動処理中にエラーが発生しました");
+          });
+        } else {
+          // 同期モード: 従来通り
+          moveItemsBatch.mutateAsync({
+            srcPaths,
+            destPath: targetPath,
+            overwrite: false,
+            verifyChecksum,
+            asyncMode: false,
+            debugMode
+          }).then((result) => {
+            if (result.status === 'completed' && result.success_count !== undefined) {
+              handleBatchOperationResult('move', {
+                success_count: result.success_count,
+                fail_count: result.fail_count ?? 0,
+                results: result.results ?? []
+              }, targetPath);
+            }
+          }).catch((err) => {
+            console.error("Batch move failed:", err);
+            showError("移動処理中にエラーが発生しました");
+          });
+        }
       }
     }
 

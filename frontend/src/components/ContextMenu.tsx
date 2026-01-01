@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { useDeleteItemsBatch, useRenameItem } from "../hooks/useFiles";
 import type { FileItem } from "../types/file";
-import { countFiles } from "../api/files";
 import "./ContextMenu.css";
 
 interface ContextMenuProps {
@@ -84,16 +83,17 @@ export function ContextMenu({
       const debugMode = localStorage.getItem('file_manager_debug_mode') === 'true';
 
       try {
-        // ファイル数をカウント（ネスト3階層まで）
-        const countResult = await countFiles([item.path], 3);
-        const totalFileCount = countResult.total_count;
+        // クライアントサイドでの再帰カウント（countFiles）はNAS等で遅いため廃止
+        // シンプルに「フォルダの場合は非同期モード」とする
+        const isDirectory = item.type === "directory";
+        // 非同期モード判定: ディレクトリなら非同期
 
-        // 非同期モード判定: 3ファイル以上
-        const useAsyncMode = totalFileCount >= 3;
+        // 実際には、フォルダなら非同期、ファイルなら同期と割り切る
+        // ファイル1つでもNASだと遅い可能性があるが、削除は比較的速い
 
         await deleteItemsBatch.mutateAsync({
           paths: [item.path],
-          asyncMode: useAsyncMode,
+          asyncMode: isDirectory, // ディレクトリなら非同期
           debugMode
         });
       } catch (err) {
