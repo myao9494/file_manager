@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>vs_code_ignore</title>
+    <g id="vs_code_ignore" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <polyline id="Path" stroke="#8C8FA1" points="10.5 11 3 4.5 2.5 4.5 1.5 5.5 1.5 6 10.5 14.5000221 14.4999997 12.5 14.4999997 3.5 10.5 1.5 10.5 14.5"></polyline>
+        <path d="M10.5,1.5 L5.29853365,6.412496 M3.53104871,8.08178733 L1.5,10 L1.5,10.5 L2.47891113,11.598592 L3,11.5 L5.16987898,9.61943822 M7.0827897,7.96158226 L10.5,5" id="Path" stroke="#8C8FA1"></path>
+    </g>
+</svg>

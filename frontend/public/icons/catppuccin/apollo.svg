@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>apollo</title>
+    <g id="apollo" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14.2433266,6.1945517 C15.1511019,9.33491043 13.58513,12.6608431 10.5862232,13.9617917 C7.587355,15.2626908 4.08890323,14.1338027 2.41602869,11.3254153 C0.74308925,8.51701512 1.41639526,4.9030633 3.98844086,2.88553534 C6.56050355,0.868030628 10.2308176,1.07485015 12.559948,3.36853351" id="Path" stroke="#8839EF"></path>
+        <circle id="Path" stroke="#8839EF" cx="12.56" cy="3.37" r="1"></circle>
+        <polyline id="Path" stroke="#8839EF" points="4.98135556 10.4381232 8 4.57270329 11.0285907 10.4381232"></polyline>
+        <line x1="6" y1="8.5" x2="8.00497313" y2="8.5" id="Path" stroke="#8839EF"></line>
+    </g>
+</svg>

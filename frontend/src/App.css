@@ -1,0 +1,215 @@
+/**
+ * アプリケーション全体のスタイル
+ * 3カラムレイアウト対応、黒文字
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background-color: var(--header-bg);
+  color: var(--header-text);
+  padding: 8px 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+/* 設定メニュー */
+.header-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.menu-trigger {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.settings-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: var(--pane-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 180px;
+  margin-top: 8px;
+  padding: 4px 0;
+}
+
+.menu-item {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.menu-divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 4px 0;
+}
+
+.app-main {
+  flex: 1;
+  padding: 0;
+  /* paddingをなくして端まで使う */
+  overflow: hidden;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* デュアルペインレイアウト */
+.dual-pane {
+  display: flex;
+  gap: 0;
+  flex: 1;
+  height: 100%;
+}
+
+/* 3カラムレイアウト */
+.triple-pane {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pane {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--pane-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+/* フォーカス中のペイン */
+.pane.focused {
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.3);
+}
+
+.left-pane {
+  flex: 35;
+  min-width: 0;
+}
+
+.center-pane {
+  flex: 35;
+  min-width: 0;
+}
+
+.right-pane {
+  flex: 30;
+  min-width: 0;
+}
+
+.search-pane {
+  flex: 30;
+  min-width: 0;
+}
+
+.pane-divider {
+  width: 0;
+  background-color: transparent;
+  cursor: col-resize;
+  flex-shrink: 0;
+  display: none;
+}
+
+.pane-divider:hover {
+  background-color: #1976d2;
+}
+
+/* HOMEリンク */
+.home-link {
+  color: white;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  margin-right: 8px;
+}
+
+.home-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* APIテストページリンク */
+.api-test-link {
+  color: white;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  margin-right: 8px;
+}
+
+.api-test-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* APIテストページmain */
+.api-test-main {
+  overflow-y: auto;
+  background-color: var(--bg-color);
+}

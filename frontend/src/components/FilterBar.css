@@ -1,0 +1,79 @@
+/**
+ * フィルタバーのスタイル
+ * コンパクト、黒文字
+ */
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+  overflow-x: auto;
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.filter-group {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.filter-divider {
+  width: 1px;
+  height: 16px;
+  background-color: #ddd;
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+.filter-bar::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
+}
+
+.filter-btn {
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--pane-bg);
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-color);
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: fit-content;
+}
+
+.filter-btn:hover {
+  background-color: var(--hover-bg);
+}
+
+.filter-btn.active {
+  background-color: #1976d2;
+  color: white;
+  border-color: #1976d2;
+}
+
+/* セクションフォーカス時のハイライト */
+.filter-bar.section-focused {
+  outline: 2px solid #1976d2;
+  outline-offset: -2px;
+  border-radius: 6px;
+  background-color: rgba(25, 118, 210, 0.05);
+}
+
+/* キーボードフォーカスされたボタン */
+.filter-btn.keyboard-focused {
+  outline: 2px solid #1976d2;
+  outline-offset: -1px;
+  background-color: rgba(25, 118, 210, 0.2);
+}

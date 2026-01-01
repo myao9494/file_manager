@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>jinja</title>
+    <g id="jinja" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1.5,1.5 C5.28176071,2.53259277 9.51605742,3.03666992 14.5,1.5 L13,5 C9.5,5.75 6.5,5.75 3,5 L1.5,1.5 Z" id="Path" stroke="#D20F39"></path>
+        <path d="M1.50338274,7.58508301 C6,8.75 10,8.75 14.5,7.5" id="Path" stroke="#D20F39"></path>
+        <line x1="5.5" y1="5.97576904" x2="5.5" y2="14.5" id="Path" stroke="#D20F39"></line>
+        <line x1="2.5" y1="14.5" x2="6.5" y2="14.5" id="Path" stroke="#D20F39"></line>
+        <line x1="9.5" y1="14.5" x2="13.5006554" y2="14.5" id="Path" stroke="#D20F39"></line>
+        <line x1="10.5" y1="5.97576904" x2="10.5" y2="14.5" id="Path" stroke="#D20F39"></line>
+        <line x1="3.5" y1="8" x2="3.5" y2="14.5" id="Path" stroke="#D20F39"></line>
+        <line x1="12.5" y1="8" x2="12.5" y2="14.5" id="Path" stroke="#D20F39"></line>
+    </g>
+</svg>

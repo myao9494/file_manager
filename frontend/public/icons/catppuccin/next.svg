@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>next</title>
+    <g id="next" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12.327559,12.8492107 C9.83748344,15.0714878 6.06898305,15.0466484 3.60841816,12.7917399 C1.14785142,10.5367893 0.795070552,6.78471495 2.79219601,4.11063928 C4.7891911,1.4365355 8.48694515,0.709510831 11.3476819,2.4285238 C14.2083548,4.14761729 15.302113,7.75393226 13.8783126,10.7724624" id="Path" stroke="#4C4F69"></path>
+        <polyline id="Path" stroke="#4C4F69" points="12.33 12.85 5.5 4.5 5.5 11.5"></polyline>
+        <line x1="10.5" y1="4.5" x2="10.5" y2="7.5" id="Path" stroke="#4C4F69"></line>
+    </g>
+</svg>

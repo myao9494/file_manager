@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>codecov</title>
+    <g id="codecov" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.3352052,9.17860842 C5.62887229,8.69969384 4.80131068,8.44509074 3.95547627,8.44647397 C3.0477432,8.44647397 2.19627174,8.69842764 1.5,9.18976556 C1.5,5.49511006 4.41014913,2.5 8,2.5 C11.5898509,2.5 14.5,5.49511006 14.5,9.18976556 C13.802356,8.69616797 12.9544524,8.44647397 12.0445237,8.44647397 C10.6180413,8.44620175 9.28279987,9.16848238 8.47406664,10.377864 C7.66533342,11.5872457 7.48671279,13.1287981 7.99643219,14.5" id="Path" stroke="#D20F39"></path>
+    </g>
+</svg>

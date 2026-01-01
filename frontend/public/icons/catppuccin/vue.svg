@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>vue</title>
+    <g id="vue" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <polygon id="Path" stroke="#40A02B" points="1 1.5 6.44444444 1.5 8 4.55887446 9.55555556 1.5 15 1.5 8.00637401 14.5"></polygon>
+        <polyline id="Path" stroke="#40A02B" points="12.0501662 1.73203463 8 9.27604618 3.94983377 1.73203463"></polyline>
+    </g>
+</svg>

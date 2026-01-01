@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>appveyor</title>
+    <g id="appveyor" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <circle id="Shape" stroke="#209FB5" cx="8" cy="8" r="6.5"></circle>
+        <circle id="Shape" stroke="#209FB5" cx="8" cy="8" r="3"></circle>
+        <path d="M5.38713684,6.24021053 L1.75356842,9.13674737 M9.78483158,10.6026 L7.04552632,14.4671579" id="Shape" stroke="#209FB5"></path>
+    </g>
+</svg>

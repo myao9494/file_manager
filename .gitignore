@@ -1,0 +1,21 @@
+.DS_Store
+
+# Backend
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+*.py[cod]
+.env
+.env.*
+*.db
+*.sqlite3
+
+# Frontend
+**/node_modules/
+frontend/dist/
+frontend/build/
+.npm
+*.log
+
+# OS
+Thumbs.db

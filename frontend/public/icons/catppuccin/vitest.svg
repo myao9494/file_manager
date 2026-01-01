@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>vitest</title>
+    <g id="vitest" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <polyline id="Path" stroke="#40A02B" points="14.5 8.5 8 14.5 1.5 8.5"></polyline>
+        <polygon id="Line-13" stroke="#DF8E1D" points="7.5 11.5 8 8 5 7 9.5 1.5 9 5 12 6"></polygon>
+    </g>
+</svg>

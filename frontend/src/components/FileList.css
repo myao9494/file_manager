@@ -1,0 +1,423 @@
+/**
+ * ファイル一覧コンポーネントのスタイル
+ * デュアルペイン対応、黒文字、ドラッグ&ドロップ
+ */
+
+.file-list {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  color: var(--text-color);
+  background-color: var(--pane-bg);
+  position: relative;
+  /* 選択範囲ボックスの基準位置 */
+}
+
+/* アイコンツールバー */
+.icon-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background-color: var(--pane-bg);
+  border-radius: 4px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-color);
+}
+
+.icon-toolbar button {
+  background: none;
+  border: none;
+  padding: 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: var(--text-color);
+  transition: background-color 0.2s;
+}
+
+.icon-toolbar button:hover {
+  background-color: var(--hover-bg);
+}
+
+.icon-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-toolbar .delete-btn,
+.icon-toolbar .stop-btn {
+  color: #dc3545;
+}
+
+.icon-toolbar .delete-btn:hover:not(:disabled),
+.icon-toolbar .stop-btn:hover:not(:disabled) {
+  background-color: rgba(220, 53, 69, 0.1);
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--border-color);
+  margin: 0 4px;
+}
+
+/* ツールバーセクションフォーカス時 */
+.icon-toolbar.section-focused {
+  outline: 2px solid #1976d2;
+  outline-offset: -2px;
+}
+
+/* キーボードフォーカスされたボタン */
+.icon-toolbar.section-focused button:nth-child(1).keyboard-focused,
+.icon-toolbar button.keyboard-focused {
+  background-color: rgba(25, 118, 210, 0.2);
+  outline: 2px solid #1976d2;
+  outline-offset: -2px;
+}
+
+/* パス入力 */
+.path-input-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.path-button {
+  background: none;
+  border: 1px solid var(--border-color);
+  padding: 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color);
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.path-button:hover {
+  background-color: var(--hover-bg);
+}
+
+.path-form {
+  flex: 1;
+  display: flex;
+}
+
+.path-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  font-size: 12px !important;
+  color: var(--input-text);
+  background-color: var(--input-bg);
+  outline: none;
+}
+
+.path-input:focus {
+  border-color: #1976d2;
+}
+
+/* パスセクションのキーボードフォーカス */
+.path-button.keyboard-focused,
+.path-input.keyboard-focused {
+  outline: 2px solid #1976d2;
+  outline-offset: -2px;
+  background-color: rgba(25, 118, 210, 0.1);
+}
+
+.history-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: var(--pane-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-top: 2px;
+}
+
+.history-item {
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 12px !important;
+  color: var(--text-color);
+  transition: background-color 0.2s;
+}
+
+.history-item:hover,
+.history-item.selected {
+  background-color: var(--hover-bg);
+}
+
+.history-filter {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 12px !important;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.history-empty {
+  padding: 8px;
+  font-size: 12px;
+  color: var(--text-color);
+  opacity: 0.6;
+  text-align: center;
+}
+
+/* 検索バー */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+}
+
+.search-bar .search-icon {
+  color: var(--text-color);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.search-bar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--input-text);
+  background: transparent;
+}
+
+.search-bar input::placeholder {
+  color: var(--text-color);
+  opacity: 0.4;
+}
+
+/* テーブルコンテナ */
+.table-container {
+  flex: 1;
+  overflow: auto;
+}
+
+/* ファイルテーブル */
+.file-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.file-table th,
+.file-table td {
+  padding: 0 !important;
+  /* パディングは内部のdivで制御 */
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
+  line-height: 1.4;
+  vertical-align: middle;
+  height: auto !important;
+  /* 高さ制限を解除 */
+  box-sizing: border-box;
+}
+
+.file-table th {
+  padding: 6px 8px !important;
+  /* ヘッダーは元のまま */
+  background-color: var(--hover-bg);
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 11px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.checkbox-col {
+  width: 30px;
+  text-align: center;
+}
+
+.checkbox-col input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #1976d2;
+  width: 14px;
+  height: 14px;
+  margin-top: 10px;
+  /* 上下中央寄せの調整 */
+}
+
+.name-col {
+  width: 50%;
+}
+
+.size-col {
+  width: 80px;
+}
+
+.date-col {
+  width: 90px;
+}
+
+.file-table tbody tr {
+  transition: background-color 0.1s;
+}
+
+.file-table tbody tr:hover {
+  background-color: var(--hover-bg);
+}
+
+.file-table tbody tr.selected {
+  background-color: rgba(25, 118, 210, 0.15);
+}
+
+/* フォーカス行（キーボードナビゲーション） */
+.file-table tbody tr.focused {
+  outline: 2px solid #1976d2;
+  outline-offset: -2px;
+}
+
+/* ドラッグ&ドロップ */
+.file-table tbody tr.drag-over {
+  background-color: #bbdefb;
+  outline: 2px dashed #1976d2;
+}
+
+.file-table tbody tr[draggable="true"] {
+  cursor: grab;
+}
+
+.file-table tbody tr[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+
+
+/* 共通のセルコンテンツスタイル */
+.cell-content,
+.name-cell-content {
+  display: flex !important;
+  align-items: center !important;
+  height: 34.5px !important;
+  /* 厳密な高さ指定 */
+  padding: 0 8px !important;
+  box-sizing: border-box !important;
+  color: var(--text-color);
+}
+
+.name-cell-content {
+  gap: 8px;
+}
+
+.name-info-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  flex: 1;
+  height: 100%;
+}
+
+.row-copy-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.row-copy-btn:hover {
+  background-color: var(--hover-bg);
+  color: #1976d2;
+}
+
+.name-cell span {
+  color: var(--text-color);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.folder-icon {
+  color: #ffc107;
+}
+
+.file-icon {
+  color: #6c757d;
+}
+
+/* ローディング・エラー */
+.loading,
+.error {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-color);
+  opacity: 0.6;
+}
+
+.error {
+  color: #dc3545;
+}
+
+/* 選択範囲のボックス */
+.selection-box {
+  position: absolute;
+  background-color: rgba(0, 120, 215, 0.2);
+  border: 1px solid rgba(0, 120, 215, 0.6);
+  pointer-events: none;
+  /* ボックス自体はマウスイベントを受け取らない */
+  z-index: 1000;
+}
+
+/* 選択された行は既存の .selected クラスでスタイルされるが、
+   ドラッグ中はユーザー選択禁止にするとスムーズ */
+.file-table {
+  user-select: none;
+}
+
+/* Shift+ドラッグ選択中のスタイル
+   テーブル行のホバー効果とポインターイベントを無効化 */
+.file-list.shift-drag-selecting .file-table tbody tr {
+  pointer-events: none;
+}
+
+.file-list.shift-drag-selecting .file-table tbody tr:hover {
+  background-color: inherit;
+}
+
+.file-list.shift-drag-selecting {
+  cursor: crosshair;
+}

@@ -1,0 +1,197 @@
+/**
+ * プログレスモーダルのスタイル
+ */
+
+.progress-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.progress-modal {
+  background-color: var(--bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  min-width: 400px;
+  max-width: 500px;
+  overflow: hidden;
+}
+
+.progress-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.progress-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.progress-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.progress-modal-close:hover {
+  background-color: var(--bg-hover);
+}
+
+.progress-modal-body {
+  padding: 20px 16px;
+}
+
+.progress-status {
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.progress-current-file {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-current-file-large {
+  padding: 12px;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-bar-container {
+  position: relative;
+  height: 20px;
+  background-color: var(--bg-secondary);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progress-bar {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 10px;
+}
+
+.progress-bar.running,
+.progress-bar.pending {
+  background: linear-gradient(90deg, #4a9eff, #6eb5ff);
+}
+
+.progress-bar.completed {
+  background: linear-gradient(90deg, #34c759, #5dd879);
+}
+
+.progress-bar.cancelled {
+  background: linear-gradient(90deg, #ff9500, #ffad33);
+}
+
+.progress-bar.error {
+  background: linear-gradient(90deg, #ff3b30, #ff6b60);
+}
+
+.progress-percent {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.progress-details {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.progress-result {
+  padding: 12px;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.progress-error {
+  color: #ff3b30;
+  padding: 12px;
+  background-color: rgba(255, 59, 48, 0.1);
+  border-radius: 4px;
+}
+
+.progress-loading {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-secondary);
+}
+
+.progress-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.progress-cancel-btn,
+.progress-close-btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.progress-cancel-btn {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.progress-cancel-btn:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+}
+
+.progress-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.progress-close-btn {
+  background-color: var(--accent-color);
+  border: none;
+  color: white;
+}
+
+.progress-close-btn:hover {
+  opacity: 0.9;
+}

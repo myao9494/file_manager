@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>maven</title>
+    <g id="maven" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2.5,14.5 C2.71884754,13.6529824 3.02538191,12.727846 3.34615385,11.9 C3.62732142,11.1743647 3.82567442,10.7471203 4.13119505,10.1403474 C4.34498474,9.71619541 4.57552552,9.29708426 4.82250081,8.88358947 C7.58270922,4.26694737 11.456887,2.07569474 13.5,1.5 C12.7033865,5.02163158 9.58635248,11.9629474 3.34615385,11.9" id="Path" stroke="#D20F39"></path>
+        <path d="M6.13598176,6.95917895 C8.70867796,3.64335789 11.7647509,1.98893684 13.5,1.5 C13.1683165,2.96681053 12.4275806,5.04174737 11.2254966,6.95917895" id="Path" stroke="#FE640B"></path>
+        <line x1="6.5" y1="9.5" x2="4.5" y2="9.5" id="Path" stroke="#D20F39"></line>
+        <line x1="5.75" y1="7.5" x2="8.46372959" y2="7.5" id="Path" stroke="#D20F39"></line>
+    </g>
+</svg>

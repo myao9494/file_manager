@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>scala</title>
+    <g id="scala" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2.5,2.48053867 L13.5,1.5002901 L13.5,4.5369873 L2.5,5.53851644 C2.48905398,5.53956677 2.48905398,4.52024085 2.5,2.48053867 Z" id="Path" stroke="#D20F39"></path>
+        <path d="M2.5,7.48053867 L13.5,6.5002901 L13.5,9.5369873 L2.5,10.5385164 C2.48905398,10.5395668 2.48905398,9.52024085 2.5,7.48053867 Z" id="Path" stroke="#D20F39"></path>
+        <path d="M2.5,12.4805387 L13.5,11.5002901 L13.5,14.5369873 L2.5,15.5385164 C2.48905398,15.5395668 2.48905398,14.5202408 2.5,12.4805387 Z" id="Path" stroke="#D20F39"></path>
+    </g>
+</svg>

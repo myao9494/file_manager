@@ -1,0 +1,138 @@
+/**
+ * APIテストページのスタイル
+ */
+.api-test-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+    color: var(--text-primary);
+}
+
+.api-test-page h1 {
+    margin-bottom: 0.5rem;
+}
+
+.api-test-page .subtitle {
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+.input-section {
+    margin-bottom: 2rem;
+}
+
+.input-section label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.path-input {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.api-buttons h2 {
+    font-size: 1rem;
+    margin: 1.5rem 0 0.75rem;
+    color: var(--text-secondary);
+}
+
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.button-group button {
+    padding: 0.75rem 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 140px;
+    text-align: center;
+}
+
+.button-group button:hover:not(:disabled) {
+    background: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.button-group button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.button-group button small {
+    display: block;
+    font-size: 0.75rem;
+    opacity: 0.7;
+    margin-top: 0.25rem;
+}
+
+.result-section {
+    margin-top: 2rem;
+}
+
+.result-section h2 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.loading {
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.error {
+    padding: 1rem;
+    background: #ff4444;
+    color: white;
+    border-radius: 4px;
+}
+
+.result {
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: monospace;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+}
+
+.api-docs {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.api-docs h2 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.api-docs p {
+    margin: 0.5rem 0;
+}
+
+.api-docs code {
+    display: block;
+    padding: 0.75rem;
+    background: var(--bg-primary);
+    border-radius: 4px;
+    font-size: 0.875rem;
+    word-break: break-all;
+    margin: 0.5rem 0;
+}

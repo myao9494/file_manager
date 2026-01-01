@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>bat</title>
+    <g id="bat" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.5,8.5 L7.5,10.5 L3.5,12.5 M2.87803991,14.5 C2.2290897,14.5 1.5,13.7738482 1.5,13.1250612 L1.5,4.87510201 C1.5,4.22680466 2.22680466,3.5 2.87493879,3.5 L11.1250612,3.5 C11.7730321,3.5 12.5,4.22680466 12.5,4.87510201 L12.5,13.1250612 C12.5,13.7731953 11.7731953,14.5 11.1250612,14.5 L2.87803991,14.5 Z M2,3.9 C3.5,1.65 4,1.5 4.87493879,1.5 L13.1250612,1.5 C13.7730321,1.5 14.5,2.22680466 14.5,2.87510201 L14.5,11.1250612 C14.5,12 14.25,12.6 12,14.1" id="Combined-Shape" stroke="#8839EF"></path>
+    </g>
+</svg>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>gatsby</title>
+    <g id="gatsby" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11.3150575,4.7900004 C10.1726072,3.62517302 8.50275463,3.14519852 6.91615112,3.5255996 C5.32954761,3.90600067 4.0588832,5.09098798 3.56882928,6.64722152 L9.39277888,12.4702124 C11.1644129,11.9120618 12.4334098,10.3524237 12.6196321,8.50430568 L9.39277888,8.50430568" id="Path" stroke="#8839EF"></path>
+        <line x1="3.35708416" y1="8.968611" x2="7.0715264" y2="12.6827793" id="Path" stroke="#8839EF"></line>
+        <path d="M8,14.5 C4.41014913,14.5 1.5,11.5898509 1.5,8 C1.5,4.41014913 4.41014913,1.5 8,1.5 C11.5898509,1.5 14.5,4.41014913 14.5,8 C14.5,11.5898509 11.5898509,14.5 8,14.5 Z" id="Path" stroke="#8839EF"></path>
+    </g>
+</svg>
