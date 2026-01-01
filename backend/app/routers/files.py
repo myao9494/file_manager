@@ -26,6 +26,8 @@ import io
 import shutil
 import platform
 import subprocess
+import ctypes
+import struct
 
 from app.config import settings
 from app.task_manager import task_manager, TaskInfo
@@ -1148,6 +1150,181 @@ async def rename_item(request: RenameRequest):
 MAX_WORKERS = min(64, (os.cpu_count() or 4) * 8)
 
 
+def fast_copy_file(src: Path, dest: Path) -> bool:
+    """
+    プラットフォーム固有の最適化を使用した高速ファイルコピー
+
+    - macOS (APFS): clonefile システムコール（Copy-on-Write、瞬時）
+    - Windows: CopyFileEx Win32 API（ネイティブコピー）
+    - Linux: sendfile システムコール（ゼロコピー）
+
+    エラー時は自動的にshutil.copy2にフォールバックする。
+
+    Args:
+        src: コピー元ファイルのパス
+        dest: コピー先ファイルのパス
+
+    Returns:
+        コピー成功時True、失敗時はFileNotFoundErrorを発生
+
+    Raises:
+        FileNotFoundError: ソースファイルが存在しない場合
+    """
+    if not src.exists():
+        raise FileNotFoundError(f"Source file not found: {src}")
+
+    system = platform.system()
+
+    try:
+        if system == "Darwin":
+            # macOS: clonefile を使用（APFS Copy-on-Write）
+            return _fast_copy_macos(src, dest)
+        elif system == "Windows":
+            # Windows: CopyFileEx API を使用
+            return _fast_copy_windows(src, dest)
+        elif system == "Linux":
+            # Linux: sendfile を使用
+            return _fast_copy_linux(src, dest)
+        else:
+            # その他のプラットフォーム: フォールバック
+            shutil.copy2(str(src), str(dest))
+            return True
+    except Exception as e:
+        # エラー時はフォールバック
+        try:
+            shutil.copy2(str(src), str(dest))
+            return True
+        except Exception:
+            raise
+
+
+def _fast_copy_macos(src: Path, dest: Path) -> bool:
+    """
+    macOS専用: clonefileシステムコールを使用した超高速コピー
+
+    APFSファイルシステムでは、Copy-on-Write技術により瞬時にコピーが完了する。
+    実際のデータコピーは書き込み時に発生する。
+
+    Args:
+        src: コピー元ファイルのパス
+        dest: コピー先ファイルのパス
+
+    Returns:
+        コピー成功時True
+    """
+    # macOSのclonefileシステムコールを呼び出す
+    # clonefile(const char *src, const char *dst, int flags)
+    libc = ctypes.CDLL("/usr/lib/libc.dylib")
+
+    # CLONE_NOFOLLOW = 0x0001  # シンボリックリンクをフォローしない
+    # CLONE_NOOWNERCOPY = 0x0002  # 所有者情報をコピーしない
+    flags = 0  # デフォルトフラグ
+
+    src_bytes = str(src).encode('utf-8')
+    dest_bytes = str(dest).encode('utf-8')
+
+    # clonefileを実行
+    result = libc.clonefile(src_bytes, dest_bytes, flags)
+
+    if result == 0:
+        # 成功: タイムスタンプを保持するため、元ファイルのstat情報をコピー
+        src_stat = src.stat()
+        os.utime(dest, (src_stat.st_atime, src_stat.st_mtime))
+        return True
+    else:
+        # 失敗: エラーコードを確認
+        errno = ctypes.get_errno()
+        # ENOTSUP (45): clonefileがサポートされていない（HFS+など）
+        # EXDEV (18): 異なるファイルシステム間のコピー
+        if errno in (45, 18):
+            # サポートされていない場合はフォールバック
+            shutil.copy2(str(src), str(dest))
+            return True
+        else:
+            raise OSError(errno, f"clonefile failed: {os.strerror(errno)}")
+
+
+def _fast_copy_windows(src: Path, dest: Path) -> bool:
+    """
+    Windows専用: CopyFileEx Win32 APIを使用した高速コピー
+
+    Windowsネイティブのコピー機能を使用し、大きなファイルで最適化される。
+
+    Args:
+        src: コピー元ファイルのパス
+        dest: コピー先ファイルのパス
+
+    Returns:
+        コピー成功時True
+    """
+    # kernel32.dllをロード
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+
+    # CopyFileW関数のシグネチャを設定
+    # BOOL CopyFileW(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, BOOL bFailIfExists)
+    kernel32.CopyFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_bool]
+    kernel32.CopyFileW.restype = ctypes.c_bool
+
+    # CopyFileWを呼び出し (既存ファイルがあれば上書き)
+    result = kernel32.CopyFileW(str(src), str(dest), False)
+
+    if not result:
+        # エラー発生
+        error_code = ctypes.get_last_error()
+        raise OSError(f"CopyFileW failed with error code: {error_code}")
+
+    return True
+
+
+def _fast_copy_linux(src: Path, dest: Path) -> bool:
+    """
+    Linux専用: sendfileシステムコールを使用した高速コピー
+
+    カーネル空間でゼロコピー転送を行い、ユーザー空間へのコピーを省略する。
+
+    Args:
+        src: コピー元ファイルのパス
+        dest: コピー先ファイルのパス
+
+    Returns:
+        コピー成功時True
+    """
+    # os.sendfileが利用可能か確認（Linux専用機能）
+    if not hasattr(os, 'sendfile'):
+        # sendfileが使えない場合はフォールバック
+        shutil.copy2(str(src), str(dest))
+        return True
+
+    # sendfileを使用してカーネル空間でコピー
+    src_fd = os.open(str(src), os.O_RDONLY)
+    try:
+        src_stat = os.fstat(src_fd)
+        dest_fd = os.open(str(dest), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, src_stat.st_mode)
+        try:
+            # sendfileでコピー
+            total_size = src_stat.st_size
+
+            # 空ファイルの場合はスキップ
+            if total_size > 0:
+                offset = 0
+                while offset < total_size:
+                    # sendfile(out_fd, in_fd, offset, count)
+                    sent = os.sendfile(dest_fd, src_fd, offset, total_size - offset)
+                    if sent == 0:
+                        break
+                    offset += sent
+
+            # タイムスタンプを保持
+            os.utime(dest, (src_stat.st_atime, src_stat.st_mtime))
+
+        finally:
+            os.close(dest_fd)
+    finally:
+        os.close(src_fd)
+
+    return True
+
+
 def calculate_file_checksum(file_path: Path, chunk_size: int = 65536) -> str:
     """
     ファイルのSHA256チェックサムを計算する
@@ -1256,7 +1433,7 @@ def copy_file_worker(args: Tuple[Path, Path]) -> Tuple[Path, bool, str]:
     src, dest = args
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(src), str(dest))
+        fast_copy_file(src, dest)
         return (src, True, "成功")
     except Exception as e:
         return (src, False, str(e))
@@ -1395,7 +1572,7 @@ def safe_move(
         log("ステップ1: コピー開始")
         if src.is_file():
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(str(src), str(dest))
+            fast_copy_file(src, dest)
             log(f"ファイルコピー完了: {src.name}")
         else:
             success, msg, _, fail_count = parallel_copy_directory(src, dest, task_id, debug_mode)
@@ -1755,9 +1932,9 @@ def _execute_batch_move(
                                 # エラーログ等は省略
                             work_queue.task_done()
                             continue
-                    
-                    shutil.copy2(str(src), str(dest))
-                    
+
+                    fast_copy_file(src, dest)
+
                     if verify_checksum:
                         if calculate_file_checksum(src) != calculate_file_checksum(dest):
                             raise Exception("Checksum mismatch")
@@ -2234,9 +2411,9 @@ def _execute_batch_copy_async(
                                 stats["fail"] += 1
                             work_queue.task_done()
                             continue
-                            
-                    shutil.copy2(str(src), str(dest))
-                    
+
+                    fast_copy_file(src, dest)
+
                     if verify_checksum:
                         if calculate_file_checksum(src) != calculate_file_checksum(dest):
                             raise Exception("Checksum mismatch")
@@ -2407,7 +2584,7 @@ async def copy_items_batch(request: BatchCopyRequest):
             if src_path.is_dir():
                 shutil.copytree(str(src_path), str(final_dest))
             else:
-                shutil.copy2(str(src_path), str(final_dest))
+                fast_copy_file(src_path, final_dest)
 
             result["status"] = "success"
             result["message"] = f"コピーしました: {final_dest.name}"
