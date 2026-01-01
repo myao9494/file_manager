@@ -18,6 +18,7 @@ import { ApiTestPage } from "./pages/ApiTestPage";
 import { getPathInfo } from "./api/files";
 import { useToast } from "./hooks/useToast";
 import { getConfig, getDefaultBasePath } from "./config";
+import { OperationHistoryProvider, useOperationHistoryContext } from "./contexts/OperationHistoryContext";
 import "./App.css";
 
 const STORAGE_KEYS = {
@@ -31,8 +32,9 @@ const STORAGE_KEYS = {
 // フォーカス可能なペインの型
 type FocusedPane = "left" | "center" | "right";
 
-function App() {
-  const { toasts, hideToast, showError } = useToast();
+function AppContent() {
+  const { toasts, hideToast, showError, showSuccess } = useToast();
+  const { undo, redo, canUndo, canRedo } = useOperationHistoryContext();
   const [showMenu, setShowMenu] = useState(false);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem(STORAGE_KEYS.THEME) || 'light';
@@ -84,16 +86,50 @@ function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  // グローバルキーボードイベント（左右矢印でペイン切替）
+  // グローバルキーボードイベント（左右矢印でペイン切替、Ctrl+Z/Shift+Zで Undo/Redo）
   useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+    const handleGlobalKeyDown = async (e: KeyboardEvent) => {
       // 入力フィールドにフォーカスがある場合は無視
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
 
-      // Ctrl/Cmdキーが押されている場合はペイン切替を行わない（履歴操作などのため）
+      // Ctrl/Cmdキーが押されている場合
       if (e.ctrlKey || e.metaKey) {
+        const key = e.key.toLowerCase();
+
+        // Redo: Ctrl+Shift+Z / Cmd+Shift+Z (Undoより先にチェック)
+        if (key === 'z' && e.shiftKey) {
+          e.preventDefault();
+          if (canRedo) {
+            const result = await redo();
+            if (result.success) {
+              showSuccess(result.message);
+            } else {
+              showError(result.message);
+            }
+          } else {
+            showError("やり直す操作がありません");
+          }
+          return;
+        }
+
+        // Undo: Ctrl+Z / Cmd+Z
+        if (key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          if (canUndo) {
+            const result = await undo();
+            if (result.success) {
+              showSuccess(result.message);
+            } else {
+              showError(result.message);
+            }
+          } else {
+            showError("元に戻す操作がありません");
+          }
+          return;
+        }
+
         // ブラウザの戻る・進む動作を防ぐ
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault();
@@ -120,7 +156,7 @@ function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+  }, [canUndo, canRedo, undo, redo, showError, showSuccess]);
 
   // localStorageの初期化
   const handleResetSettings = () => {
@@ -332,6 +368,15 @@ function App() {
         />
       ))}
     </div>
+  );
+}
+
+// OperationHistoryProviderでラップ
+function App() {
+  return (
+    <OperationHistoryProvider>
+      <AppContent />
+    </OperationHistoryProvider>
   );
 }
 

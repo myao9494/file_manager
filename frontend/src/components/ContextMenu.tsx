@@ -13,6 +13,7 @@ import {
   PanelRightOpen,
 } from "lucide-react";
 import { useDeleteItemsBatch, useRenameItem } from "../hooks/useFiles";
+import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import type { FileItem } from "../types/file";
 import "./ContextMenu.css";
 
@@ -44,6 +45,7 @@ export function ContextMenu({
 
   const deleteItemsBatch = useDeleteItemsBatch();
   const renameItem = useRenameItem();
+  const { addOperation } = useOperationHistoryContext();
 
   // メニュー外クリックで閉じる
   useEffect(() => {
@@ -72,7 +74,25 @@ export function ContextMenu({
   // リネーム実行
   const handleRename = async () => {
     if (newName && newName !== item.name) {
-      await renameItem.mutateAsync({ oldPath: item.path, newName });
+      const oldName = item.name;
+      const oldPath = item.path;
+      const parentPath = oldPath.substring(0, oldPath.lastIndexOf("/"));
+      const newPath = `${parentPath}/${newName}`;
+
+      await renameItem.mutateAsync({ oldPath, newName });
+
+      // 履歴に追加
+      addOperation({
+        type: "RENAME",
+        canUndo: true,
+        timestamp: Date.now(),
+        data: {
+          oldPath,
+          newPath,
+          oldName,
+          newName,
+        },
+      });
     }
     onClose();
   };
@@ -95,6 +115,14 @@ export function ContextMenu({
           paths: [item.path],
           asyncMode: isDirectory, // ディレクトリなら非同期
           debugMode
+        });
+
+        // 履歴に追加（戻れない操作として記録）
+        addOperation({
+          type: "DELETE",
+          canUndo: false,
+          timestamp: Date.now(),
+          data: {},
         });
       } catch (err) {
         console.error("Delete failed:", err);

@@ -38,6 +38,7 @@ import { FilterBar } from "./FilterBar";
 import { Toast } from "./Toast";
 import { FileIcon } from "./FileIcon";
 import { getNetworkDrivePath, getDefaultBasePath } from "../config";
+import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import "./FileList.css";
 
 interface FileListProps {
@@ -137,6 +138,7 @@ export function FileList({
   const createFolder = useCreateFolder();
   const moveItemsBatch = useMoveItemsBatch();
   const copyItemsBatch = useCopyItemsBatch();
+  const { addOperation } = useOperationHistoryContext();
 
   // 初期パスの検証
   useEffect(() => {
@@ -434,7 +436,18 @@ export function FileList({
   const handleCreateFolder = async () => {
     const name = prompt("フォルダ名を入力してください");
     if (!name) return;
-    await createFolder.mutateAsync({ parentPath: currentPath || "", name });
+    const parentPath = currentPath || "";
+    await createFolder.mutateAsync({ parentPath, name });
+
+    // 履歴に追加
+    addOperation({
+      type: "CREATE_FOLDER",
+      canUndo: true,
+      timestamp: Date.now(),
+      data: {
+        createdPath: `${parentPath}/${name}`,
+      },
+    });
   };
 
   // クリップボードからパスを開く
@@ -632,6 +645,17 @@ export function FileList({
 
       showSuccess(`ファイルを作成しました: ${cleanName}`);
 
+      // 履歴に追加
+      addOperation({
+        type: "CREATE_FILE",
+        canUndo: true,
+        timestamp: Date.now(),
+        data: {
+          createdPath: result.path,
+          content: "",
+        },
+      });
+
       // 作成したファイルを開く
       await openInExcalidraw(result.path);
       showSuccess("Excalidrawを開きました");
@@ -706,11 +730,30 @@ export function FileList({
         // 既存ファイルの更新
         await updateFile(mdEditorFilePath, content);
         showSuccess(`更新しました: ${mdEditorFileName}`);
+
+        // 履歴に追加（戻れない操作として記録）
+        addOperation({
+          type: "UPDATE_FILE",
+          canUndo: false,
+          timestamp: Date.now(),
+          data: {},
+        });
       } else {
         // 新規ファイル作成
         const result = await createFile(currentPath, mdEditorFileName, content);
         setMdEditorFilePath(result.path);
         showSuccess(`作成しました: ${mdEditorFileName}`);
+
+        // 履歴に追加
+        addOperation({
+          type: "CREATE_FILE",
+          canUndo: true,
+          timestamp: Date.now(),
+          data: {
+            createdPath: result.path,
+            content,
+          },
+        });
       }
       refetch();
       setMdEditorOpen(false);
@@ -970,6 +1013,17 @@ export function FileList({
               setProgressOperationType('move');
               setProgressTaskId(result.task_id);
               setProgressModalOpen(true);
+
+              // 履歴に追加（非同期モードでも成功時に追加）
+              addOperation({
+                type: "MOVE",
+                canUndo: true,
+                timestamp: Date.now(),
+                data: {
+                  srcPaths,
+                  destParentPath: targetPath,
+                },
+              });
             }
           }).catch((err) => {
             console.error("Batch move failed:", err);
@@ -991,6 +1045,19 @@ export function FileList({
                 fail_count: result.fail_count ?? 0,
                 results: result.results ?? []
               }, targetPath);
+
+              // 履歴に追加（同期モードで成功時）
+              if (result.success_count > 0) {
+                addOperation({
+                  type: "MOVE",
+                  canUndo: true,
+                  timestamp: Date.now(),
+                  data: {
+                    srcPaths,
+                    destParentPath: targetPath,
+                  },
+                });
+              }
             }
           }).catch((err) => {
             console.error("Batch move failed:", err);
@@ -1749,8 +1816,9 @@ export function FileList({
             if (globalClipboard!.op === 'copy') {
               if (useAsyncMode) {
                 // 非同期モード: プログレスバー表示
+                const srcPaths = globalClipboard!.paths;
                 copyItemsBatch.mutateAsync({
-                  srcPaths: globalClipboard!.paths,
+                  srcPaths,
                   destPath: currentPath,
                   verifyChecksum,
                   asyncMode: true,
@@ -1760,6 +1828,21 @@ export function FileList({
                     setProgressOperationType('copy');
                     setProgressTaskId(result.task_id);
                     setProgressModalOpen(true);
+
+                    // 履歴に追加（コピーされたファイルのパスを計算）
+                    const copiedPaths = srcPaths.map((srcPath) => {
+                      const fileName = srcPath.split("/").pop() || "";
+                      return `${currentPath}/${fileName}`;
+                    });
+                    addOperation({
+                      type: "COPY",
+                      canUndo: true,
+                      timestamp: Date.now(),
+                      data: {
+                        copiedPaths,
+                        originalPaths: srcPaths,
+                      },
+                    });
                   }
                 }).catch((err) => {
                   console.error("Paste failed:", err);
@@ -1767,8 +1850,9 @@ export function FileList({
                 });
               } else {
                 // 同期モード
+                const srcPaths = globalClipboard!.paths;
                 copyItemsBatch.mutateAsync({
-                  srcPaths: globalClipboard!.paths,
+                  srcPaths,
                   destPath: currentPath,
                   verifyChecksum,
                   asyncMode: false,
@@ -1780,6 +1864,23 @@ export function FileList({
                       fail_count: result.fail_count ?? 0,
                       results: result.results ?? []
                     }, currentPath);
+
+                    // 履歴に追加（同期モードで成功時）
+                    if (result.success_count > 0) {
+                      const copiedPaths = srcPaths.map((srcPath) => {
+                        const fileName = srcPath.split("/").pop() || "";
+                        return `${currentPath}/${fileName}`;
+                      });
+                      addOperation({
+                        type: "COPY",
+                        canUndo: true,
+                        timestamp: Date.now(),
+                        data: {
+                          copiedPaths,
+                          originalPaths: srcPaths,
+                        },
+                      });
+                    }
                   }
                 }).catch((err) => {
                   console.error("Paste failed:", err);
