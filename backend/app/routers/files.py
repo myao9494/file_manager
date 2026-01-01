@@ -819,49 +819,50 @@ def _execute_batch_delete_async(
                         break
                     continue
 
-                # 削除実行
-                is_network = _is_network_drive(target_path)
-                item_success = False
-                error_msg = ""
-                
                 try:
-                    if is_network:
-                        if target_path.is_file() or target_path.is_symlink():
-                            target_path.unlink()
-                        elif target_path.is_dir():
-                            target_path.rmdir()
-                        item_success = True
-                    else:
-                        from send2trash import send2trash
-                        send2trash(str(target_path))
-                        item_success = True
-                except Exception as e:
-                    error_msg = str(e)
-                    # 再試行ロジック（オプション）
-                
-                with lock:
-                    if item_success:
-                        success_count += 1
-                        if debug_mode:
-                            log(f"削除成功: {target_path.name}")
-                    else:
-                        fail_count += 1
-                        log(f"削除失敗: {target_path.name} - {error_msg}")
-                        results.append({
-                            "path": str(target_path),
-                            "status": "error",
-                            "message": error_msg
-                        })
-                    
-                    scanned_files += 1
-                    # 進捗更新（頻度を落とすか、ここで行う）
-                    task_manager.update_progress(
-                        task_id,
-                        processed_files=scanned_files,
-                        current_file=target_path.name
-                    )
+                    # 削除実行
+                    is_network = _is_network_drive(target_path)
+                    item_success = False
+                    error_msg = ""
 
-                del_queue.task_done()
+                    try:
+                        if is_network:
+                            if target_path.is_file() or target_path.is_symlink():
+                                target_path.unlink()
+                            elif target_path.is_dir():
+                                target_path.rmdir()
+                            item_success = True
+                        else:
+                            from send2trash import send2trash
+                            send2trash(str(target_path))
+                            item_success = True
+                    except Exception as e:
+                        error_msg = str(e)
+
+                    with lock:
+                        if item_success:
+                            success_count += 1
+                            if debug_mode:
+                                log(f"削除成功: {target_path.name}")
+                        else:
+                            fail_count += 1
+                            log(f"削除失敗: {target_path.name} - {error_msg}")
+                            results.append({
+                                "path": str(target_path),
+                                "status": "error",
+                                "message": error_msg
+                            })
+
+                        scanned_files += 1
+                        # 進捗更新
+                        task_manager.update_progress(
+                            task_id,
+                            processed_files=scanned_files,
+                            current_file=target_path.name
+                        )
+
+                finally:
+                    del_queue.task_done()
 
             except Exception as e:
                 log(f"ワーカースレッドエラー: {e}")
@@ -1645,7 +1646,7 @@ class BatchMoveRequest(BaseModel):
     """一括移動リクエストのスキーマ"""
     src_paths: List[str]
     dest_path: str
-    overwrite: bool = False
+    overwrite: bool = True  # デフォルトで上書き
     verify_checksum: bool = False  # チェックサム検証を有効化
     async_mode: bool = False  # 非同期モード（プログレス追跡用）
     debug_mode: bool = False  # デバッグモード（ログ出力用）
@@ -1676,8 +1677,12 @@ async def move_item(request: MoveRequest):
         # 移動先がディレクトリでない（新規ファイル名など）場合はそのまま使用
         final_dest = dest_path
 
+    # 移動先に同名ファイル/フォルダが存在する場合は削除（上書き）
     if final_dest.exists():
-        raise HTTPException(status_code=400, detail="移動先に同名のファイル/フォルダが既に存在します")
+        if final_dest.is_dir():
+            shutil.rmtree(str(final_dest))
+        else:
+            final_dest.unlink()
 
     # 自分自身のサブディレクトリへの移動をチェック
     try:
@@ -1778,10 +1783,13 @@ def _execute_batch_move(
     results_lock = threading.Lock()
     results = []
     stats = {"success": 0, "fail": 0, "total_files_discovered": 0}
-    
+
     # パス毎のエラー情報を保持
     path_errors = {}  # {src_path_str: error_message}
-    
+
+    # コピー成功したルートパスを記録（削除用）
+    successfully_copied_roots = []  # [Path, ...]
+
     # 完了フラグ
     scan_complete = threading.Event()
     
@@ -1887,6 +1895,11 @@ def _execute_batch_move(
                     path_errors[src_str] = str(e)
                     results.append({"path": src_str, "status": "error", "message": f"Scan error: {e}"})
                     stats["fail"] += 1
+                continue  # エラーがあった場合は次のパスへ
+
+            # スキャンが成功した場合、後で削除するためにルートパスを記録
+            with results_lock:
+                successfully_copied_roots.append(src_path)
 
         log(f"スキャン完了: {total_discovered} ファイル")
         with results_lock:
@@ -1907,17 +1920,20 @@ def _execute_batch_move(
                     break
                 continue
                 
-            if task_manager.is_cancelled(task_id):
-                work_queue.task_done()
-                continue
-            
+            # キャンセルフラグで処理をスキップ（task_done()はfinallyで必ず呼ぶ）
+            cancelled = task_manager.is_cancelled(task_id)
+
             action, src, dest, root_src = item
-            
+
             try:
+                # キャンセルされている場合は処理をスキップ
+                if cancelled:
+                    continue
+
                 if action == "copy_file":
                     # 親ディレクトリ作成はmkdirタスクで行われるが、念のため
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    
+
                     # 上書きチェック
                     if dest.exists():
                         if overwrite:
@@ -1926,11 +1942,10 @@ def _execute_batch_move(
                             else:
                                 dest.unlink()
                         else:
-                            # スキップ
+                            # スキップ（task_done()はfinallyで呼ぶ）
                             with results_lock:
                                 stats["fail"] += 1
                                 # エラーログ等は省略
-                            work_queue.task_done()
                             continue
 
                     fast_copy_file(src, dest)
@@ -1983,164 +1998,46 @@ def _execute_batch_move(
     
     del_success = 0
     del_fail = 0
-    
-    # 削除は安全のため、ルートごとにシングルスレッドで行うか、
-    # あるいは delete 用のパラレル処理を行う。
-    # ここでは、確実に消すために shutil.rmtree を使う（高速）
-    # ただし、進捗を出すために send2trash を使うか、rmtree前にカウントするか...
-    # ユーザー要望は「削除も高速な並列処理」かつ「プログレスバー」
-    
-    # ここでは、削除対象となるルートパスを特定し、
-    # その中のファイルを並列削除タスクとして再度キューに入れるか、
-    # あるいは shutil.rmtree で一気に消すか。
-    # 「プログレスバー」が必要なので、rmtreeだと一瞬で終わるかスタックするか不明。
-    # 安全かつ高速なのは「トップレベルでエラーがなければ rmtree」だが、
-    # 進捗が見たいとのことなので、パラレル削除を実装する。
-    
-    # エラーが発生したルートパスは削除しない
-    safe_to_delete_roots = []
-    for src_str in src_paths:
-        if src_str not in path_errors and normalize_path(src_str).exists():
-            safe_to_delete_roots.append(normalize_path(src_str))
-            
-    if not safe_to_delete_roots:
+
+    # ===============================================================
+    # ステップ2: 削除フェーズ（コピーが成功したルートパスのみ削除）
+    # ===============================================================
+    log(f"削除フェーズ開始: {len(successfully_copied_roots)} パス")
+
+    if not successfully_copied_roots:
         log("削除可能なパスがありません")
     else:
-        # 削除用キュー再利用
-        # キューは空のはず
-        
-        del_scan_complete = threading.Event()
-        
-        def del_scanner():
-            count = 0
-            for root_path in safe_to_delete_roots:
-                if task_manager.is_cancelled(task_id): break
-                
-                # ファイルを収集（削除は深い順でなくても、ファイル単位なら順不同でOK。ディレクトリは最後）
-                # 並列削除戦略:
-                # 1. 全ファイルを列挙して "delete_file" タスクへ
-                # 2. 全ディレクトリを深さ逆順でソートして "delete_dir" タスクへ (ファイル削除待ちが必要だが...)
-                # 
-                # 簡単な戦略: ファイルは並列削除。ディレクトリは最後にメインスレッド等で削除。
-                
-                all_dirs = []
-                # ファイルを先にキューへ
-                for root, dirs, files in os.walk(str(root_path), topdown=False):
-                    for name in files:
-                        file_path = Path(root) / name
-                        work_queue.put(("delete_file", file_path, None, None))
-                        count += 1
-                        if count % 100 == 0:
-                            # 進捗用total更新（コピー分は完了済みとして加算維持）
-                            pass
-                    
-                    for name in dirs:
-                        dir_path = Path(root) / name
-                        all_dirs.append(dir_path)
-                
-                # ルート自体も
-                all_dirs.append(root_path)
-                
-                # ディレクトリ削除タスクは、ファイル削除が終わってから実行されるべきだが、
-                # 並列実行だとタイミング制御が難しい。
-                # したがって、ワーカーは「ファイル削除」のみ行い、ディレクトリ削除は scanner スレッドが最後にやるか、
-                # あるいは「削除リトライ」を行うか。
-                
-                # ここでは「ファイル削除」のみ並列化し、ディレクトリは後でまとめて消すアプローチをとる
-                pass
-            del_scan_complete.set()
-            return all_dirs # ディレクトリリストを返す
+        for root_path in successfully_copied_roots:
+            # コピーエラーがあったパスはスキップ
+            if str(root_path) in path_errors:
+                log(f"コピーエラーがあったためスキップ: {root_path}")
+                continue
 
-        # ディレクトリリストを受け取るためのfuture的なもの
-        dir_list_holder = []
-        
-        def del_scanner_wrapper():
-            dirs = del_scanner_logic(safe_to_delete_roots, work_queue, task_manager, task_id)
-            dir_list_holder.extend(dirs)
-            del_scan_complete.set()
-            
-        # ロジック分離
-        def del_scanner_logic(roots, q, tm, tid):
-            dirs_to_remove = []
-            for root_path in roots:
-                if tm.is_cancelled(tid): break
-                try:
-                    for root, dirs, files in os.walk(str(root_path), topdown=False):
-                        for name in files:
-                            p = Path(root) / name
-                            q.put(("delete_file", p, None, None))
-                        for name in dirs:
-                            dirs_to_remove.append(Path(root) / name)
-                    dirs_to_remove.append(root_path)
-                except Exception as e:
-                    log(f"削除スキャンエラー: {e}")
-            return dirs_to_remove
+            if task_manager.is_cancelled(task_id):
+                log("キャンセルが検出されました")
+                break
 
-        # リセット
-        scan_complete.clear() # 再利用
-        
-        # 削除スキャナ起動
-        ds_thread = threading.Thread(target=del_scanner_wrapper, daemon=True)
-        ds_thread.start()
-        
-        # 削除ワーカー起動 (既存ワーカー関数をそのまま使うが、delete_fileアクションを追加)
-        # ワーカー関数を少し修正する必要があるので、内部定義しなおすか、アクション分岐を追加
-        
-        # ワーカー再定義（クロージャの関係で）
-        def del_worker_thread():
-            while True:
-                try:
-                    item = work_queue.get(timeout=0.1)
-                except queue.Empty:
-                    if del_scan_complete.is_set():
-                        break
-                    continue
-                
-                if task_manager.is_cancelled(task_id):
-                    work_queue.task_done()
-                    continue
-                
-                action, src, _, _ = item
-                try:
-                    if action == "delete_file":
-                        if src.is_symlink() or src.is_file():
-                           src.unlink()
-                        
-                        with results_lock:
-                            # stats["success"] はコピー成功数なので、削除成功数は別途管理あるいは合算
-                            stats["success"] += 1 
-                            processed = stats["success"] + stats["fail"]
-                            task_manager.update_progress(task_id, processed_files=processed, current_file=f"削除: {src.name}")
-                        
-                        log(f"削除成功: {src.name}")
-                            
-                except Exception as e:
-                    log(f"Delete error {src}: {e}")
-                    with results_lock:
-                        stats["fail"] += 1
-                finally:
-                    work_queue.task_done()
-
-        # 旧ワーカーは終了しているので、新しく起動
-        del_workers = []
-        for _ in range(MAX_WORKERS):
-            t = threading.Thread(target=del_worker_thread, daemon=True)
-            t.start()
-            del_workers.append(t)
-            
-        ds_thread.join()
-        for t in del_workers:
-            t.join()
-            
-        # 最後にディレクトリを削除（これは高速なのでシーケンシャルで良い、あるいはエラー無視で上から）
-        log("ディレクトリ削除開始")
-        for d in dir_list_holder:
             try:
-                if d.exists():
-                    d.rmdir() # 中身は空のはず
-            except OSError:
-                # 残っているファイルがある場合（.DS_Storeなど湧いてくるもの）、強制削除
-                shutil.rmtree(str(d), ignore_errors=True)
+                if not root_path.exists():
+                    log(f"既に削除済み: {root_path}")
+                    continue
+
+                log(f"削除中: {root_path}")
+                task_manager.update_progress(task_id, processed_files=stats["success"], current_file=f"削除: {root_path.name}")
+
+                # ディレクトリまたはファイルを削除
+                if root_path.is_dir():
+                    shutil.rmtree(str(root_path))
+                    log(f"ディレクトリ削除完了: {root_path}")
+                else:
+                    root_path.unlink()
+                    log(f"ファイル削除完了: {root_path}")
+
+            except Exception as e:
+                log(f"削除エラー: {root_path} - {e}")
+                # 削除エラーは致命的ではないので、エラー情報を記録して続行
+                with results_lock:
+                    path_errors[str(root_path)] = f"削除エラー: {str(e)}"
     
     # 最終結果
     log(f"全完了: 成功={stats['success']}, 失敗={stats['fail']}")
@@ -2388,16 +2285,19 @@ def _execute_batch_copy_async(
                     break
                 continue
                 
-            if task_manager.is_cancelled(task_id):
-                work_queue.task_done()
-                continue
-            
+            # キャンセルフラグで処理をスキップ（task_done()はfinallyで必ず呼ぶ）
+            cancelled = task_manager.is_cancelled(task_id)
+
             action, src, dest, root_src = item
-            
+
             try:
+                # キャンセルされている場合は処理をスキップ
+                if cancelled:
+                    continue
+
                 if action == "copy_file":
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    
+
                     if dest.exists():
                         if overwrite:
                             if dest.is_dir():
@@ -2405,11 +2305,9 @@ def _execute_batch_copy_async(
                             else:
                                 dest.unlink()
                         else:
-                            # スキップ (同名エラーとしてカウントするか、リネームするか)
-                            # ここではエラーとしてカウント
+                            # スキップ（task_done()はfinallyで呼ぶ）
                             with results_lock:
                                 stats["fail"] += 1
-                            work_queue.task_done()
                             continue
 
                     fast_copy_file(src, dest)
@@ -2473,7 +2371,7 @@ class BatchCopyRequest(BaseModel):
     """一括コピーリクエストのスキーマ"""
     src_paths: List[str]
     dest_path: str
-    overwrite: bool = False
+    overwrite: bool = True  # デフォルトで上書き
     verify_checksum: bool = False
     async_mode: bool = False  # 非同期モード
     debug_mode: bool = False  # デバッグモード
