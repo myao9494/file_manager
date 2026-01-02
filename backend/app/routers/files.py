@@ -18,7 +18,7 @@ import webbrowser
 import urllib.parse
 
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response, HTMLResponse
 from pydantic import BaseModel
 
 import os
@@ -3002,6 +3002,47 @@ async def open_path(request: OpenRequest):
         return {"success": True, "message": f"開きました: {path}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+@router.get("/open-path")
+async def open_path_get(path: str = Query(..., description="開くファイルのパス")):
+    """
+    パスを開く（GET版）
+    単純なリンクから呼び出せるように追加
+    - フォルダの場合: フロントエンド (localhost:5173) にリダイレクトして開く
+    - ファイルの場合: サーバー側で開き、開いたタブを自動的に閉じるHTMLを返す
+    """
+    path_obj = normalize_path(path)
+    
+    if path_obj.is_dir():
+        # フォルダの場合はフロントエンドを開く
+        encoded_path = urllib.parse.quote(str(path_obj))
+        return RedirectResponse(f"http://localhost:5173/?path={encoded_path}")
+    
+    # ファイルの場合は既存処理
+    request = OpenRequest(path=path)
+    await open_path(request)
+    
+    # ブラウザのタブを閉じるためのHTMLを返す
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Closing...</title>
+        <script>
+            window.onload = function() {
+                window.open('', '_self', '');
+                window.close();
+            };
+        </script>
+    </head>
+    <body style="background-color: #f0f0f0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
+        <div style="text-align: center; color: #666;">
+            <p>Opened. Closing tab...</p>
+        </div>
+    </body>
+    </html>
+    """)
 
 
 @router.post("/open-folder")
