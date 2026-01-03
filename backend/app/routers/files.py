@@ -72,7 +72,9 @@ def normalize_path(path: str) -> Path:
     if not path:
         return settings.base_dir
 
-    normalized = Path(path)
+    # 環境変数の展開 (%USERPROFILE%, $HOME 等)
+    expanded_path = os.path.expandvars(os.path.expanduser(path))
+    normalized = Path(expanded_path)
 
     if normalized.is_absolute():
         try:
@@ -3047,6 +3049,48 @@ async def open_folder(request: OpenRequest):
         else:
             subprocess.Popen(["xdg-open", str(path)])
         return {"success": True, "message": f"フォルダを開きました: {path}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/open/trash")
+async def open_trash():
+    """
+    ゴミ箱を開く
+    """
+    try:
+        if platform.system() == "Windows":
+            # Windows: shell:RecycleBinFolder
+            subprocess.Popen(['explorer', 'shell:RecycleBinFolder'])
+        elif platform.system() == "Darwin":
+            # macOS: ~/.Trash
+            trash_path = os.path.expanduser("~/.Trash")
+            subprocess.Popen(["open", trash_path])
+        else:
+            # Linux: xdg-open trash:///
+            subprocess.Popen(["xdg-open", "trash:///"])
+        return {"success": True, "message": "ゴミ箱を開きました"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/test-folder-path")
+async def get_test_folder_path():
+    """
+    テストフォルダのパスを取得
+    Windows: %userprofile%\\000_work\\test
+    Mac: /Users/sudoupousei/000_work/test
+    """
+    try:
+        path_str = ""
+        if platform.system() == "Windows":
+            path_str = os.path.expandvars(r"%userprofile%\000_work\test")
+        else:
+            # Mac / Linux
+            # ユーザー名直書き指定
+            path_str = "/Users/sudoupousei/000_work/test"
+        
+        return {"success": True, "path": path_str}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

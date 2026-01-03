@@ -298,7 +298,7 @@ npm test
  2. ドラッグ&ドロップのバックエンド連携
  3. タイルビュー表示（未実装）
  4. ファイルアップロード (ダウンロードはネイティブ実装済)
- 5. 外部アプリ連携: VSCode, Explorer, Antigravity, Download, Jupyter, Excalidraw, Markdown作成, Obsidian
+ 5. 外部アプリ連携: VSCode, Explorer, Antigravity, Download, Jupyter, Excalidraw, Markdown作成, Obsidian, **ゴミ箱**, **Test Folder**
 
 ## ドキュメント更新
 

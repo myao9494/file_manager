@@ -62,6 +62,34 @@
   background-color: rgba(220, 53, 69, 0.1);
 }
 
+.icon-toolbar .test-folder-btn {
+  background-color: #ffcdd2 !important; /* light pink */
+  color: #c62828 !important;            /* dark red */
+  border: 1px solid #ef9a9a !important;
+}
+
+.icon-toolbar .test-folder-btn:hover {
+  background-color: #ef9a9a !important; /* darker pink */
+}
+
+.icon-toolbar .test-folder-btn .lucide {
+  color: #c62828 !important;
+}
+
+.icon-toolbar .trash-open-btn {
+  background-color: #bbdefb !important; /* light blue */
+  color: #1565c0 !important;            /* dark blue */
+  border: 1px solid #90caf9 !important;
+}
+
+.icon-toolbar .trash-open-btn:hover {
+  background-color: #90caf9 !important; /* darker blue */
+}
+
+.icon-toolbar .trash-open-btn .lucide {
+  color: #1565c0 !important;
+}
+
 .toolbar-divider {
   width: 1px;
   height: 20px;

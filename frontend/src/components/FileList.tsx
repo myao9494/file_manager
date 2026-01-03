@@ -25,11 +25,13 @@ import {
   Home,
   Rocket,
   Network,
+  FlaskConical, // For Test Folder
+  Trash,        // For Open Trash
 } from "lucide-react";
 import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useCopyItemsBatch } from "../hooks/useFiles";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
-import { getPathInfo, openInVSCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles } from "../api/files";
+import { getPathInfo, openInVSCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath } from "../api/files";
 import { MarkdownEditorModal } from "./MarkdownEditorModal";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
@@ -2103,6 +2105,41 @@ export function FileList({
         </button>
         <button onClick={() => refetch()} title="更新">
           <RefreshCw size={16} />
+        </button>
+
+
+        <div style={{ flex: 1 }} />
+
+        {/* テストフォルダボタン (ピンク) */}
+        <button
+          className="toolbar-btn test-folder-btn"
+          onClick={async () => {
+            const result = await getTestFolderPath();
+            if (result.success && result.path) {
+              navigateToFolder(result.path);
+            } else {
+              showError(result.error || "テストフォルダのパスを取得できませんでした");
+            }
+          }}
+          title="テストフォルダを開く"
+        >
+          <FlaskConical size={16} />
+        </button>
+
+        {/* ゴミ箱表示ボタン (水色) */}
+        <button
+          className="toolbar-btn trash-open-btn"
+          onClick={async () => {
+            const result = await openTrash();
+            if (result.success) {
+              showSuccess(result.message || "ゴミ箱を開きました");
+            } else {
+              showError(result.error || "ゴミ箱を開けませんでした");
+            }
+          }}
+          title="ゴミ箱を開く"
+        >
+          <Trash size={16} />
         </button>
       </div>
 

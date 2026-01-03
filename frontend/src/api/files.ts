@@ -487,6 +487,24 @@ export async function openInDefaultApp(path: string): Promise<{ success: boolean
 }
 
 /**
+ * ゴミ箱を開く
+ */
+export async function openTrash(): Promise<{ success: boolean; message?: string; error?: string }> {
+  const response = await fetch(`${API_BASE_URL}/open/trash`, {
+    method: "POST",
+  });
+  return await response.json();
+}
+
+/**
+ * テストフォルダのパスを取得
+ */
+export async function getTestFolderPath(): Promise<{ success: boolean; path?: string; error?: string }> {
+  const response = await fetch(`${API_BASE_URL}/test-folder-path`);
+  return await response.json();
+}
+
+/**
  * ファイルの内容を取得（Markdownエディタ用）
  */
 export async function getFileContent(path: string): Promise<string> {
