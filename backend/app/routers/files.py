@@ -2639,15 +2639,69 @@ class SmartOpenResponse(BaseModel):
     content: Optional[str] = None  # action=open_modalの場合のファイル内容
 
 
+def resolve_file_app_url(path_obj: Path) -> Optional[str]:
+    """
+    ファイルパスから、専用アプリで開くためのURL/URIを解決する
+    - Excalidraw -> http://localhost:3001/...
+    - Jupyter -> http://localhost:8888/...
+    - Obsidian -> obsidian://...
+    - PDF(Mac) -> /api/view-pdf...
+    
+    該当しない場合は None を返す
+    """
+    start_path = str(path_obj).lower()
+
+    # --- Excalidraw ---
+    if (start_path.endswith('.excalidraw') or 
+        start_path.endswith('.excalidraw.md') or 
+        start_path.endswith('.excalidraw.svg') or 
+        start_path.endswith('.excalidraw.png')):
+        
+        encoded_path = urllib.parse.quote(str(path_obj))
+        return f"http://localhost:3001/?filepath={encoded_path}"
+
+    # --- Jupyter (.ipynb) ---
+    if start_path.endswith('.ipynb'):
+        JUPYTER_BASE_URL = "http://localhost:8888/lab/tree"
+        try:
+            relative_path = path_obj.relative_to(settings.base_dir)
+            url_path = urllib.parse.quote(str(relative_path).replace('\\', '/'))
+            return f"{JUPYTER_BASE_URL}/{url_path}"
+        except ValueError:
+            pass 
+
+    # --- Obsidian (.md) ---
+    if start_path.endswith('.md') and 'obsidian' in start_path:
+        parts = str(path_obj).replace('\\', '/').split('/')
+        obsidian_idx = -1
+        for i, part in enumerate(parts):
+            if 'obsidian' in part.lower():
+                obsidian_idx = i
+                break
+        
+        if obsidian_idx != -1:
+            vault_name = parts[obsidian_idx]
+            relative_file_path = '/'.join(parts[obsidian_idx+1:])
+            encoded_file = urllib.parse.quote(relative_file_path)
+            return f"obsidian://open?vault={vault_name}&file={encoded_file}"
+
+    # --- PDF (macOS only for browser view) ---
+    # note: open_smart (server side) may handle this differently if it wants to open in default OS app
+    # but based on previous logic, open_smart for mac also used this URL.
+    if start_path.endswith('.pdf') and platform.system() == 'Darwin':
+        encoded_path = urllib.parse.quote(str(path_obj))
+        # Use absolute URL for consistency if needed, but relative works for redirect
+        # For server-side open (webbrowser.open), we need full URL if running from backend?
+        # webbrowser.open handles relative if it assumes base, but usually needs http.
+        # open_smart previously used: http://localhost:8001/api/view-pdf...
+        return f"http://localhost:8001/api/view-pdf?path={encoded_path}"
+
+    return None
+
 @router.post("/open/smart", response_model=SmartOpenResponse)
 async def open_smart(request: OpenRequest):
     """
     ファイル種類に応じてスマートに開く
-    - Excalidraw系 → localhost:3001で開く
-    - ipynb → JupyterLab (localhost:8888/lab/tree)で開く
-    - md (obsidianパス) → Obsidian URIで開く
-    - md (通常) → action=open_modal を返し、フロントでエディタを開く
-    - その他 → OSデフォルトアプリで開く
     """
     path = normalize_path(request.path)
     
@@ -2657,131 +2711,51 @@ async def open_smart(request: OpenRequest):
     if path.is_dir():
         raise HTTPException(status_code=400, detail="ディレクトリは開けません")
 
-    file_name = path.name.lower()
-    file_path_str = str(path).lower()
+    # 共通ロジックでURL解決
+    target_url = resolve_file_app_url(path)
     
-    # --- Excalidraw系 ---
-    if (file_name.endswith('.excalidraw') or 
-        file_name.endswith('.excalidraw.md') or 
-        file_name.endswith('.excalidraw.svg') or 
-        file_name.endswith('.excalidraw.png')):
-        
-        encoded_path = urllib.parse.quote(str(path))
-        target_url = f"http://localhost:3001/?filepath={encoded_path}"
+    if target_url:
         try:
-            webbrowser.open(target_url)
-            return SmartOpenResponse(
-                status="success",
-                action="opened",
-                message="Excalidrawで開きました"
-            )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Excalidrawの起動に失敗: {str(e)}")
-    
-    # --- ipynb (Jupyter) ---
-    if file_name.endswith('.ipynb'):
-        JUPYTER_BASE_URL = "http://localhost:8888/lab/tree"
-        try:
-            relative_path = path.relative_to(settings.base_dir)
-            url_path = urllib.parse.quote(str(relative_path).replace('\\', '/'))
-            target_url = f"{JUPYTER_BASE_URL}/{url_path}"
-            webbrowser.open(target_url)
-            return SmartOpenResponse(
-                status="success",
-                action="opened",
-                message="JupyterLabで開きました"
-            )
-        except ValueError:
-            # BASE_DIR外の場合はフルパスでtreeを試みる
-            # 注: Jupyterの起動設定によっては失敗する可能性
-            raise HTTPException(status_code=400, detail="JupyterLabのルートディレクトリ外のファイルです")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"JupyterLabの起動に失敗: {str(e)}")
-    
-    # --- Markdown ---
-    if file_name.endswith('.md'):
-        # Obsidianパスかどうか判定
-        if 'obsidian' in file_path_str:
-            # Obsidian URI で開く
-            parts = str(path).replace('\\', '/').split('/')
-            obsidian_idx = -1
-            for i, part in enumerate(parts):
-                if 'obsidian' in part.lower():
-                    obsidian_idx = i
-                    break
-            
-            if obsidian_idx == -1:
-                raise HTTPException(status_code=400, detail='パスにobsidianディレクトリが見つかりません')
-            
-            vault_name = parts[obsidian_idx]
-            relative_file_path = '/'.join(parts[obsidian_idx+1:])
-            
-            encoded_file = urllib.parse.quote(relative_file_path)
-            obsidian_uri = f"obsidian://open?vault={vault_name}&file={encoded_file}"
-            
-            try:
-                if platform.system() == 'Darwin':
-                    subprocess.Popen(['open', obsidian_uri])
-                elif platform.system() == 'Windows':
-                    os.startfile(obsidian_uri)
-                else:
-                    raise HTTPException(status_code=501, detail="サポートされていないOSです")
-                
-                return SmartOpenResponse(
-                    status="success",
-                    action="opened",
-                    message="Obsidianで開きました"
-                )
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Obsidianの起動に失敗: {str(e)}")
-        else:
-            # 通常のMarkdown → フロントでモーダルを開く
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                return SmartOpenResponse(
-                    status="success",
-                    action="open_modal",
-                    message="エディタで開きます",
-                    content=content
-                )
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"ファイル読み込み失敗: {str(e)}")
-    
-    # --- PDF → OS別処理 ---
-    # Mac: ブラウザの別タブで開く（HTTP経由で配信）
-    # Windows: OSのデフォルトアプリで開く
-    if file_name.endswith('.pdf'):
-        try:
-            if platform.system() == "Darwin":  # macOS
-                # バックエンドのview-pdfエンドポイント経由でブラウザで開く
-                encoded_path = urllib.parse.quote(str(path))
-                view_url = f"http://localhost:8001/api/view-pdf?path={encoded_path}"
-                webbrowser.open(view_url)
-                return SmartOpenResponse(
-                    status="success",
-                    action="opened",
-                    message="PDFをブラウザで開きました"
-                )
-            elif platform.system() == "Windows":
-                # Windowsは従来通りOSデフォルトアプリ
-                os.startfile(str(path))
-                return SmartOpenResponse(
-                    status="success",
-                    action="opened",
-                    message="ファイルを開きました"
-                )
+            # http/https は webbrowser で開く
+            if target_url.startswith("http"):
+                webbrowser.open(target_url)
             else:
-                subprocess.Popen(["xdg-open", str(path)])
-                return SmartOpenResponse(
-                    status="success",
-                    action="opened",
-                    message="ファイルを開きました"
-                )
+                # obsidian:// 等のカスタムURI
+                if platform.system() == 'Darwin':
+                    subprocess.Popen(['open', target_url])
+                elif platform.system() == 'Windows':
+                    os.startfile(target_url)
+                else:
+                    subprocess.Popen(['xdg-open', target_url])
+            
+            return SmartOpenResponse(
+                status="success",
+                action="opened",
+                message="専用アプリケーションで開きました"
+            )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"PDFを開けませんでした: {str(e)}")
+            # 失敗時はログに出してフォールバックするかエラーにするか
+            # ここではエラーとして返す（またはフォールバック）
+            # 既存ロジックではエラーにしていたのでエラーにする
+            raise HTTPException(status_code=500, detail=f"起動に失敗しました: {str(e)}")
+
+    # --- Markdown (通常) ---
+    # Obsidian以外のMarkdownはエディタモーダル
+    if path.suffix.lower() == '.md':
+         try:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return SmartOpenResponse(
+                status="success",
+                action="open_modal",
+                message="エディタで開きます",
+                content=content
+            )
+         except Exception as e:
+            raise HTTPException(status_code=500, detail=f"ファイル読み込み失敗: {str(e)}")
     
     # --- その他 → OSデフォルトアプリ ---
+    # PDF (Windows/Linux) もここに含まれる（resolve_file_app_urlはMacのみPDF対応）
     try:
         if platform.system() == "Windows":
             os.startfile(str(path))
@@ -3019,7 +2993,12 @@ async def open_path_get(path: str = Query(..., description="開くファイル�
         encoded_path = urllib.parse.quote(str(path_obj))
         return RedirectResponse(f"http://localhost:5173/?path={encoded_path}")
     
-    # ファイルの場合は既存処理
+    # 共通ロジックでURL解決
+    target_url = resolve_file_app_url(path_obj)
+    if target_url:
+        return RedirectResponse(target_url)
+
+    # ファイルの場合は既存処理（OSデフォルトアプリで開く）
     request = OpenRequest(path=path)
     await open_path(request)
     
