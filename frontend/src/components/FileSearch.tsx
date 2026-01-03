@@ -117,8 +117,20 @@ export function FileSearch({
     return effectiveInitialPath; // Fallback
   }, [searchMode, leftPanePath, rightPanePath, effectiveInitialPath]);
 
-  // 外部インデックスサービス状態
+  // 外部サービス状態
   const { data: externalStatus, error: externalError, isLoading: externalLoading } = useExternalIndexStatus();
+
+  // 初回ロード時に外部インデックスが利用可能ならデフォルトをONにする
+  const hasInitializedSearchMode = useRef(false);
+
+  useEffect(() => {
+    if (!hasInitializedSearchMode.current && !externalLoading) {
+      if (externalStatus?.ready) {
+        setSearchMode("index-all");
+      }
+      hasInitializedSearchMode.current = true;
+    }
+  }, [externalStatus, externalLoading]);
 
   // 外部サービス使用判定
   const useExternalService = searchMode === "index-left" || searchMode === "index-right" || searchMode === "index-all";
