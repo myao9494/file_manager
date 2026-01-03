@@ -26,7 +26,6 @@ import {
   Rocket,
   Network,
   FlaskConical, // For Test Folder
-  Trash,        // For Open Trash
 } from "lucide-react";
 import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useCopyItemsBatch } from "../hooks/useFiles";
 import { useQueryClient } from "@tanstack/react-query";
@@ -2110,7 +2109,10 @@ export function FileList({
 
         <div style={{ flex: 1 }} />
 
-        {/* テストフォルダボタン (ピンク) */}
+        {/* 区切り線 */}
+        <div className="toolbar-divider" />
+
+        {/* テストフォルダボタン (透明/アウトライン) */}
         <button
           className="toolbar-btn test-folder-btn"
           onClick={async () => {
@@ -2126,7 +2128,7 @@ export function FileList({
           <FlaskConical size={14} />
         </button>
 
-        {/* ゴミ箱表示ボタン (水色) */}
+        {/* ゴミ箱表示ボタン (透明/アウトライン) */}
         <button
           className="toolbar-btn trash-open-btn"
           onClick={async () => {
@@ -2139,7 +2141,7 @@ export function FileList({
           }}
           title="ゴミ箱を開く"
         >
-          <Trash size={14} />
+          <Trash2 size={14} />
         </button>
       </div>
 
