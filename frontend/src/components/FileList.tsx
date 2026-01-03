@@ -61,6 +61,8 @@ interface NavigationHistoryEntry {
 // ドラッグアンドドロップの状態をコンポーネント間で共有するためのグローバル変数
 // useRefはコンポーネントインスタンスごとなので、ペイン間の移動には適さない
 let globalDraggedItems: FileItem[] = [];
+// ドラッグ元のペインIDを追跡（同一ペイン移動の確認用）
+let globalDragSourcePanelId: string | null = null;
 
 // グローバルクリップボード（アプリ内コピー＆ペースト用）
 let globalClipboard: { paths: string[]; op: 'copy' | 'move' } | null = null;
@@ -934,7 +936,8 @@ export function FileList({
 
     // グローバル変数に保存
     globalDraggedItems = dragData;
-    console.log(`DragStart: Selected=${selectedItems.size}, Prepared Items=${dragData.length}`);
+    globalDragSourcePanelId = panelId; // ドラッグ元のペインIDを保存
+    console.log(`DragStart: Selected=${selectedItems.size}, Prepared Items=${dragData.length}, SourcePanel=${panelId}`);
 
     // dataTransferにもセット（互換性のため）
     e.dataTransfer.setData("text/plain", JSON.stringify(dragData));
@@ -990,6 +993,16 @@ export function FileList({
         .map(item => item.path);
 
       if (srcPaths.length > 0) {
+        // 同一ペイン内での移動かチェック（誤操作防止）
+        if (globalDragSourcePanelId && globalDragSourcePanelId === panelId) {
+          if (!confirm("同じペイン内での移動です。よろしいですか？")) {
+            // キャンセルされた場合
+            globalDraggedItems = [];
+            globalDragSourcePanelId = null;
+            return;
+          }
+        }
+
         // 設定を読み込み
         const verifyChecksum = localStorage.getItem('file_manager_verify_checksum') === 'true';
         const debugMode = localStorage.getItem('file_manager_debug_mode') === 'true';
@@ -1070,6 +1083,7 @@ export function FileList({
 
     // クリーンアップ
     globalDraggedItems = [];
+    globalDragSourcePanelId = null;
   };
 
   // ドラッグ選択の状態

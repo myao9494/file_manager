@@ -170,6 +170,9 @@ http://localhost:5173/?path=/Users/username/Documents
 - ファイル/フォルダテーブル（パスコピー用アイコン付き）
 - ドラッグ&ドロップ
   - **Shift+ドラッグ**: テーブル行上でも範囲選択開始可能（ホバー効果を無視）
+- **同一ペイン内移動の確認**:
+  - 同一ペイン内でのファイル/フォルダ移動時のみ確認ポップアップを表示（誤操作防止）
+  - 異なるペイン間移動は確認なし
 - **ファイルダブルクリック処理**（バックエンドの`/api/open/smart`で判定）:
   - `.excalidraw*` → Excalidraw (localhost:3001)
   - `.ipynb` → JupyterLab (localhost:8888/lab/tree)
