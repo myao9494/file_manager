@@ -2044,56 +2044,56 @@ export function FileList({
         data-focused-index={focusedSection === 'toolbar' ? toolbarButtonIndex : undefined}
       >
         <button onClick={goBack} disabled={navigationIndex <= 0} title="戻る">
-          <ArrowLeft size={16} />
+          <ArrowLeft size={14} />
         </button>
         <button onClick={goForward} disabled={navigationIndex >= navigationHistory.length - 1} title="進む">
-          <ArrowRight size={16} />
+          <ArrowRight size={14} />
         </button>
         <button onClick={navigateUp} disabled={!currentPath} title="上の階層へ">
-          <ChevronUp size={16} />
+          <ChevronUp size={14} />
         </button>
         <button onClick={() => navigateToFolder(effectiveInitialPath)} title="ホームへ">
-          <Home size={16} />
+          <Home size={14} />
         </button>
         <button onClick={() => navigateToFolder(getNetworkDrivePath())} title="ネットワークドライブへ">
-          <Network size={16} />
+          <Network size={14} />
         </button>
         <button onClick={openFromClipboard} title="クリップボードから開く">
-          <ClipboardPaste size={16} />
+          <ClipboardPaste size={14} />
         </button>
         <button onClick={handleDownload} title="ダウンロード">
-          <Download size={16} />
+          <Download size={14} />
         </button>
         <button onClick={handleOpenVSCode} title="VSCodeで開く">
-          <Code size={16} />
+          <Code size={14} />
         </button>
         <button onClick={handleOpenAntigravity} title="Antigravityで開く">
-          <Rocket size={16} />
+          <Rocket size={14} />
         </button>
         <button onClick={handleOpenExplorer} title="フォルダを開く">
-          <FolderOpen size={16} />
+          <FolderOpen size={14} />
         </button>
         <button onClick={handleOpenJupyter} title="Jupyterで開く">
-          <img src="/icons/catppuccin/jupyter.svg" alt="Jupyter" width={16} height={16} />
+          <img src="/icons/catppuccin/jupyter.svg" alt="Jupyter" width={14} height={14} />
         </button>
         <button onClick={handleOpenExcalidraw} title="Excalidrawで開く">
-          <img src="/icons/catppuccin/excalidraw.svg" alt="Excalidraw" width={16} height={16} />
+          <img src="/icons/catppuccin/excalidraw.svg" alt="Excalidraw" width={14} height={14} />
         </button>
         <button onClick={handleOpenMarkdown} title="Markdownファイル作成">
-          <img src="/icons/catppuccin/markdown.svg" alt="Markdown" width={16} height={16} />
+          <img src="/icons/catppuccin/markdown.svg" alt="Markdown" width={14} height={14} />
         </button>
         {/* Obsidianボタン：パスにobsidianを含む場合のみ表示 */}
         {currentPath && currentPath.toLowerCase().includes('obsidian') && (
           <>
             <div className="toolbar-divider" />
             <button onClick={handleOpenObsidian} title="Obsidianで開く">
-              <Gem size={16} />
+              <Gem size={14} />
             </button>
           </>
         )}
         <div className="toolbar-divider" />
         <button onClick={handleCreateFolder} title="フォルダ作成">
-          <FolderPlus size={16} />
+          <FolderPlus size={14} />
         </button>
         <button
           onClick={handleDeleteSelected}
@@ -2101,10 +2101,10 @@ export function FileList({
           title="選択項目を削除"
           className="delete-btn"
         >
-          <Trash2 size={16} />
+          <Trash2 size={14} />
         </button>
         <button onClick={() => refetch()} title="更新">
-          <RefreshCw size={16} />
+          <RefreshCw size={14} />
         </button>
 
 
@@ -2123,7 +2123,7 @@ export function FileList({
           }}
           title="テストフォルダを開く"
         >
-          <FlaskConical size={16} />
+          <FlaskConical size={14} />
         </button>
 
         {/* ゴミ箱表示ボタン (水色) */}
@@ -2139,7 +2139,7 @@ export function FileList({
           }}
           title="ゴミ箱を開く"
         >
-          <Trash size={16} />
+          <Trash size={14} />
         </button>
       </div>
 
