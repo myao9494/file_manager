@@ -101,6 +101,7 @@ export function FileList({
   const [sortKey, setSortKey] = useState<"name" | "size" | "date">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
+  const [lastSelectedPath, setLastSelectedPath] = useState<string | null>(null);
   const [pathHistory, setPathHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [pathInput, setPathInput] = useState("");
@@ -257,6 +258,13 @@ export function FileList({
       onPathChange?.(currentPath);
     }
   }, [currentPath, panelId]);
+
+  // フォーカスが当たった時にコンテナにフォーカスを移動
+  useEffect(() => {
+    if (isFocused && containerRef.current) {
+      containerRef.current.focus();
+    }
+  }, [isFocused]);
 
   // フォルダに移動（パスチェック付き）
   const navigateToFolder = async (targetPath: string, fromNavigation = false) => {
@@ -2378,8 +2386,10 @@ export function FileList({
                 onContextMenu={(e) => handleContextMenu(e, item)}
                 onClick={(e) => {
                   onRequestFocus?.();
+                  setFocusedSection('list');
                   setFocusedIndex(index);
                   handleItemClick(e, item.path);
+                  containerRef.current?.focus();
                 }}
               >
                 <td onClick={(e) => e.stopPropagation()}>
@@ -2447,8 +2457,10 @@ export function FileList({
                 onContextMenu={(e) => handleContextMenu(e, item)}
                 onClick={(e) => {
                   onRequestFocus?.();
+                  setFocusedSection('list');
                   setFocusedIndex(folders.length + index);
                   handleItemClick(e, item.path);
+                  containerRef.current?.focus();
                 }}
                 onDoubleClick={() => handleFileClick(item)}
               >
