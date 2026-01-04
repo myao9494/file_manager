@@ -67,10 +67,14 @@ class Settings(BaseSettings):
         if env_val:
             return Path(env_val)
             
+        # FILE_MANAGER_BASE_DIR が設定されている場合はそれをそのまま使用
+        if os.environ.get("FILE_MANAGER_BASE_DIR"):
+            return self.base_dir
+
         # デフォルトは base_dir/000_work (Windows) または base_dir/Documents
         if self.is_windows:
              return self.base_dir / "000_work"
-        return self.base_dir / "Documents"
+        return self.base_dir
 
 
 settings = Settings()

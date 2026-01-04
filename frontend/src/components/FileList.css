@@ -219,7 +219,46 @@
   text-align: center;
 }
 
-/* 検索バー（廃止予定→削除） */
+/* 検索バー */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  /* パディングを調整 */
+  margin-bottom: 4px;
+  /* 下部マージン追加 */
+  background-color: var(--pane-bg);
+  /* border-bottom: 1px solid var(--border-color); 不要なら削除 */
+}
+
+.search-bar .search-icon {
+  color: var(--text-color);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.search-bar input {
+  flex: 1;
+  /* 幅を最大に */
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  font-size: 12px;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  outline: none;
+}
+
+.search-bar input:focus {
+  border-color: #1976d2;
+}
+
+.regex-toggle.active {
+  background-color: rgba(25, 118, 210, 0.2);
+  color: #1976d2;
+  border-color: #1976d2;
+}
 
 /* テーブルコンテナ */
 
