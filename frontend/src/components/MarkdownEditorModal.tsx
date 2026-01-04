@@ -34,11 +34,24 @@ export function MarkdownEditorModal({
     const [content, setContent] = useState(initialContent);
     const [hasChanges, setHasChanges] = useState(false);
 
-    // initialContentが変わったときにcontentをリセット
+    // initialContentが変わったとき、またはモーダルが開いたときにcontentをリセット
     useEffect(() => {
-        setContent(initialContent);
-        setHasChanges(false);
-    }, [initialContent]);
+        if (isOpen) {
+            setContent(initialContent);
+            setHasChanges(false);
+
+            // オートフォーカス
+            // 少し遅延させないとレンダリングが間に合わない場合がある
+            setTimeout(() => {
+                const textarea = document.querySelector('.markdown-editor-container textarea');
+                if (textarea instanceof HTMLTextAreaElement) {
+                    textarea.focus();
+                    // カーソルを末尾に移動（必要であれば）
+                    // textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+                }
+            }, 100);
+        }
+    }, [isOpen, initialContent]);
 
     // Escキーでモーダルを閉じる（MDEditor内でも動作するようにキャプチャフェーズで処理）
     useEffect(() => {
