@@ -437,6 +437,12 @@ export function FileList({
             setSelectedItems(new Set());
             setItemsToDelete(new Set()); // Clear itemsToDelete after starting async operation
             setIsDeleteModalOpen(false); // Close modal
+
+            // フォーカス復帰
+            onRequestFocus?.();
+            setTimeout(() => {
+              containerRef.current?.focus();
+            }, 50);
           }
         }).catch((err) => {
           console.error("Batch delete failed:", err);
@@ -465,6 +471,12 @@ export function FileList({
               setSelectedItems(new Set());
               setItemsToDelete(new Set()); // Clear itemsToDelete after completion
               setIsDeleteModalOpen(false); // Close modal
+
+              // フォーカス復帰
+              onRequestFocus?.();
+              setTimeout(() => {
+                containerRef.current?.focus();
+              }, 50);
             }
             if (result.fail_count && result.fail_count > 0) {
               showError(`${result.fail_count}件の削除に失敗しました`);
@@ -503,6 +515,14 @@ export function FileList({
           createdPath: `${parentPath}/${name}`,
         },
       });
+
+      // 作成したペインをアクティブにする
+      onRequestFocus?.();
+
+      // モーダルが閉じた後に確実にフォーカスを当てる
+      setTimeout(() => {
+        containerRef.current?.focus();
+      }, 50);
     } catch (e: any) {
       console.error("Folder creation failed:", e);
       showError(`フォルダ作成に失敗しました: ${e.message}`);
@@ -723,6 +743,12 @@ export function FileList({
       // リスト更新
       refetch();
 
+      // エディタが開くが、戻ってきたときのためにフォーカスを設定しておく
+      onRequestFocus?.();
+      setTimeout(() => {
+        containerRef.current?.focus();
+      }, 50);
+
     } catch (e: any) {
       console.error("Failed to open excalidraw:", e);
       showError(`処理に失敗しました: ${e.message}`);
@@ -820,6 +846,12 @@ export function FileList({
       }
       refetch();
       setMdEditorOpen(false);
+
+      // フォーカス復帰
+      onRequestFocus?.();
+      setTimeout(() => {
+        containerRef.current?.focus();
+      }, 50);
     } catch (e: any) {
       showError(`保存に失敗しました: ${e.message}`);
     } finally {
