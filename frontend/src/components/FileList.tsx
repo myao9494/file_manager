@@ -1445,6 +1445,14 @@ export function FileList({
       return;
     }
 
+    // 上の階層へ (Ctrl + Up)
+    if (isCmdOrCtrl && e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      navigateUp();
+      return;
+    }
+
     // セクションごとの操作
     switch (focusedSection) {
       case 'toolbar':
