@@ -42,14 +42,14 @@
   min-width: 0;
   /* flexアイテムの縮小を許可 */
   padding: 4px 8px;
-  background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  background-color: rgb(29, 29, 20);
+  border: 1px solid rgba(227, 222, 125, 0.521);
   border-radius: 4px;
 }
 
 /* フィルタ入力コンテナ（2段目） */
 .filter-input-container {
-  background-color: var(--input-bg);
+  background-color: rgb(29, 29, 20);
 }
 
 /* 検索フィルタ（右側） */

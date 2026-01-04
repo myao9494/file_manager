@@ -26,6 +26,7 @@ import {
   Rocket,
   Network,
   FlaskConical, // For Test Folder
+  X,
 } from "lucide-react";
 import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useCopyItemsBatch } from "../hooks/useFiles";
 import { useQueryClient } from "@tanstack/react-query";
@@ -94,7 +95,9 @@ export function FileList({
     }
     return "all";
   });
-  const [searchQuery, setSearchQuery] = useState("");
+  const [keywordFilter, setKeywordFilter] = useState(""); // キーワード検索（部分一致）
+  const [searchQuery, setSearchQuery] = useState(""); // パターンフィルタ（regex/ext）
+  const [useRegex, setUseRegex] = useState(true); // 正規表現モード (デフォルトON)
   const [sortKey, setSortKey] = useState<"name" | "size" | "date">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
@@ -142,6 +145,32 @@ export function FileList({
   const moveItemsBatch = useMoveItemsBatch();
   const copyItemsBatch = useCopyItemsBatch();
   const { addOperation } = useOperationHistoryContext();
+
+  // ファイル名パターンマッチング関数
+  const matchesFileNamePattern = (fileName: string, pattern: string, isRegex: boolean): boolean => {
+    if (!pattern) return true;
+
+    try {
+      if (isRegex) {
+        // 正規表現モード
+        const regex = new RegExp(pattern, 'i');
+        return regex.test(fileName);
+      } else {
+        // キーワードモード：スペース区切りでOR検索
+        const keywords = pattern.trim().split(/\s+/); // スペースで分割
+        const fileNameLower = fileName.toLowerCase();
+
+        // いずれかのキーワードがファイル名に含まれていればtrue
+        return keywords.some(keyword => {
+          const keywordLower = keyword.toLowerCase();
+          return fileNameLower.includes(keywordLower);
+        });
+      }
+    } catch {
+      // エラーの場合は部分一致で処理
+      return fileName.toLowerCase().includes(pattern.toLowerCase());
+    }
+  };
 
   // 初期パスの検証
   useEffect(() => {
@@ -862,10 +891,15 @@ export function FileList({
   const filteredItems = useMemo(() => {
     let items = data?.items || [];
 
-    // 検索フィルタ
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    // キーワードフィルタ (部分一致)
+    if (keywordFilter) {
+      const query = keywordFilter.toLowerCase();
       items = items.filter((item) => item.name.toLowerCase().includes(query));
+    }
+
+    // パターンフィルタ (Regex or Keyword)
+    if (searchQuery) {
+      items = items.filter((item) => matchesFileNamePattern(item.name, searchQuery, useRegex));
     }
 
     // タイプフィルタ (全/F/D)
@@ -2252,27 +2286,72 @@ export function FileList({
       />
 
       {/* 検索バー */}
-      <div className="search-bar">
-        <Search size={14} className="search-icon" />
-        <input
-          ref={searchInputRef}
-          type="text"
-          placeholder="このページ内を検索"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              containerRef.current?.focus();
-              setFocusedSection('list');
-              setFocusedIndex(0);
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              containerRef.current?.focus();
-              setFocusedSection('filter');
-            }
-          }}
-        />
+      <div className="search-row" style={{ padding: '0 4px 4px 4px' }}>
+        <div className="search-input-container">
+          <Search size={16} className="search-icon" />
+          <input
+            type="text"
+            value={keywordFilter}
+            onChange={(e) => setKeywordFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                containerRef.current?.focus();
+                setFocusedSection('list');
+                setFocusedIndex(0);
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                containerRef.current?.focus();
+                setFocusedSection('filter');
+              }
+            }}
+            placeholder="キーワードを入力（例：確定申告）"
+            className="search-input"
+          />
+          {keywordFilter && (
+            <button onClick={() => setKeywordFilter("")} className="clear-btn" title="クリア">
+              <X size={14} style={{ color: 'var(--text-color)' }} />
+            </button>
+          )}
+        </div>
+
+        <div className="search-input-container filter-input-container">
+          {/* FileIconの代わりにFileを使用（Lucide） */}
+          <Search size={16} className="search-icon" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                containerRef.current?.focus();
+                setFocusedSection('list');
+                setFocusedIndex(0);
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                containerRef.current?.focus();
+                setFocusedSection('filter');
+              }
+            }}
+            placeholder={useRegex ? "正規表現" : "キーワード (例: md pdf txt)"}
+            className="search-input"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} className="clear-btn" title="クリア">
+              <X size={14} style={{ color: 'var(--text-color)' }} />
+            </button>
+          )}
+        </div>
+
+        <button
+          className={`regex-toggle ${useRegex ? "active" : ""}`}
+          onClick={() => setUseRegex(!useRegex)}
+          title={useRegex ? "正規表現モード（有効）" : "キーワードモード（無効）"}
+        >
+          .*
+        </button>
       </div>
 
       {/* ファイル一覧テーブル */}

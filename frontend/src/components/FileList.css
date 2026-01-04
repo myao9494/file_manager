@@ -219,47 +219,9 @@
   text-align: center;
 }
 
-/* 検索バー */
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  background-color: var(--input-bg);
-  background-color: rgb(29, 29, 20);
-  border: 1px solid rgba(227, 222, 125, 0.521);
-  border-radius: 6px;
-  margin-bottom: 8px;
-  flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s;
-}
+/* 検索バー（廃止予定→削除） */
 
-.search-bar:focus-within {
-  border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
-  transform: translateY(-1px);
-}
-
-.search-bar .search-icon {
-  color: var(--text-color);
-  opacity: 0.6;
-  flex-shrink: 0;
-}
-
-.search-bar input {
-  flex: 1;
-  border: none;
-  outline: none;
-  font-size: 12px;
-  color: var(--input-text);
-  background: transparent;
-}
-
-.search-bar input::placeholder {
-  color: var(--text-color);
-  opacity: 0.4;
-}
+/* テーブルコンテナ */
 
 /* テーブルコンテナ */
 .table-container {
@@ -459,6 +421,93 @@
   background-color: inherit;
 }
 
+
 .file-list.shift-drag-selecting {
   cursor: crosshair;
+}
+
+/* 正規表現トグルボタン */
+.regex-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border-color);
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-color);
+  flex-shrink: 0;
+  font-size: 11px;
+  font-family: monospace;
+  transition: all 0.15s;
+  margin-left: 4px;
+}
+
+.regex-toggle:hover {
+  background-color: var(--hover-bg);
+}
+
+
+/* 検索行（1段目：キーワード、2段目：フィルタ） */
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+/* 検索入力コンテナ */
+.search-row .search-input-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  min-width: 0;
+  /* flexアイテムの縮小を許可 */
+  padding: 4px 8px;
+  background-color: rgb(29, 29, 20);
+  border: 1px solid rgba(227, 222, 125, 0.521);
+  border-radius: 4px;
+}
+
+/* フィルタ入力コンテナ（2段目） */
+.filter-input-container {
+  background-color: rgb(29, 29, 20);
+}
+
+/* 検索入力（ヘッダー内） */
+.search-row .search-input-container .search-icon {
+  color: var(--text-color);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.search-row .search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: var(--input-text);
+  background: transparent;
+}
+
+.clear-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-color);
+  opacity: 0.6;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-btn:hover {
+  background-color: var(--hover-bg);
 }
