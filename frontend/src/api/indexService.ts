@@ -45,13 +45,31 @@ export interface IndexServiceStatus {
 export async function getIndexServiceStatus(): Promise<IndexServiceStatus> {
   const url = getIndexServiceUrl();
 
-  const response = await fetch(`${url}/status`);
-
-  if (!response.ok) {
-    throw new Error("インデックスサービスに接続できません");
+  try {
+    const response = await fetch(`${url}/status`);
+    if (!response.ok) {
+      // サービスが起動していない場合はエラーにせず、準備未完了として返す
+      console.warn("インデックスサービスに接続できません");
+      return {
+        ready: false,
+        version: "",
+        paths: [],
+        total_indexed: 0,
+        error_message: null
+      } as unknown as IndexServiceStatus;
+    }
+    return response.json();
+  } catch (error) {
+    // 接続エラー（CORSやサーバーダウン）も同様に処理
+    console.warn("インデックスサービスへの接続に失敗しました", error);
+    return {
+      ready: false,
+      version: "",
+      paths: [],
+      total_indexed: 0,
+      error_message: null
+    } as unknown as IndexServiceStatus;
   }
-
-  return response.json();
 }
 
 /**

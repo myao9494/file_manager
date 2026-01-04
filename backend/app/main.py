@@ -88,7 +88,7 @@ async def get_config():
     - isWindows: Windows環境かどうか
     """
     return {
-        "defaultBasePath": str(settings.base_dir),
+        "defaultBasePath": settings.start_dir.as_posix(),
         "isWindows": settings.is_windows,
     }
 

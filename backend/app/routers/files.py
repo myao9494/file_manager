@@ -72,6 +72,10 @@ def normalize_path(path: str) -> Path:
     if not path:
         return settings.base_dir
 
+    # Windowsの場合、/C:/... のようなパスの先頭のスラッシュを削除
+    if settings.is_windows and path.startswith("/") and len(path) > 2 and path[2] == ":":
+        path = path[1:]
+
     # 環境変数の展開 (%USERPROFILE%, $HOME 等)
     expanded_path = os.path.expandvars(os.path.expanduser(path))
     normalized = Path(expanded_path)
@@ -84,11 +88,9 @@ def normalize_path(path: str) -> Path:
             raise HTTPException(status_code=400, detail=f"無効なパスです: {str(e)}")
 
     try:
+        # 相対パスの場合、制限されたベースディレクトリ内であることを確認
+        # File Manager用途のため、制限を解除する
         resolved = (settings.base_dir / normalized).resolve()
-
-        if not str(resolved).startswith(str(settings.base_dir.resolve())):
-            raise HTTPException(status_code=403, detail="許可されていないパスです")
-
         return resolved
     except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=f"無効なパスです: {str(e)}")
@@ -125,7 +127,7 @@ async def get_files(path: str = "") -> DirectoryResponse:
                 except (OSError, RuntimeError):
                     continue
 
-            item_absolute_path = str(item)
+            item_absolute_path = item.as_posix()
 
             if item.is_dir():
                 items.append(
@@ -219,7 +221,7 @@ def search_files_recursive(
                 query_lower = query.lower()
 
                 if query_lower in name_lower:
-                    item_absolute_path = str(item)
+                    item_absolute_path = item.as_posix()
                     if item.is_dir():
                         results.append(
                             FileItem(
@@ -290,21 +292,21 @@ async def get_path_info(path: str = "") -> PathInfoResponse:
 
     if not target_path.exists():
         return PathInfoResponse(
-            path=str(target_path),
+            path=target_path.as_posix(),
             type="not_found",
         )
 
     if target_path.is_dir():
         return PathInfoResponse(
-            path=str(target_path),
+            path=target_path.as_posix(),
             type="directory",
         )
 
     parent_path = target_path.parent
     return PathInfoResponse(
-        path=str(target_path),
+        path=target_path.as_posix(),
         type="file",
-        parent=str(parent_path),
+        parent=parent_path.as_posix(),
     )
 
 
@@ -370,7 +372,7 @@ async def search_files(
 
     return SearchResponse(
         query=query,
-        path=str(target_path),
+        path=target_path.as_posix(),
         depth=depth,
         total=len(results),
         items=results,

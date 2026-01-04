@@ -50,12 +50,27 @@ class Settings(BaseSettings):
             return Path(env_val)
 
         # フォールバック: OSに応じたデフォルト
+        # Windows: USERPROFILEをルート（制限範囲）とする
         if self.is_windows:
             user_profile = os.environ.get("USERPROFILE")
             if user_profile:
-                return Path(user_profile) / "Documents"
-            return Path.home() / "Documents"
-        return Path.home() / "Documents"
+                return Path(user_profile)
+            return Path.home()
+        # macOS/Linux: HOMEをルートとする
+        return Path.home()
+
+    @property
+    def start_dir(self) -> Path:
+        """初期表示ディレクトリを取得"""
+        # 環境変数で指定されている場合はそれを使用
+        env_val = os.environ.get("FILE_MANAGER_START_DIR")
+        if env_val:
+            return Path(env_val)
+            
+        # デフォルトは base_dir/000_work (Windows) または base_dir/Documents
+        if self.is_windows:
+             return self.base_dir / "000_work"
+        return self.base_dir / "Documents"
 
 
 settings = Settings()
