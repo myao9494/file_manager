@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>windi</title>
+    <g id="windi" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round">
+        <path d="M1.5,5.5 L6,5.5 C7.1045695,5.5 8,4.6045695 8,3.5 C8,2.3954305 7.1045695,1.5 6,1.5 C4.8954305,1.5 4,2.3954305 4,3.5" id="Path" stroke="#1E66F5"></path>
+        <path d="M1.5,8.5 L12,8.5 C13.3807119,8.5 14.5,7.38071187 14.5,6 C14.5,4.61928813 13.3807119,3.5 12,3.5 C10.6192881,3.5 9.5,4.61928813 9.5,6" id="Path" stroke="#1E66F5" stroke-linejoin="round"></path>
+        <path d="M7.5,13 C7.5,13.8284271 8.17157288,14.5 9,14.5 C9.82842712,14.5 10.5,13.8284271 10.5,13 C10.5,12.1715729 9.82842712,11.5 9,11.5 L5.5012207,11.5" id="Path" stroke="#1E66F5"></path>
+        <line x1="1.5" y1="11.5" x2="3.5" y2="11.5" id="Path" stroke="#1E66F5" stroke-linejoin="round"></line>
+    </g>
+</svg>

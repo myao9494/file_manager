@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>biome</title>
+    <g id="biome" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M0.5,14.5 L15.5,14.5 L8,1.5 L4.82824951,6.99770085 C7,6.25 9,6.5 10,7.75 L8.75,11.75 C7.25,11.4166667 5.75,11.9166667 4.25,13.25 L3,12.25 C3.83333333,10.75 5.25,10 7.25,10 L7.75,8.5 C2.5,8.25 0.75,11.75 0.5,14.5 Z" id="Path" stroke="#04A5E5"></path>
+    </g>
+</svg>

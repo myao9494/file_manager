@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>rescript</title>
+    <g id="rescript" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect id="Rectangle" stroke="#D20F39" x="1.5" y="1.5" width="13" height="13" rx="2"></rect>
+        <rect id="Rectangle" stroke="#D20F39" stroke-linecap="round" stroke-linejoin="round" x="4.52777248" y="4.55186067" width="3" height="7" rx="1.5"></rect>
+        <circle id="Oval" stroke="#D20F39" stroke-linecap="round" stroke-linejoin="round" cx="11" cy="6" r="1.5"></circle>
+    </g>
+</svg>

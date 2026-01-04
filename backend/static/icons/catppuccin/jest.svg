@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>jest</title>
+    <g id="jest" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <polyline id="Path" stroke="#D20F39" points="7.5 6 5.55562967 1.5 15.5 1.5 13.5 6"></polyline>
+        <polyline id="Path" stroke="#D20F39" points="12.5 6.00491847 10.5 3.5 8.5 6"></polyline>
+        <line x1="9.5" y1="7.5" x2="11.5" y2="7.5" id="Path" stroke="#D20F39"></line>
+        <path d="M13.5,9 C14.5,9.99829102 13,11.75 10.5,13 C8,14.25 6,14.5 4.5,14.5 C2.5,14.5 1.5,13.5 1.5,11.5941108 C1.5,10.6980369 2,10 3,9.5" id="Line-2" stroke="#D20F39"></path>
+        <path d="M7.5,9 C7.5,10.5 5.5,11.5 4.5,11.5 C3.5,11.5 3,11.25 3,9.5" id="Line" stroke="#D20F39"></path>
+        <circle id="Oval" stroke="#D20F39" cx="3.5" cy="8.5" r="1"></circle>
+        <circle id="Oval" stroke="#D20F39" cx="8" cy="7.5" r="1.5"></circle>
+        <circle id="Oval" stroke="#D20F39" cx="13" cy="7.5" r="1.5"></circle>
+    </g>
+</svg>

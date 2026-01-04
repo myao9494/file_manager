@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>slide</title>
+    <g id="slide" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <path d="M2.5,3.12512056 C2.5,2.35895096 3.35895096,1.5 4.12492767,1.5 L13.8750723,1.5 C14.6408561,1.5 15.5,2.35895096 15.5,3.12512056 L15.5,12.8750723 C15.5,13.641049 14.641049,14.5 13.8750723,14.5 L4.12859263,14.5 C3.36165146,14.5 2.5,13.6418206 2.5,12.8750723" id="Path" stroke="#FE640B" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M7.5,5.80901699 L11.881966,8 L7.5,10.190983 L7.5,5.80901699 Z" id="Path" stroke="#FE640B"></path>
+        <line x1="0.5" y1="5.5" x2="0.5" y2="10.5" id="Path" stroke="#FE640B" stroke-linecap="square"></line>
+        <path d="M0.5,8.5 L2,8.5 C2.82842712,8.5 3.5,7.82842712 3.5,7 C3.5,6.17157288 2.82842712,5.5 2,5.5 L0.5,5.5" id="Path" stroke="#FE640B"></path>
+    </g>
+</svg>

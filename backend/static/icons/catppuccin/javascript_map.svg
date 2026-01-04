@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>javascript_map</title>
+    <g id="javascript_map" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Marker">
+            <rect id="Rectangle" x="0" y="0" width="8" height="11"></rect>
+            <path d="M0.5,4.06216337 C0.498807515,4.83047285 0.742799811,5.57839894 1.195276,6.19338561 L3.44013403,10.1511013 C3.45321147,10.1766259 3.46628891,10.2019938 3.48228954,10.2253261 L3.48721282,10.2340953 C3.60730759,10.4014763 3.79849422,10.5008435 4.00184856,10.5 C4.19493312,10.5 4.36340132,10.4107315 4.47909821,10.2729302 L4.48494459,10.276062 L4.50709931,10.2369139 C4.54067368,10.192158 4.5684899,10.1432178 4.58987182,10.091283 L6.78918959,6.21358603 C7.25130653,5.59507437 7.50103674,4.83919757 7.5,4.06216337 C7.5,2.09489335 5.81550266,0.5 3.88173385,0.5 C1.94796505,0.5 0.5,2.09489335 0.5,4.06216337 Z" id="Path" stroke="#D20F39" stroke-linecap="round" stroke-linejoin="round"></path>
+            <circle id="Oval" stroke="#D20F39" stroke-linecap="round" stroke-linejoin="round" cx="4.00001175" cy="4" r="1.5"></circle>
+        </g>
+        <path d="M10,4.5 L13.5,4.5 C14.6045695,4.5 15.5,5.3954305 15.5,6.5 L15.5,13.5 C15.5,14.6045695 14.6045695,15.5 13.5,15.5 L6.5,15.5 C5.3954305,15.5 4.5,14.6045695 4.5,13.5 L4.5,13" id="Path" stroke="#DF8E1D" stroke-linecap="round" stroke-linejoin="round"></path>
+        <g id="js_small-2" transform="translate(6, 8)" stroke="#DF8E1D" stroke-linejoin="round">
+            <g id="js_small">
+                <path d="M7.5,1 C7.16666667,0.666666667 6.66666667,0.5 6,0.5 C5,0.5 4.5,0.996419271 4.5,1.5 C4.5,2.00358073 5,2.5 6,2.5 C7,2.5 7.50024414,3 7.5,3.5 C7.49975586,4 7,4.5 6,4.5 C5.33333333,4.5 4.83333333,4.33333333 4.5,4" id="Path" stroke-linecap="round"></path>
+                <path d="M2.5,0 L2.5,3.5 C2.5,4.05228475 2.05228475,4.5 1.5,4.5 C0.94771525,4.5 0.5,4.05228475 0.5,3.5 L0.5,3" id="Path"></path>
+            </g>
+        </g>
+    </g>
+</svg>

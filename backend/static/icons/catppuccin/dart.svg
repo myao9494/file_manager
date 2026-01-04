@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>dart</title>
+    <g id="dart" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7,14.5 L11.5,14.5 L11.5,11.5 L14.5,11.5 L14.5,6.998275 L9.174664,1.642939 C8.88518759,1.35346259 8.3690135,1.17204093 8,1.35 L3.498169,3.498483 L1.35,8 C1.17217878,8.36915134 1.35328675,8.8802479 1.642901,9.17 L7,14.5 Z" id="Path" stroke="#209FB5"></path>
+        <path d="M3.5,11 L3.498169,3.498621 L11,3.5 M3.498169,3.498483 L11.5,11.5" id="Shape" stroke="#209FB5"></path>
+    </g>
+</svg>

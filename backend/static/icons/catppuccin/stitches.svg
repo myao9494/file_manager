@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>stitches</title>
+    <g id="stitches" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <line x1="5.60529366" y1="11.9209144" x2="14.9366161" y2="11.9209144" id="Path" stroke="#4C4F69" stroke-linecap="round" stroke-linejoin="round" transform="translate(10.271, 11.9209) rotate(-30) translate(-10.271, -11.9209)"></line>
+        <polyline id="Path" stroke="#4C4F69" stroke-linecap="round" stroke-linejoin="round" points="4.0873425 13.1816236 10.9967544 9.19247276 8.5804719 4.9998368"></polyline>
+        <polyline id="Path" stroke="#4C4F69" stroke-linecap="round" stroke-linejoin="round" points="7.53701106 11.1950171 5.09665217 6.96492379 12.056774 2.94649555"></polyline>
+        <circle id="Oval" stroke="#4C4F69" stroke-linecap="round" stroke-linejoin="round" cx="8" cy="8" r="6.5"></circle>
+        <line x1="1.01389585" y1="4.23288402" x2="10.6434719" y2="4.23288402" id="Path" stroke="#4C4F69" stroke-linecap="round" stroke-linejoin="round" transform="translate(5.8287, 4.2329) rotate(-30) translate(-5.8287, -4.2329)"></line>
+        <line x1="8.0470905" y1="5.68951371" x2="8.0470905" y2="10.4736126" id="Path" stroke="#4C4F69" stroke-linecap="square" transform="translate(8.0471, 8.0816) rotate(-30) translate(-8.0471, -8.0816)"></line>
+    </g>
+</svg>
