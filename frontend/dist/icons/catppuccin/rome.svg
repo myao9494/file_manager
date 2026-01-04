@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>rome</title>
+    <g id="rome" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <line x1="1.98937329" y1="9.5" x2="4" y2="9.5" id="Line-2" stroke="#DC8A78"></line>
+        <line x1="12" y1="9.5" x2="14" y2="9.5" id="Line-3" stroke="#DC8A78"></line>
+        <path d="M9.5,14.5197725 L9.5,8 C9.5,7.17157288 8.82842712,6.5 8,6.5 C7.17157288,6.5 6.5,7.17157288 6.5,8 L6.5,14.5197725" id="Path" stroke="#DF8E1D" stroke-linecap="square"></path>
+        <path d="M11.5,14.5197725 L11.5,8 C11.5,6.06700338 9.93299662,4.5 8,4.5 C6.06700338,4.5 4.5,6.06700338 4.5,8 L4.5,14.5197725" id="Path" stroke="#DF8E1D" stroke-linecap="square"></path>
+        <path d="M12.5,14.5 L14.5,14.5 L14.5,8.5 C14.5,5.80051551 12.8544007,3.48538134 10.511632,2.50302745 M5.48963736,2.50249536 C3.14619375,3.48454515 1.5,5.800028 1.5,8.5 L1.5,14.5 L3.53257972,14.5197725" id="Shape" stroke="#DC8A78" stroke-linecap="square" stroke-linejoin="round"></path>
+        <polygon id="Line" stroke="#DF8E1D" stroke-linecap="round" stroke-linejoin="round" points="5.5 1.5 10.5 1.5 9.01729552 4.5 7 4.5"></polygon>
+    </g>
+</svg>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>ruby_gem</title>
+    <g id="ruby_gem" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <polygon id="Path" stroke="#D20F39" points="7.99956454 12.5 12.5 7.5 10.4980469 5.5 5.5 5.5 3.5 7.5"></polygon>
+        <polygon id="Path" stroke="#D20F39" points="14.5 12 7.99956454 15.5 1.5 12 1.5 4 7.99991811 0.5 14.5 4"></polygon>
+    </g>
+</svg>

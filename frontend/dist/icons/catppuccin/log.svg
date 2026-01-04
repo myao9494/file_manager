@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>log</title>
+    <g id="log" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linejoin="round">
+        <polygon id="Path" stroke="#4C4F69" points="4.5 3.5 13.5 3.5 13.5 14.5 4.5 14.5"></polygon>
+        <polyline id="Path" stroke="#4C4F69" stroke-linecap="round" points="11.5 3.44997244 11.5 1.5 2.5 1.5 2.5 12.5 4.44997244 12.5"></polyline>
+        <line x1="7.5" y1="7.5" x2="10.5" y2="7.5" id="Line" stroke="#4C4F69" stroke-linecap="round"></line>
+        <line x1="7.5" y1="10.5" x2="10.5" y2="10.5" id="Line-2" stroke="#4C4F69" stroke-linecap="round"></line>
+    </g>
+</svg>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>storybook_svelte</title>
+    <g id="storybook_svelte" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.5,10.0997959 C6.9500286,11.1498822 7.72924876,11.5 8.96221558,11.5 L8.75,11.5 C10.0999428,11.5 11,10.8179178 11,9.79519483 C11,8.95934375 10.3767955,8.53581205 9.38979281,8.16206835 L7.90857379,7.60051845 C7.04598322,7.27349272 6.5,6.60502542 6.5,5.87342213 C6.5,5.19440993 7.2815082,4.61070236 8.17255625,4.53568666 L8.5250572,4.50979156 C9.67093555,4.41315212 10.7741992,5.04317721 11,5.89931723" id="Path" stroke="#4C4F69"></path>
+        <polygon id="Path" stroke="#FE640B" points="3.5 2.5 4.00397532 14.0029769 13.5 14.5 13.5 1.5"></polygon>
+        <line x1="11.5" y1="1.75" x2="11.5" y2="3.25" id="Path" stroke="#FE640B"></line>
+    </g>
+</svg>

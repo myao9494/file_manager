@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>ember</title>
+    <g id="ember" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1.5,9.25 C7.6142649,10.4265437 9.52537578,8.3297893 10.2894359,7.54547206 C11.8176934,5.97697329 10.2894359,2.83889 8.37846225,3.62402155 C6.46886083,4.40684589 3.7923176,9.11410655 6.08614465,12.2513755 C7.6142649,14.3427977 10.4195237,13.6644127 14.5,10.5" id="Path" stroke="#FE640B"></path>
+    </g>
+</svg>

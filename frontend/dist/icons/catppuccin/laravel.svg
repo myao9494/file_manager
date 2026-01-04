@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>laravel</title>
+    <g id="laravel" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12.51366" y1="5.48926327" x2="12.51366" y2="8.78275492" id="Path" stroke="#D20F39"></line>
+        <polyline id="Path" stroke="#D20F39" points="9.63985256 3.8880696 12.5024393 5.49289481 15.2398092 3.95801623"></polyline>
+        <line x1="6.5" y1="12" x2="6.5" y2="15.5" id="Path" stroke="#D20F39"></line>
+        <line x1="3.50439072" y1="3.5" x2="6.5" y2="2" id="Path" stroke="#D20F39"></line>
+        <polyline id="Path" stroke="#D20F39" points="3.50439072 10.5 9.50471596 7 9.50471596 3.5 12.51366 2 15.5 3.5 15.5 7 12.4398309 8.5 9.50219536 7"></polyline>
+        <polyline id="Path" stroke="#D20F39" points="0.5 2 3.50439072 0.5 6.5 1.99865723 6.5 8.5"></polyline>
+        <polygon id="Path" stroke="#D20F39" points="0.5 2 0.5 12.1676667 6.5 15.5 12.5214657 12.0934569 12.5214657 8.5 6.5 12.0384615 3.50439072 10.5 3.50439072 3.5"></polygon>
+    </g>
+</svg>

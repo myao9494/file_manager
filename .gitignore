@@ -12,8 +12,8 @@ backend/__pycache__/
 
 # Frontend
 **/node_modules/
-frontend/dist/
-frontend/build/
+# frontend/dist/
+# frontend/build/
 .npm
 *.log
 

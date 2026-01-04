@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>hpp</title>
+    <g id="hpp" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="4.5" y1="8.5" x2="7.5" y2="8.5" id="Path" stroke="#4C4F69"></line>
+        <line x1="4.49641407" y1="5.5" x2="4.49641407" y2="11.5" id="Path" stroke="#4C4F69"></line>
+        <line x1="7.49641407" y1="5.5" x2="7.49641407" y2="11.5" id="Path" stroke="#4C4F69"></line>
+        <path d="M10.5,5.5 L10.5,7.5 M9.5,6.5 L11.5,6.5" id="+" stroke="#4C4F69"></path>
+        <path d="M10.5,9.5 L10.5,11.5 M9.5,10.5 L11.5,10.5" id="+" stroke="#4C4F69"></path>
+        <polygon id="Path" stroke="#1E66F5" points="1.5 11.5 1.5 4.5 8 0.5 14.5 4.5 14.5 11.5 8 15.5"></polygon>
+    </g>
+</svg>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>rust</title>
+    <g id="rust" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <path d="M15.5,9.5 C10.5,12.1666667 5.5,12.1666667 0.5,9.5 L1.5,8.5 L0.5,6.5 L2.5,6 L2.5,4.5 L4.5,4.5 L5,2.5 L6.5,3.5 L8,1.5 L9.5,3.5 L11,2.5 L11.5,4.5 L13.5,4.5 L13.5,6 L15.5,6.5 L14.5,8.5 L15.5,9.5 Z" id="Path" stroke="#FE640B" stroke-linecap="round" stroke-linejoin="round"></path>
+        <circle id="Oval" stroke="#FE640B" cx="5.5" cy="7.5" r="1"></circle>
+        <circle id="Oval" stroke="#FE640B" cx="10.5" cy="7.5" r="1"></circle>
+        <path d="M4.49799911,11 C3.82588349,11.3682873 2.5,12.0024553 2.5,13.25 C2.5,14.4975447 3.72252141,14.4744959 4.5,14.5 L4.5,12.5" id="Path" stroke="#FE640B" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M11.5020009,11 C12.1741165,11.3682873 13.5,12.0024553 13.5,13.25 C13.5,14.4975447 12.2774786,14.4744959 11.5,14.5 L11.5,12.5" id="Path" stroke="#FE640B" stroke-linecap="round" stroke-linejoin="round"></path>
+    </g>
+</svg>
