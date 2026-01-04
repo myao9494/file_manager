@@ -12,7 +12,7 @@ import {
   PanelLeftOpen,
   PanelRightOpen,
 } from "lucide-react";
-import { useDeleteItemsBatch, useRenameItem } from "../hooks/useFiles";
+import { useRenameItem } from "../hooks/useFiles";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import type { FileItem } from "../types/file";
 import "./ContextMenu.css";

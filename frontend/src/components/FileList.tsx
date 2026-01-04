@@ -79,7 +79,7 @@ export function FileList({
 }: FileListProps) {
   // initialPathが未指定の場合はバックエンドから取得した値を使用
   const effectiveInitialPath = initialPath ?? getDefaultBasePath();
-  const { hideToast, showError, showSuccess } = useToast();
+  const { showError, showSuccess } = useToast();
   const [currentPath, setCurrentPath] = useState<string | null>(null); // 初期値はnull（検証前）
   const [isPathValidated, setIsPathValidated] = useState(false); // パス検証済みフラグ
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -2624,7 +2624,6 @@ export function FileList({
         placeholder="ファイル名"
         onConfirm={handleConfirmCreateMarkdown}
         confirmLabel="エディタを開く"
-        confirmButtonClass="btn-primary"
       />
 
       {/* 削除確認モーダル */}

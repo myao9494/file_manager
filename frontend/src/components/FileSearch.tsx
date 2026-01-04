@@ -22,10 +22,12 @@ import {
 } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { ContextMenu } from "./ContextMenu";
+import { useToast } from "../hooks/useToast";
 import {
   useSearchFiles,
   useExternalIndexStatus,
   useExternalIndexSearch,
+  useDeleteItemsBatch,
 } from "../hooks/useFiles";
 import { getIndexServiceUrl } from "../api/indexService";
 import { openSmart } from "../api/files";
@@ -339,6 +341,9 @@ export function FileSearch({
 
 
   // コンテキストメニュー処理
+  const deleteItemsBatch = useDeleteItemsBatch();
+  const { showSuccess, showError } = useToast();
+
   const handleContextMenu = (e: React.MouseEvent, item: { name: string; path: string; type: "file" | "directory" }) => {
     e.preventDefault();
     setContextMenu({
@@ -1037,6 +1042,17 @@ export function FileSearch({
           onClose={() => setContextMenu(null)}
           onOpenInLeft={onSelectFolder ? handleOpenInLeft : undefined}
           onOpenInRight={onSelectRightFolder ? handleOpenInRight : undefined}
+          onDeleteRequest={async (item) => {
+            if (window.confirm(`「${item.name}」を削除しますか？`)) {
+              try {
+                await deleteItemsBatch.mutateAsync({ paths: [item.path] });
+                showSuccess("削除しました");
+              } catch (e: any) {
+                console.error(e);
+                showError(`削除に失敗しました: ${e.message}`);
+              }
+            }
+          }}
         />
       )}
     </div>
