@@ -69,7 +69,7 @@ export function FileSearch({
   const [sortKey, setSortKey] = useState<"name" | "size" | "date">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [searchMode, setSearchMode] = useState<SearchMode>("off"); // デフォルトはoff
-  const [useRegex, setUseRegex] = useState(false); // 正規表現モード
+  const [useRegex, setUseRegex] = useState(true); // 正規表現モード
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set()); // 選択状態
   // ローカルフォーカス行インデックス（各ペインで独立）
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
