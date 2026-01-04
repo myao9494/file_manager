@@ -145,6 +145,9 @@ export function FileList({
   const [progressTaskId, setProgressTaskId] = useState<string | null>(null);
   const [progressOperationType, setProgressOperationType] = useState<'move' | 'copy' | 'delete'>('move');
 
+  // 親ディレクトリに戻った時にフォーカスを当てるべきパス
+  const [pendingFocusPath, setPendingFocusPath] = useState<string | null>(null);
+
 
   // パスが検証済みの場合のみuseFilesを呼び出す
   const { data, isLoading, error, refetch } = useFiles(isPathValidated && currentPath ? currentPath : "");
@@ -365,6 +368,10 @@ export function FileList({
   // 上の階層に移動
   const navigateUp = () => {
     if (!currentPath) return;
+
+    // 現在のパスを保存して、移動後にフォーカスを当てる
+    setPendingFocusPath(currentPath);
+
     const parts = currentPath.split("/").filter(Boolean);
     parts.pop();
     navigateToFolder("/" + parts.join("/"));
@@ -1014,6 +1021,22 @@ export function FileList({
 
   // 全アイテム（フィルタとソート適用後）をメモ化
   const allSortedItems = useMemo(() => [...folders, ...files], [folders, files]);
+
+  // 親ディレクトリに戻った時のフォーカス復元
+  useEffect(() => {
+    if (pendingFocusPath && !isLoading && allSortedItems.length > 0) {
+      const index = allSortedItems.findIndex(item => item.path === pendingFocusPath);
+      if (index !== -1) {
+        setFocusedIndex(index);
+        // フォーカスしたアイテムをスクロールして表示
+        requestAnimationFrame(() => {
+          const row = containerRef.current?.querySelector(`.file-table tbody tr[data-index="${index}"]`);
+          row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+        setPendingFocusPath(null); // フォーカス設定したらクリア
+      }
+    }
+  }, [pendingFocusPath, isLoading, allSortedItems]);
 
   // ドラッグ開始
   const handleDragStart = (e: React.DragEvent, item: FileItem) => {
