@@ -36,8 +36,10 @@ import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
 import { FilterBar } from "./FilterBar";
-import { Toast } from "./Toast";
+// import { Toast } from "./Toast";
 import { FileIcon } from "./FileIcon";
+import { InputModal } from "./InputModal";
+import { ConfirmationModal } from "./ConfirmationModal";
 import { getNetworkDrivePath, getDefaultBasePath } from "../config";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import "./FileList.css";
@@ -77,7 +79,7 @@ export function FileList({
 }: FileListProps) {
   // initialPathが未指定の場合はバックエンドから取得した値を使用
   const effectiveInitialPath = initialPath ?? getDefaultBasePath();
-  const { toasts, hideToast, showError, showSuccess } = useToast();
+  const { hideToast, showError, showSuccess } = useToast();
   const [currentPath, setCurrentPath] = useState<string | null>(null); // 初期値はnull（検証前）
   const [isPathValidated, setIsPathValidated] = useState(false); // パス検証済みフラグ
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -129,6 +131,14 @@ export function FileList({
   const [mdEditorFilePath, setMdEditorFilePath] = useState<string | null>(null);
   const [mdEditorSaving, setMdEditorSaving] = useState(false);
   const [mdEditorInitialContent, setMdEditorInitialContent] = useState("");
+
+  // フォルダ作成モーダルの状態
+  const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
+  const [isCreateMarkdownModalOpen, setIsCreateMarkdownModalOpen] = useState(false);
+
+  // 削除確認モーダルの状態
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [itemsToDelete, setItemsToDelete] = useState<Set<string>>(new Set());
 
   // プログレスモーダルの状態
   const [progressModalOpen, setProgressModalOpen] = useState(false);
@@ -374,13 +384,25 @@ export function FileList({
 
   const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 選択項目を削除
-  const handleDeleteSelected = async () => {
+  // 選択項目を削除（確認モーダルを表示）
+  const handleDeleteSelected = () => {
     if (selectedItems.size === 0) return;
-    if (!confirm(`${selectedItems.size}件のアイテムを削除しますか？`)) return;
+    setItemsToDelete(new Set(selectedItems));
+    setIsDeleteModalOpen(true);
+  };
+
+  // メニューからの削除リクエスト
+  const handleRequestDeleteFromMenu = (item: FileItem) => {
+    setItemsToDelete(new Set([item.path]));
+    setIsDeleteModalOpen(true);
+  };
+
+  // 削除の実行
+  const handleConfirmDelete = async () => {
+    if (itemsToDelete.size === 0) return;
 
     const debugMode = localStorage.getItem('file_manager_debug_mode') === 'true';
-    const paths = Array.from(selectedItems);
+    const paths = Array.from(itemsToDelete);
 
     try {
       // ファイル数をカウント（ネスト3階層まで）はNASで遅いため廃止
@@ -406,6 +428,8 @@ export function FileList({
             setProgressTaskId(result.task_id);
             setProgressModalOpen(true);
             setSelectedItems(new Set());
+            setItemsToDelete(new Set()); // Clear itemsToDelete after starting async operation
+            setIsDeleteModalOpen(false); // Close modal
           }
         }).catch((err) => {
           console.error("Batch delete failed:", err);
@@ -420,8 +444,20 @@ export function FileList({
         }).then((result) => {
           if (result.status === 'completed' && result.success_count !== undefined) {
             if (result.success_count > 0) {
-              showSuccess(`${result.success_count}件削除しました`);
+              const count = result.success_count;
+              showSuccess(`${count}件削除しました`);
+
+              // 履歴に追加
+              addOperation({
+                type: "DELETE",
+                canUndo: false,
+                timestamp: Date.now(),
+                data: {},
+              });
+
               setSelectedItems(new Set());
+              setItemsToDelete(new Set()); // Clear itemsToDelete after completion
+              setIsDeleteModalOpen(false); // Close modal
             }
             if (result.fail_count && result.fail_count > 0) {
               showError(`${result.fail_count}件の削除に失敗しました`);
@@ -431,7 +467,7 @@ export function FileList({
           }
         }).catch((err) => {
           console.error("Delete failed:", err);
-          showError(`削除処理中にエラーが発生しました: ${err.message}`);
+          showError(`削除に失敗しました: ${err.message}`);
         });
       }
     } catch (err: any) {
@@ -441,21 +477,30 @@ export function FileList({
   };
 
   // フォルダ作成
-  const handleCreateFolder = async () => {
-    const name = prompt("フォルダ名を入力してください");
-    if (!name) return;
-    const parentPath = currentPath || "";
-    await createFolder.mutateAsync({ parentPath, name });
+  const handleCreateFolder = () => {
+    setIsCreateFolderModalOpen(true);
+  };
 
-    // 履歴に追加
-    addOperation({
-      type: "CREATE_FOLDER",
-      canUndo: true,
-      timestamp: Date.now(),
-      data: {
-        createdPath: `${parentPath}/${name}`,
-      },
-    });
+  const handleConfirmCreateFolder = async (name: string) => {
+    const parentPath = currentPath || "";
+    try {
+      await createFolder.mutateAsync({ parentPath, name });
+      showSuccess(`フォルダ作成: ${name}`);
+
+      // 履歴に追加
+      addOperation({
+        type: "CREATE_FOLDER",
+        canUndo: true,
+        timestamp: Date.now(),
+        data: {
+          createdPath: `${parentPath}/${name}`,
+        },
+      });
+    } catch (e: any) {
+      console.error("Folder creation failed:", e);
+      showError(`フォルダ作成に失敗しました: ${e.message}`);
+      throw e; // Keep modal open
+    }
   };
 
   // クリップボードからパスを開く
@@ -708,7 +753,10 @@ export function FileList({
 
   // Markdown作成を開く
   const handleOpenMarkdown = () => {
-    const name = prompt("Markdownファイル名を入力してください（.md拡張子は自動付与）");
+    setIsCreateMarkdownModalOpen(true);
+  };
+
+  const handleConfirmCreateMarkdown = (name: string) => {
     if (!name || !name.trim()) return;
 
     if (!currentPath) {
@@ -2466,18 +2514,12 @@ export function FileList({
           item={contextMenu.item}
           onClose={() => setContextMenu(null)}
           currentPath={currentPath || ""}
+          onDeleteRequest={handleRequestDeleteFromMenu}
         />
       )}
 
       {/* トースト通知 */}
-      {toasts.map((toast) => (
-        <Toast
-          key={toast.id}
-          message={toast.message}
-          type={toast.type}
-          onClose={() => hideToast(toast.id)}
-        />
-      ))}
+      {/* トースト通知はApp.tsxのToastProviderで表示 */}
 
       {/* Markdownエディタモーダル */}
       <MarkdownEditorModal
@@ -2498,8 +2540,6 @@ export function FileList({
           if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
           setProgressModalOpen(false);
           setProgressTaskId(null);
-          // 全パネルのファイル一覧を更新
-          queryClient.invalidateQueries({ queryKey: ["files"] });
         }}
         onComplete={(result) => {
           if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
@@ -2515,11 +2555,48 @@ export function FileList({
           // 全パネルのファイル一覧を更新
           queryClient.invalidateQueries({ queryKey: ["files"] });
 
-          // 完了後はモーダルを閉じる（ProgressModal側でonCloseが呼ばれるのを待つか、ここで閉じるか）
-          // ProgressModalは自動で閉じないので、ここで閉じる
+          // 完了後はモーダルを閉じる
           setProgressModalOpen(false);
           setProgressTaskId(null);
         }}
+      />
+
+      {/* フォルダ作成モーダル */}
+      <InputModal
+        isOpen={isCreateFolderModalOpen}
+        onClose={() => setIsCreateFolderModalOpen(false)}
+        title="フォルダ作成"
+        message="新しいフォルダの名前を入力してください"
+        placeholder="フォルダ名"
+        onConfirm={handleConfirmCreateFolder}
+        confirmLabel="作成"
+      />
+
+      {/* Markdown作成モーダル */}
+      <InputModal
+        isOpen={isCreateMarkdownModalOpen}
+        onClose={() => setIsCreateMarkdownModalOpen(false)}
+        title="Markdownファイル作成"
+        message="Markdownファイル名を入力してください（.md拡張子は自動付与）"
+        placeholder="ファイル名"
+        onConfirm={handleConfirmCreateMarkdown}
+        confirmLabel="エディタを開く"
+        confirmButtonClass="btn-primary"
+      />
+
+      {/* 削除確認モーダル */}
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="削除の確認"
+        message={
+          itemsToDelete.size > 1
+            ? `${itemsToDelete.size}件のアイテムを削除しますか？`
+            : `「${Array.from(itemsToDelete)[0]?.split('/').pop()}」を削除しますか？`
+        }
+        onConfirm={handleConfirmDelete}
+        confirmLabel="削除"
+        confirmButtonClass="btn-danger"
       />
     </div>
   );

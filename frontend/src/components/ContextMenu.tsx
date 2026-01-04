@@ -25,6 +25,7 @@ interface ContextMenuProps {
   currentPath: string;
   onOpenInLeft?: () => void;
   onOpenInRight?: () => void;
+  onDeleteRequest: (item: FileItem) => void;
 }
 
 // クリップボード用のグローバル状態（簡易実装）
@@ -38,12 +39,13 @@ export function ContextMenu({
   currentPath,
   onOpenInLeft,
   onOpenInRight,
+  onDeleteRequest,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(item.name);
 
-  const deleteItemsBatch = useDeleteItemsBatch();
+  // const deleteItemsBatch = useDeleteItemsBatch(); // Moved to FileList
   const renameItem = useRenameItem();
   const { addOperation } = useOperationHistoryContext();
 
@@ -99,35 +101,7 @@ export function ContextMenu({
 
   // 削除実行
   const handleDelete = async () => {
-    if (confirm(`「${item.name}」を削除しますか？`)) {
-      const debugMode = localStorage.getItem('file_manager_debug_mode') === 'true';
-
-      try {
-        // クライアントサイドでの再帰カウント（countFiles）はNAS等で遅いため廃止
-        // シンプルに「フォルダの場合は非同期モード」とする
-        const isDirectory = item.type === "directory";
-        // 非同期モード判定: ディレクトリなら非同期
-
-        // 実際には、フォルダなら非同期、ファイルなら同期と割り切る
-        // ファイル1つでもNASだと遅い可能性があるが、削除は比較的速い
-
-        await deleteItemsBatch.mutateAsync({
-          paths: [item.path],
-          asyncMode: isDirectory, // ディレクトリなら非同期
-          debugMode
-        });
-
-        // 履歴に追加（戻れない操作として記録）
-        addOperation({
-          type: "DELETE",
-          canUndo: false,
-          timestamp: Date.now(),
-          data: {},
-        });
-      } catch (err) {
-        console.error("Delete failed:", err);
-      }
-    }
+    onDeleteRequest(item);
     onClose();
   };
 

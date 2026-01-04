@@ -13,12 +13,12 @@ import { Menu, Trash2, Sun, Moon, FlaskConical, Home } from "lucide-react";
 import { FileList } from "./components/FileList";
 import { FileSearch } from "./components/FileSearch";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { Toast } from "./components/Toast";
 import { ApiTestPage } from "./pages/ApiTestPage";
 import { getPathInfo } from "./api/files";
 import { useToast } from "./hooks/useToast";
 import { getConfig, getDefaultBasePath } from "./config";
 import { OperationHistoryProvider, useOperationHistoryContext } from "./contexts/OperationHistoryContext";
+import { ToastProvider } from "./contexts/ToastContext";
 import "./App.css";
 
 const STORAGE_KEYS = {
@@ -33,7 +33,7 @@ const STORAGE_KEYS = {
 type FocusedPane = "left" | "center" | "right";
 
 function AppContent() {
-  const { toasts, hideToast, showError, showSuccess } = useToast();
+  const { showError, showSuccess } = useToast();
   const { undo, redo, canUndo, canRedo } = useOperationHistoryContext();
   const [showMenu, setShowMenu] = useState(false);
   const [theme, setTheme] = useState(() => {
@@ -358,24 +358,17 @@ function AppContent() {
           </div>
         </main>
       )}
-      {/* トースト通知 */}
-      {toasts.map((toast) => (
-        <Toast
-          key={toast.id}
-          message={toast.message}
-          type={toast.type}
-          onClose={() => hideToast(toast.id)}
-        />
-      ))}
     </div>
   );
 }
 
-// OperationHistoryProviderでラップ
+// OperationHistoryProviderとToastProviderでラップ
 function App() {
   return (
     <OperationHistoryProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </OperationHistoryProvider>
   );
 }
