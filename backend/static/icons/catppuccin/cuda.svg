@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-    <title>cuda</title>
-    <g id="cuda" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M13.4595402,9 C9.5,12 3.5,13 0.5,8 C4.03357257,3.5 7.5,3.5 11.5,7.5 C10.8788214,8.15034866 6.97977012,11.3994805 3,8 C3,8 5.5,5 8.5,7.5 C8.5,7.5 7.44996211,8.08528872 7,8.25" id="Path" stroke="#40A02B"></path>
-        <polyline id="Path" stroke="#40A02B" points="4.5 3.61111111 4.5 2.5 15.5 2.5 15.5 13.5 4.5 13.5 4.5 12.3888889"></polyline>
-    </g>
-</svg>

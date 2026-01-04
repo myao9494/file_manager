@@ -1,9 +1,9 @@
 @echo off
 setlocal
 
-REM Windows本番環境用起動スクリプト
-REM バックエンドが静的ファイルとしてフロントエンドも配信するため、
-REM フロントエンドサーバー(Vite)の起動は不要。
+REM Windows本番環境用バックエンド起動スクリプト
+REM ポート: 8001
+REM フロントエンドは別途 start_windows_frontend.bat で起動してください。
 
 set PORT=8001
 
@@ -13,8 +13,8 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :%PORT% ^| findstr LISTENING'
     taskkill /F /PID %%a
 )
 
-echo Starting Server (Port %PORT%)...
-echo Access http://localhost:%PORT% to use the application.
+echo Starting Backend Server (Port %PORT%)...
+echo API is available at http://localhost:%PORT%
 
 cd backend
 set PYTHONPATH=.

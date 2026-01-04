@@ -14,6 +14,10 @@ from app.routers import files
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi import Request
+import mimetypes
+
+# Windows環境でSVGのMIMEタイプが正しく認識されない場合があるため明示的に設定
+mimetypes.add_type("image/svg+xml", ".svg")
 
 app = FastAPI(
     title="File Manager API",
@@ -47,39 +51,6 @@ app.add_middleware(
 # ルーター登録
 app.include_router(files.router, prefix="/api", tags=["files"])
 
-
-import os
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-
-# 静的ファイルのパス
-STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
-
-# 静的ファイルが存在する場合のみマウント（開発環境などではない場合があるため）
-if os.path.exists(STATIC_DIR):
-    app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
-    if os.path.exists(os.path.join(STATIC_DIR, "icons")):
-        app.mount("/icons", StaticFiles(directory=os.path.join(STATIC_DIR, "icons")), name="icons")
-
-@app.get("/")
-async def serve_spa():
-    """SPAのエントリーポイント (index.html) を返す"""
-    if os.path.exists(STATIC_DIR):
-        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
-    return {"status": "ok", "base_dir": str(settings.base_dir), "message": "Frontend not found. Run in dev mode or build frontend."}
-
-@app.exception_handler(404)
-async def not_found_exception_handler(request: Request, exc):
-    """
-    API以外の404エラーはindex.htmlを返す（React Router用）
-    APIのエラー(/api/...)はそのまま404を返す
-    """
-    if request.url.path.startswith("/api"):
-        return JSONResponse(status_code=404, content={"detail": "Not Found"})
-    
-    if os.path.exists(STATIC_DIR):
-        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
-    return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
 
 @app.get("/api/config")

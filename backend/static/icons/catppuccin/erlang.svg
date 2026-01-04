@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-    <title>erlang</title>
-    <g id="erlang" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M6,5.5 C6,4.25 7,3.49938308 8,3.50212868 C9,3.50488938 10,4.25 10,5.5 L6,5.5 Z" id="Path" stroke="#D20F39"></path>
-        <path d="M13.5,12.9993117 C13.9715822,12.4338142 14.6202539,11.7622102 15,11 L12.75,9.75 C12.0105752,11.108543 10.994612,12.5 9.5,12.5 C7.39575195,12.5 6.49540124,10.207863 6.49998248,7.5 L14.574497,7.5 C14.5855062,7.19453775 14.5110092,7.14743131 14.5,7 C14.5529554,5.38940587 14.1864694,4.05445735 13.5,3" id="Path" stroke="#D20F39"></path>
-        <path d="M2.99999865,12.9993117 C1.91580753,11.6992732 1.49999865,10 1.49999865,8 C1.49999865,6 2.09529852,4.24153406 2.99999865,3.00275315" id="Path" stroke="#D20F39"></path>
-    </g>
-</svg>

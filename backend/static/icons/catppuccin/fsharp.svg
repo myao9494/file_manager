@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-    <title>fsharp</title>
-    <g id="fsharp" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
-        <polygon id="Path" stroke="#1E66F5" points="1 8 6.501066 2.00179052 6.501066 4.93438646 3.568333 8 6.501066 10.7999915 6.501066 13.7327252"></polygon>
-        <polygon id="Path" stroke="#1E66F5" points="15 8 9.504052 2 9.504052 4.92887716 12.252654 8 9.503915 10.786356 9.503915 13.7152332"></polygon>
-    </g>
-</svg>

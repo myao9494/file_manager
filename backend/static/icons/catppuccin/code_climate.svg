@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-    <title>code_climate</title>
-    <g id="code_climate" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
-        <polygon id="Path" stroke="#4C4F69" points="5 6.99551201 0.545058696 11.5596521 2.53169222 13.5003795 5.02254724 11.0531998 7.49594228 13.5003795 9.49536827 11.5596521"></polygon>
-        <polygon id="Path" stroke="#4C4F69" points="11.5 4.5 8.5 7.5 10.5 9.5 11.5 8.5 13.5 10.5 15.5 8.64231945"></polygon>
-    </g>
-</svg>

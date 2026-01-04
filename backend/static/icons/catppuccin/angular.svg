@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-    <title>angular</title>
-    <g id="angular" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
-        <polygon id="Path" stroke="#D20F39" points="7.99992586 1 14.5 3 13.5 12.5 7.99992586 15 2.5 12.5 1.5 3"></polygon>
-        <path d="M4.49988879,10.5 L7.99992586,3.5 L11.4999629,10.5 M5.70388375,8.5 L10.3394126,8.5" id="Combined-Shape" stroke="#4C4F69"></path>
-    </g>
-</svg>

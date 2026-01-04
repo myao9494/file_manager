@@ -4,7 +4,7 @@
  * バックエンドの/api/configから設定を取得
  */
 
-const API_BASE_URL = import.meta.env.DEV ? "http://localhost:8001" : window.location.origin;
+const API_BASE_URL = "http://localhost:8001";
 
 /**
  * バックエンドから取得した設定のキャッシュ

@@ -7,7 +7,7 @@
  */
 import type { DirectoryResponse, SearchResponse, SearchParams, PathInfoResponse } from "../types/file";
 
-const API_BASE_URL = import.meta.env.DEV ? "http://localhost:8001/api" : `${window.location.origin}/api`;
+const API_BASE_URL = "http://localhost:8001/api";
 
 /**
  * パスの種別を取得（ファイル/ディレクトリ/存在しない）
