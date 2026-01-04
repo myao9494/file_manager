@@ -123,7 +123,6 @@ export function FileList({
   const pathInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   // ローカルRefは廃止し、グローバル変数 globalDraggedItems を使用する
-  const [lastSelectedPath, setLastSelectedPath] = useState<string | null>(null);
 
   // Markdownエディタモーダルの状態
   const [mdEditorOpen, setMdEditorOpen] = useState(false);
