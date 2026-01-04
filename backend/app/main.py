@@ -58,6 +58,8 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 # 静的ファイルが存在する場合のみマウント（開発環境などではない場合があるため）
 if os.path.exists(STATIC_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
+    if os.path.exists(os.path.join(STATIC_DIR, "icons")):
+        app.mount("/icons", StaticFiles(directory=os.path.join(STATIC_DIR, "icons")), name="icons")
 
 @app.get("/")
 async def serve_spa():
