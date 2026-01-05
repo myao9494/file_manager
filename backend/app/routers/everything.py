@@ -64,7 +64,8 @@ async def get_status():
     try:
         async with httpx.AsyncClient() as client:
             # 軽いクエリで接続確認
-            params = {"search": "", "json": 1, "count": 1} if platform.system() == "Windows" else {}
+            # 両OSともにJSONレスポンスを期待
+            params = {"search": "", "json": 1, "count": 1}
             response = await client.get(
                 f"{EVERYTHING_BASE_URL}/",
                 params=params, 
