@@ -219,6 +219,57 @@
   text-align: center;
 }
 
+/* 履歴検索バー (Keyword Searchの上に追加) */
+.history-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  background-color: var(--pane-bg);
+  position: relative;
+  /* ドロップダウンの基準 */
+}
+
+.history-search-bar .history-icon {
+  color: var(--text-color);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.history-search-bar input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  font-size: 12px;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  outline: none;
+}
+
+.history-search-bar input:focus {
+  border-color: #1976d2;
+}
+
+/* 履歴ドロップダウンの位置調整 */
+.history-search-bar .history-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 8px;
+  /* パディング分ずらす */
+  right: 8px;
+  /* パディング分ずらす */
+  background-color: var(--pane-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-top: 0;
+}
+
 /* 検索バー */
 .search-bar {
   display: flex;

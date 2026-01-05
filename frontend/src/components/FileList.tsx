@@ -111,7 +111,7 @@ export function FileList({
   // ローカルフォーカス行インデックス（各ペインで独立）
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
   // フォーカス中のUIセクション
-  type FocusSection = 'toolbar' | 'path' | 'filter' | 'search' | 'list';
+  type FocusSection = 'toolbar' | 'path' | 'filter' | 'history' | 'search' | 'list';
   const [focusedSection, setFocusedSection] = useState<FocusSection>('list');
   // ツールバーボタン内のフォーカスインデックス
   const [toolbarButtonIndex, setToolbarButtonIndex] = useState(0);
@@ -265,7 +265,15 @@ export function FileList({
   // フォーカスが当たった時にコンテナにフォーカスを移動
   useEffect(() => {
     if (isFocused && containerRef.current) {
-      containerRef.current.focus();
+      if (focusedSection === 'path' && pathButtonIndex === 2) {
+        pathInputRef.current?.focus();
+      } else if (focusedSection === 'search') {
+        searchInputRef.current?.focus();
+      } else if (focusedSection === 'history') {
+        historyInputRef.current?.focus();
+      } else {
+        containerRef.current.focus();
+      }
     }
   }, [isFocused]);
 
@@ -1744,8 +1752,8 @@ export function FileList({
         if (e.key === 'ArrowDown') {
           e.preventDefault();
           e.stopPropagation();
-          setFocusedSection('search');
-          searchInputRef.current?.focus();
+          setFocusedSection('history');
+          historyInputRef.current?.focus();
           return;
         }
         // Enter: ボタンをクリック
@@ -1760,12 +1768,31 @@ export function FileList({
         }
         break;
 
-      case 'search':
+      case 'history':
         // 上: 前のセクションへ
         if (e.key === 'ArrowUp') {
           e.preventDefault();
           e.stopPropagation();
           setFocusedSection('filter');
+          return;
+        }
+        // 下: 次のセクションへ
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          e.stopPropagation();
+          setFocusedSection('search');
+          searchInputRef.current?.focus();
+          return;
+        }
+        break;
+
+      case 'search':
+        // 上: 前のセクションへ
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          e.stopPropagation();
+          setFocusedSection('history');
+          historyInputRef.current?.focus();
           return;
         }
         // 下: 次のセクションへ
@@ -2295,9 +2322,7 @@ export function FileList({
 
       {/* パス入力 */}
       <div className="path-input-container">
-        <button onClick={() => setShowHistory(!showHistory)} title="履歴" className="path-button">
-          <History size={14} />
-        </button>
+        {/* 履歴ボタンは削除 */}
         <button onClick={copyCurrentPath} title="フルパスをコピー" className="path-button">
           <Copy size={14} />
         </button>
@@ -2331,21 +2356,73 @@ export function FileList({
             }}
           />
         </form>
+      </div>
+
+      {/* フィルタバー */}
+      <FilterBar
+        typeFilter={typeFilter}
+        extFilter={extFilter}
+        onTypeChange={setTypeFilter}
+        onExtChange={setExtFilter}
+        isFocused={focusedSection === 'filter'}
+      />
+
+      {/* 履歴検索バー (Keyword Searchの上に追加) */}
+      <div className="history-search-bar">
+        <History size={14} className="history-icon" />
+        <input
+          ref={historyInputRef}
+          type="text"
+          placeholder="履歴を検索..."
+          value={historyFilter}
+          onChange={(e) => {
+            setHistoryFilter(e.target.value);
+            setHistorySelectedIndex(0);
+            if (!showHistory) setShowHistory(true);
+          }}
+          onFocus={() => {
+            // フォーカス時は何もしない（入力時のみ表示）
+          }}
+          onBlur={() => {
+            // クリックイベントの処理を待つために少し遅延させる
+            setTimeout(() => setShowHistory(false), 200);
+          }}
+          onKeyDown={(e) => {
+            const isDropdownActive = showHistory && filteredHistory.length > 0;
+
+            if (e.key === 'ArrowUp') {
+              if (!isDropdownActive) {
+                e.preventDefault();
+                containerRef.current?.focus();
+                setFocusedSection('filter');
+                return;
+              }
+              // ドロップダウンがアクティブなら handleHistoryKeyDown で処理
+            } else if (e.key === 'ArrowDown') {
+              if (!isDropdownActive) {
+                e.preventDefault();
+                containerRef.current?.focus();
+                setFocusedSection('search');
+                searchInputRef.current?.focus();
+                return;
+              }
+              // ドロップダウンがアクティブなら handleHistoryKeyDown で処理
+            } else if (e.key === 'Enter') {
+              if (!showHistory) {
+                e.preventDefault();
+                setShowHistory(true);
+                setHistorySelectedIndex(0);
+                return;
+              }
+            }
+
+            // ドロップダウン用キーハンドリング
+            handleHistoryKeyDown(e);
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
         {showHistory && (
           <div className="history-dropdown">
-            <input
-              ref={historyInputRef}
-              type="text"
-              className="history-filter"
-              placeholder="履歴を検索..."
-              value={historyFilter}
-              onChange={(e) => {
-                setHistoryFilter(e.target.value);
-                setHistorySelectedIndex(0);
-              }}
-              onKeyDown={handleHistoryKeyDown}
-              onClick={(e) => e.stopPropagation()}
-            />
             {filteredHistory.length > 0 ? (
               filteredHistory.map((path, index) => (
                 <div
@@ -2368,15 +2445,6 @@ export function FileList({
         )}
       </div>
 
-      {/* フィルタバー */}
-      <FilterBar
-        typeFilter={typeFilter}
-        extFilter={extFilter}
-        onTypeChange={setTypeFilter}
-        onExtChange={setExtFilter}
-        isFocused={focusedSection === 'filter'}
-      />
-
       {/* 検索バー */}
       <div className="search-bar">
         <Search size={14} className="search-icon" />
@@ -2395,7 +2463,8 @@ export function FileList({
             } else if (e.key === 'ArrowUp') {
               e.preventDefault();
               containerRef.current?.focus();
-              setFocusedSection('filter');
+              setFocusedSection('history');
+              historyInputRef.current?.focus();
             }
           }}
         />
