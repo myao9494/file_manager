@@ -34,6 +34,9 @@ import { openSmart } from "../api/files";
 import { getDefaultBasePath } from "../config";
 import type { SearchParams } from "../types/file";
 import "./FileSearch.css";
+import { MarkdownEditorModal } from "./MarkdownEditorModal";
+import { updateFile } from "../api/files";
+import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 
 
 interface FileSearchProps {
@@ -89,6 +92,15 @@ export function FileSearch({
     y: number;
     item: { name: string; path: string; type: "file" | "directory" };
   } | null>(null);
+
+  // Markdownエディタモーダルの状態
+  const [mdEditorOpen, setMdEditorOpen] = useState(false);
+  const [mdEditorFileName, setMdEditorFileName] = useState("");
+  const [mdEditorFilePath, setMdEditorFilePath] = useState<string | null>(null);
+  const [mdEditorSaving, setMdEditorSaving] = useState(false);
+  const [mdEditorInitialContent, setMdEditorInitialContent] = useState("");
+
+  const { addOperation } = useOperationHistoryContext();
 
   // チェックボックス選択のtoggle
   const toggleSelect = (path: string) => {
@@ -351,6 +363,66 @@ export function FileSearch({
       y: e.clientY,
       item,
     });
+  };
+
+  // ファイルクリックハンドラ（ファイルを開く処理）
+  const handleFileClick = async (item: { name: string, path: string }) => {
+    try {
+      const result = await openSmart(item.path);
+
+      if (result.action === "open_modal") {
+        // Markdownエディタモーダルで開く
+        setMdEditorFileName(item.name);
+        setMdEditorFilePath(item.path);
+        setMdEditorInitialContent(result.content || "");
+        setMdEditorOpen(true);
+      } else {
+        // 外部アプリで開いた
+        showSuccess(result.message);
+      }
+    } catch (e: any) {
+      showError(e.message || "ファイルを開けませんでした");
+    }
+  };
+
+  // Markdown保存
+  const handleSaveMarkdown = async (content: string) => {
+    if (!mdEditorFilePath) return;
+
+    setMdEditorSaving(true);
+    try {
+      // 既存ファイルの更新
+      await updateFile(mdEditorFilePath, content);
+      showSuccess(`更新しました: ${mdEditorFileName}`);
+
+      // 履歴に追加
+      addOperation({
+        type: "UPDATE_FILE",
+        canUndo: false,
+        timestamp: Date.now(),
+        data: {},
+      });
+
+      setMdEditorOpen(false);
+
+      // フォーカス復帰
+      onRequestFocus?.();
+      setTimeout(() => {
+        containerRef.current?.focus();
+      }, 50);
+    } catch (e: any) {
+      showError(`保存に失敗しました: ${e.message}`);
+    } finally {
+      setMdEditorSaving(false);
+    }
+  };
+
+  // Markdownエディタを閉じる
+  const handleCloseMdEditor = () => {
+    setMdEditorOpen(false);
+    setMdEditorFileName("");
+    setMdEditorFilePath(null);
+    containerRef.current?.focus();
   };
 
   const getParentPath = (path: string) => {
@@ -622,7 +694,7 @@ export function FileSearch({
               if (item.type === 'directory') {
                 onSelectFolder?.(item.path);
               } else {
-                openSmart(item.path).catch(() => { });
+                handleFileClick(item);
               }
             } else {
               toggleSelect(item.path);
@@ -982,7 +1054,7 @@ export function FileSearch({
                   key={item.path}
                   className={`${selectedItems.has(item.path) ? "selected" : ""} ${focusedSection === 'results' && focusedIndex === sortedResults.folders.length + index ? "keyboard-focused" : ""}`}
                   onContextMenu={(e) => handleContextMenu(e, item)}
-                  onDoubleClick={() => openSmart(item.path).catch(() => { })}
+                  onDoubleClick={() => handleFileClick(item)}
                   title={item.path}
                   onClick={() => {
                     handlePaneClick();
@@ -1000,7 +1072,7 @@ export function FileSearch({
                           e.preventDefault();
                           if (selectedItems.has(item.path)) {
                             // 既に選択済みならファイルを開く
-                            openSmart(item.path).catch(() => { });
+                            handleFileClick(item);
                           } else {
                             toggleSelect(item.path);
                           }
@@ -1055,6 +1127,16 @@ export function FileSearch({
           }}
         />
       )}
+
+      {/* Markdownエディタモーダル */}
+      <MarkdownEditorModal
+        isOpen={mdEditorOpen}
+        onClose={handleCloseMdEditor}
+        onSave={handleSaveMarkdown}
+        fileName={mdEditorFileName}
+        isSaving={mdEditorSaving}
+        initialContent={mdEditorInitialContent}
+      />
     </div>
   );
 }

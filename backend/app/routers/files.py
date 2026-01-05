@@ -2523,7 +2523,7 @@ async def open_in_vscode(request: OpenRequest):
              # Try generic 'code' command
              vscode_path = 'code'
     elif platform.system() == 'Windows':
-        vscode_path = r'C:\Users\kabu_server\AppData\Local\Programs\Microsoft VS Code\Code.exe'
+        vscode_path = os.path.join(os.environ["USERPROFILE"], r"AppData\Local\Programs\Microsoft VS Code\Code.exe")
     else:
         raise HTTPException(status_code=501, detail="サポートされていないOSです")
 

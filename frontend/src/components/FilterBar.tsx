@@ -20,7 +20,7 @@ const TYPE_FILTERS = [
 
 const EXT_FILTERS = [
   { id: "all", label: "全" },
-  { id: "md+svg+csv+pdf+ipynb+py+excalidraw+excalidraw.md+excalidraw.svg+excalidraw.png", label: "常用" },
+  { id: "md+svg+csv+pdf+ipynb+py+excalidraw+excalidraw.md+excalidraw.svg+excalidraw.png+docx+xlsx+xlsm+pptx+msg+jpg+jpeg+png+gif+bmp+tiff", label: "常用" },
   { id: "md", label: "MD" },
   { id: "ipynb", label: "IPYNB" },
   { id: "pdf", label: "PDF" },
