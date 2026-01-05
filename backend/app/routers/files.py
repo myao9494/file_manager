@@ -2666,6 +2666,27 @@ def resolve_file_app_url(path_obj: Path) -> Optional[str]:
 
     # --- Jupyter (.ipynb) ---
     if start_path.endswith('.ipynb'):
+        # Windows specific logic: Port 8082, Root %USERPROFILE%/000_work
+        if platform.system() == 'Windows':
+            JUPYTER_BASE_URL = "http://localhost:8082/tree"
+            user_profile = os.environ.get("USERPROFILE")
+            if user_profile:
+                jupyter_root = Path(user_profile) / "000_work"
+                try:
+                    # Calculate path relative to 000_work
+                    # Note: We need to resolve paths to ensure correct relative calculation
+                    resolved_path = path_obj.resolve()
+                    resolved_root = jupyter_root.resolve()
+                    
+                    if str(resolved_path).lower().startswith(str(resolved_root).lower()):
+                        relative_path = resolved_path.relative_to(resolved_root)
+                        url_path = urllib.parse.quote(str(relative_path).replace('\\', '/'))
+                        return f"{JUPYTER_BASE_URL}/{url_path}"
+                except (ValueError, OSError):
+                    # File is not inside 000_work, fall back to default logic or handle error
+                    pass
+
+        # Default/Existing logic (macOS/Linux or fallback)
         JUPYTER_BASE_URL = "http://localhost:8888/lab/tree"
         try:
             relative_path = path_obj.relative_to(settings.base_dir)
