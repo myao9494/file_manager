@@ -19,6 +19,7 @@ import { useToast } from "./hooks/useToast";
 import { getConfig, getDefaultBasePath } from "./config";
 import { OperationHistoryProvider, useOperationHistoryContext } from "./contexts/OperationHistoryContext";
 import { ToastProvider } from "./contexts/ToastContext";
+import { ZoomProvider, useZoomContext } from "./contexts/ZoomContext";
 import "./App.css";
 
 const STORAGE_KEYS = {
@@ -34,6 +35,7 @@ type FocusedPane = "left" | "center" | "right";
 
 function AppContent() {
   const { showError, showSuccess } = useToast();
+  const { zoomLevel, zoomIn, zoomOut, resetZoom } = useZoomContext();
   const { undo, redo, canUndo, canRedo } = useOperationHistoryContext();
   const [showMenu, setShowMenu] = useState(false);
   const [theme, setTheme] = useState(() => {
@@ -266,6 +268,31 @@ function AppContent() {
           <a href="#api-test" target="_blank" className="api-test-link" title="APIテストページ">
             <FlaskConical size={20} />
           </a>
+          <div className="zoom-controls" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px', color: 'white' }}>
+            <button
+              onClick={zoomOut}
+              className="zoom-button"
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '4px', display: 'flex' }}
+              title="縮小"
+            >
+              -
+            </button>
+            <span
+              onClick={resetZoom}
+              style={{ fontSize: '12px', cursor: 'pointer', minWidth: '35px', textAlign: 'center' }}
+              title="リセット"
+            >
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button
+              onClick={zoomIn}
+              className="zoom-button"
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '4px', display: 'flex' }}
+              title="拡大"
+            >
+              +
+            </button>
+          </div>
           <button className="menu-trigger" onClick={() => setShowMenu(!showMenu)}>
             <Menu size={20} />
           </button>
@@ -303,11 +330,11 @@ function AppContent() {
         </div>
       </header>
       {currentPage === 'api-test' ? (
-        <main className="app-main api-test-main">
+        <main className="app-main api-test-main" style={{ zoom: zoomLevel } as any}>
           <ApiTestPage />
         </main>
       ) : (
-        <main className="app-main triple-pane">
+        <main className="app-main triple-pane" style={{ zoom: zoomLevel } as any}>
           <div
             className={`pane left-pane ${focusedPane === 'left' ? 'focused' : ''}`}
             onClick={() => setFocusedPane('left')}
@@ -367,7 +394,9 @@ function App() {
   return (
     <OperationHistoryProvider>
       <ToastProvider>
-        <AppContent />
+        <ZoomProvider>
+          <AppContent />
+        </ZoomProvider>
       </ToastProvider>
     </OperationHistoryProvider>
   );
