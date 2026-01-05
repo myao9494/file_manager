@@ -4,7 +4,7 @@
  * バックエンドの/api/configから設定を取得
  */
 
-const API_BASE_URL = "http://localhost:8001";
+export const API_BASE_URL = "http://localhost:8001";
 
 /**
  * バックエンドから取得した設定のキャッシュ

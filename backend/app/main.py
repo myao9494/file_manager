@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import files
+from app.routers import files, everything
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi import Request
@@ -50,6 +50,7 @@ app.add_middleware(
 
 # ルーター登録
 app.include_router(files.router, prefix="/api", tags=["files"])
+app.include_router(everything.router, prefix="/api", tags=["everything"])
 
 
 

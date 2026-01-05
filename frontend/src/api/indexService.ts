@@ -3,8 +3,10 @@
  * Everything互換の外部インデックスサービスと通信
  */
 
-// インデックスサービスのデフォルトURL
-const DEFAULT_INDEX_SERVICE_URL = "http://localhost:8080";
+import { API_BASE_URL } from "../config";
+
+// インデックスサービスのデフォルトURL (バックエンドプロキシ経由)
+const DEFAULT_INDEX_SERVICE_URL = `${API_BASE_URL}/api/index`;
 
 // ローカルストレージのキー
 const INDEX_SERVICE_URL_KEY = "file_manager_index_service_url";
@@ -100,7 +102,7 @@ export interface IndexSearchResponse {
 
 export async function searchIndexService(params: IndexSearchParams): Promise<IndexSearchResponse> {
   const baseUrl = getIndexServiceUrl();
-  const url = new URL("/", baseUrl);
+  const url = new URL(baseUrl);
 
   url.searchParams.set("search", params.query);
   url.searchParams.set("json", "1");
