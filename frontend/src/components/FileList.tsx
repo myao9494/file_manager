@@ -262,6 +262,42 @@ export function FileList({
     }
   }, [isFocused]);
 
+  // マウスの戻る/進むボタンのハンドリング
+  useEffect(() => {
+    // 左ペインまたは中央ペインのみ有効
+    if (!isFocused || (panelId !== 'left' && panelId !== 'center')) {
+      return;
+    }
+
+    const handleMouseUp = (e: MouseEvent) => {
+      // button: 3 (Back), 4 (Forward)
+      if (e.button === 3) {
+        e.preventDefault();
+        e.stopPropagation();
+        goBack();
+      } else if (e.button === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+        goForward();
+      }
+    };
+
+    // ブラウザの戻るを防ぐためにmousedownもフックする（一部ブラウザ用）
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [isFocused, panelId, navigationIndex, navigationHistory]); // 依存配列にstateを含めて最新の関数を参照させる
+
   // フォルダに移動（パスチェック付き）
   const navigateToFolder = async (targetPath: string, fromNavigation = false) => {
     // 空のパスはスキップ
