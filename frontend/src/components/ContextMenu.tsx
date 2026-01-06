@@ -212,13 +212,13 @@ export function ContextMenu({
     >
       {onOpenInLeft && (
         <div className="menu-item" onClick={onOpenInLeft}>
-          <PanelLeftOpen size={16} />
+          <PanelRightOpen size={16} />
           <span>左ペインで開く</span>
         </div>
       )}
       {onOpenInRight && (
         <div className="menu-item" onClick={onOpenInRight}>
-          <PanelRightOpen size={16} />
+          <PanelLeftOpen size={16} />
           <span>右ペインで開く</span>
         </div>
       )}
