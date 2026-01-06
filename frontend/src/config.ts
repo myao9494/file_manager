@@ -98,3 +98,14 @@ export function getNetworkDrivePath(): string {
  * ネットワークドライブの表示名
  */
 export const NETWORK_DRIVE_LABEL = 'NAS';
+
+/**
+ * 複合拡張子のリスト
+ * これらに一致する末尾を持つファイルは、その部分全体を拡張子として扱う
+ */
+export const COMPOUND_EXTENSIONS = [
+  '.excalidraw.md',
+  '.excalidraw.svg',
+  '.excalidraw.png',
+  '.ipynb.json', // 例: Jupyter NotebookをJSONとして保存した場合など
+];
