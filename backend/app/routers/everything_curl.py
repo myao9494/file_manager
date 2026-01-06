@@ -1,10 +1,13 @@
 """
-Everything検索プロキシ
-EverythingのHTTPサーバー(localhost:8080)にリクエストを転送し、
-フロントエンドが期待する形式に変換して返す
+Everything検索プロキシ (CURL版)
+EverythingのHTTPサーバー(localhost:8080)にCURL経由でリクエストを転送し、
+フロントエンドが期待する形式に変換して返す。
+httpxでプロキシ回避が難しい場合のバックアップ実装。
 """
-import httpx
+import subprocess
+import json
 import platform
+import urllib.parse
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional, Any
@@ -56,31 +59,50 @@ def windows_filetime_to_timestamp(filetime: Optional[str]) -> Optional[float]:
     except:
         return None
 
+def curl_get(url: str, params: dict) -> dict:
+    """CURLを使ってGETリクエストを送信し、JSONレスポンスを返す"""
+    # パラメータをクエリ文字列に変換
+    query_string = urllib.parse.urlencode(params)
+    full_url = f"{url}?{query_string}"
+    
+    # curlコマンドの構築
+    # --noproxy "*" でプロキシを確実に回避
+    # -s でサイレントモード
+    command = ["curl", "-s", "--noproxy", "*", full_url]
+    
+    try:
+        result = subprocess.run(
+            command, 
+            capture_output=True, 
+            text=True, 
+            encoding='utf-8',
+            check=True
+        )
+        return json.loads(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Curl error: {e.stderr}")
+        raise Exception(f"Curl command failed: {e}")
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {result.stdout}")
+        raise Exception(f"Invalid JSON response: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        raise e
+
 @router.get("/index/status", response_model=StatusResponse)
 async def get_status():
     """
     Everythingサービスのステータス確認
     """
     try:
-        async with httpx.AsyncClient(trust_env=False) as client:
-            # 軽いクエリで接続確認
-            # 両OSともにJSONレスポンスを期待
-            params = {"search": "", "json": 1, "count": 1}
-            response = await client.get(
-                f"{EVERYTHING_BASE_URL}/",
-                params=params, 
-                timeout=TIMEOUT
-            )
-            # ステータスコードチェックは省略（Macのサービス仕様不明なため）
-            # response.raise_for_status() 
-            
-            data = response.json()
-            # Windows(Everything) と Mac(Custom) でレスポンス構造が違う可能性も考慮
-            # とりあえず totalResults を見る
-            return {
-                "ready": True,
-                "total_indexed": data.get("totalResults", 0)
-            }
+        params = {"search": "", "json": 1, "count": 1}
+        # curlを使用（非同期化していないが、バックアップ用なので許容）
+        data = curl_get(f"{EVERYTHING_BASE_URL}/", params)
+        
+        return {
+            "ready": True,
+            "total_indexed": data.get("totalResults", 0)
+        }
     except Exception as e:
         print(f"Index service connection error: {e}")
         return {
@@ -98,14 +120,12 @@ async def search(
     path: Optional[str] = Query(None, description="検索対象フォルダ")
 ):
     """
-    Everythingでファイルを検索
-    Macの場合は単純にプロキシ、Windowsの場合はEverything APIを変換
+    Everythingでファイルを検索 (CURL版)
     """
     is_windows = platform.system() == "Windows"
 
     if not is_windows:
         # Mac: パススループロキシ
-        # パラメータはそのまま転送
         params = {
             "search": search,
             "json": 1,
@@ -118,24 +138,14 @@ async def search(
             params["path"] = path
 
         try:
-            async with httpx.AsyncClient(trust_env=False) as client:
-                response = await client.get(
-                    f"{EVERYTHING_BASE_URL}/",
-                    params=params,
-                    timeout=TIMEOUT
-                )
-                response.raise_for_status()
-                # Mac側はすでに期待する形式（date_modified含む）で返すと仮定
-                return response.json()
+            data = curl_get(f"{EVERYTHING_BASE_URL}/", params)
+            return data
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Index service error: {e}")
 
     # Windows: Everything API 変換
-    # パス指定がある場合はクエリに追加して絞り込み
     search_query = search
     if path:
-        # Everythingでは "path" search_query の形式でパス絞り込みが可能
-        # パスにスペースが含まれる場合を考慮してクォートする
         search_query = f'"{path}" {search}'
 
     params = {
@@ -151,18 +161,9 @@ async def search(
     }
 
     try:
-        async with httpx.AsyncClient(trust_env=False) as client:
-            response = await client.get(
-                f"{EVERYTHING_BASE_URL}/",
-                params=params,
-                timeout=TIMEOUT
-            )
-            response.raise_for_status()
-            data = response.json()
-    except httpx.RequestError as e:
+        data = curl_get(f"{EVERYTHING_BASE_URL}/", params)
+    except Exception as e:
         raise HTTPException(status_code=503, detail=f"Everythingサービスに接続できません: {e}")
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"Everythingサービスエラー: {e}")
 
     results = []
     for item in data.get("results", []):
@@ -170,20 +171,16 @@ async def search(
             name = item.get("name", "")
             parent_path = item.get("path", "")
             
-            # フルパスの構築
             full_path = f"{parent_path}\\{name}" if parent_path else name
             if parent_path.endswith("\\"): 
                 full_path = f"{parent_path}{name}"
                 
-            # サイズ変換
             size_str = item.get("size")
             size = int(size_str) if size_str else None
             
-            # 日付変換 (Unix Timestamp)
             date_str = item.get("date_modified")
             timestamp = windows_filetime_to_timestamp(date_str)
             
-            # タイプ変換
             item_type = item.get("type", "file")
             file_type = "directory" if item_type == "folder" else "file"
             
