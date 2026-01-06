@@ -1566,6 +1566,16 @@ export function FileList({
       return;
     }
 
+    // ホームへ (Ctrl + H)
+    if (isCmdOrCtrl && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      e.stopPropagation();
+      // 動的に最新のデフォルトパスを取得
+      const targetPath = initialPath ?? getDefaultBasePath();
+      navigateToFolder(targetPath);
+      return;
+    }
+
     // セクションごとの操作
     switch (focusedSection) {
       case 'toolbar':
@@ -2205,7 +2215,10 @@ export function FileList({
         <button onClick={navigateUp} disabled={!currentPath} title="上の階層へ">
           <ChevronUp size={14} />
         </button>
-        <button onClick={() => navigateToFolder(effectiveInitialPath)} title="ホームへ">
+        <button onClick={() => {
+          const targetPath = initialPath ?? getDefaultBasePath();
+          navigateToFolder(targetPath);
+        }} title="ホームへ">
           <Home size={14} />
         </button>
         <button onClick={() => navigateToFolder(getNetworkDrivePath())} title="ネットワークドライブへ">
