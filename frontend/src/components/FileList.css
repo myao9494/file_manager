@@ -417,9 +417,10 @@
 .name-cell-content {
   display: flex !important;
   align-items: center !important;
-  height: 34.5px !important;
-  /* 厳密な高さ指定 */
-  padding: 0 8px !important;
+  min-height: 34.5px !important;
+  /* 最小高さを指定 */
+  padding: 4px 8px !important;
+  /* 余白を微調整 */
   box-sizing: border-box !important;
   color: var(--text-color);
 }
@@ -458,6 +459,13 @@
 
 .name-cell span {
   color: var(--text-color);
+  white-space: normal;
+  /* テキスト折り返しを許可 */
+  overflow-wrap: anywhere;
+  /* どこでも折り返す */
+  word-break: break-word;
+  /* 単語の途中でも折り返す */
+  line-height: 1.4;
 }
 
 .icon {
