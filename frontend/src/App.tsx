@@ -18,6 +18,7 @@ import { getPathInfo } from "./api/files";
 import { useToast } from "./hooks/useToast";
 import { getConfig, getDefaultBasePath } from "./config";
 import { OperationHistoryProvider, useOperationHistoryContext } from "./contexts/OperationHistoryContext";
+import { FolderHistoryProvider } from "./contexts/FolderHistoryContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ZoomProvider, useZoomContext } from "./contexts/ZoomContext";
 import "./App.css";
@@ -393,11 +394,13 @@ function AppContent() {
 function App() {
   return (
     <OperationHistoryProvider>
-      <ToastProvider>
-        <ZoomProvider>
-          <AppContent />
-        </ZoomProvider>
-      </ToastProvider>
+      <FolderHistoryProvider>
+        <ToastProvider>
+          <ZoomProvider>
+            <AppContent />
+          </ZoomProvider>
+        </ToastProvider>
+      </FolderHistoryProvider>
     </OperationHistoryProvider>
   );
 }

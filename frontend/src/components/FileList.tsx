@@ -42,6 +42,7 @@ import { InputModal } from "./InputModal";
 import { ConfirmationModal } from "./ConfirmationModal";
 import { getNetworkDrivePath, getDefaultBasePath } from "../config";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
+import { useFolderHistory } from "../contexts/FolderHistoryContext";
 import "./FileList.css";
 
 interface FileListProps {
@@ -102,7 +103,7 @@ export function FileList({
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [lastSelectedPath, setLastSelectedPath] = useState<string | null>(null);
-  const [pathHistory, setPathHistory] = useState<string[]>([]);
+  const { history: allHistory, addToHistory, searchHistory: searchHistoryContext } = useFolderHistory();
   const [showHistory, setShowHistory] = useState(false);
   const [pathInput, setPathInput] = useState("");
   const [navigationHistory, setNavigationHistory] = useState<NavigationHistoryEntry[]>([]);
@@ -200,18 +201,7 @@ export function FileList({
     validateInitialPath();
   }, []); // 初回のみ実行
 
-  // 履歴の初期化
-  useEffect(() => {
-    const historyKey = `file-manager-history-${panelId}`;
-    const saved = localStorage.getItem(historyKey);
-    if (saved) {
-      try {
-        setPathHistory(JSON.parse(saved));
-      } catch {
-        setPathHistory([]);
-      }
-    }
-  }, [panelId]);
+
 
   // 外部からのパス変更に同期（パスチェック付き）
   useEffect(() => {
@@ -251,12 +241,7 @@ export function FileList({
   useEffect(() => {
     if (currentPath) {
       setPathInput(currentPath);
-      const historyKey = `file-manager-history-${panelId}`;
-      setPathHistory((prev) => {
-        const newHistory = [currentPath, ...prev.filter((p) => p !== currentPath)].slice(0, 10);
-        localStorage.setItem(historyKey, JSON.stringify(newHistory));
-        return newHistory;
-      });
+      addToHistory(currentPath);
       // 外部に通知
       onPathChange?.(currentPath);
     }
@@ -591,17 +576,11 @@ export function FileList({
       if (pathInfo.type === "file" && pathInfo.parent) {
         // ファイルの場合、親フォルダに移動
         navigateToFolder(pathInfo.parent);
-      } else if (pathInfo.type === "directory") {
         // ディレクトリの場合、そのまま移動
         navigateToFolder(pathInput);
 
         // 現在のパスと同じ場合でも履歴を更新動かしたい（一番上に持ってくる）
-        const historyKey = `file-manager-history-${panelId}`;
-        setPathHistory((prev) => {
-          const newHistory = [pathInput, ...prev.filter((p) => p !== pathInput)].slice(0, 10);
-          localStorage.setItem(historyKey, JSON.stringify(newHistory));
-          return newHistory;
-        });
+        addToHistory(pathInput);
       }
     } catch (error) {
       console.error("パス情報の取得に失敗しました:", error);
@@ -922,9 +901,9 @@ export function FileList({
   }, [showHistory]);
 
   const filteredHistory = useMemo(() => {
-    if (!historyFilter) return pathHistory;
-    return pathHistory.filter(p => p.toLowerCase().includes(historyFilter.toLowerCase()));
-  }, [pathHistory, historyFilter]);
+    if (!historyFilter) return allHistory;
+    return searchHistoryContext(historyFilter);
+  }, [allHistory, historyFilter, searchHistoryContext]);
 
   const handleHistoryKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
@@ -2424,7 +2403,7 @@ export function FileList({
         {showHistory && (
           <div className="history-dropdown">
             {filteredHistory.length > 0 ? (
-              filteredHistory.map((path, index) => (
+              filteredHistory.slice(0, 10).map((path, index) => (
                 <div
                   key={index}
                   data-index={index}
