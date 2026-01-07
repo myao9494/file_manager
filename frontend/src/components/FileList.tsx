@@ -43,6 +43,7 @@ import { ConfirmationModal } from "./ConfirmationModal";
 import { getNetworkDrivePath, getDefaultBasePath } from "../config";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import { useFolderHistory } from "../contexts/FolderHistoryContext";
+import { sanitizePath } from "../utils/pathUtils";
 import "./FileList.css";
 
 interface FileListProps {
@@ -125,6 +126,10 @@ export function FileList({
   const pathInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   // ローカルRefは廃止し、グローバル変数 globalDraggedItems を使用する
+
+  // グローバルショートカット用Ref
+  const isFocusedRef = useRef(isFocused);
+  const initialPathRef = useRef(effectiveInitialPath);
 
   // Markdownエディタモーダルの状態
   const [mdEditorOpen, setMdEditorOpen] = useState(false);
@@ -262,6 +267,8 @@ export function FileList({
     }
   }, [isFocused]);
 
+
+
   // マウスの戻る/進むボタンのハンドリング
   useEffect(() => {
     // 左ペインまたは中央ペインのみ有効
@@ -300,30 +307,33 @@ export function FileList({
 
   // フォルダに移動（パスチェック付き）
   const navigateToFolder = async (targetPath: string, fromNavigation = false) => {
+    // パスをサニタイズ（引用符除去など）
+    const cleanPath = sanitizePath(targetPath);
+
     // 空のパスはスキップ
-    if (!targetPath || targetPath.trim() === "") {
+    if (!cleanPath) {
       return;
     }
 
     // 現在のパスと同じ場合はスキップ
-    if (targetPath === currentPath) {
+    if (cleanPath === currentPath) {
       return;
     }
 
     try {
       // パスの存在確認と種別チェック
-      const pathInfo = await getPathInfo(targetPath);
+      const pathInfo = await getPathInfo(cleanPath);
 
       if (pathInfo.type === "not_found") {
         // 存在しないパスの場合、エラーメッセージを表示
-        showError(`指定されたパスが見つかりません: ${targetPath}`);
+        showError(`指定されたパスが見つかりません: ${cleanPath}`);
         return;
       }
 
       // ファイルの場合は親フォルダに移動
       const finalPath = pathInfo.type === "file" && pathInfo.parent
         ? pathInfo.parent
-        : targetPath;
+        : cleanPath;
 
       if (!fromNavigation) {
         // ユーザーアクションによる移動の場合、履歴を追加
@@ -351,6 +361,37 @@ export function FileList({
       showError("パス情報の取得に失敗しました");
     }
   };
+
+  // Refを最新の状態に保つ
+  useEffect(() => {
+    isFocusedRef.current = isFocused;
+    initialPathRef.current = effectiveInitialPath;
+  }, [isFocused, effectiveInitialPath]);
+
+  // グローバルショートカット (Ctrl+H: ホームへ)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent | Event) => {
+      // フォーカスがない場合は何もしない (Refで最新状態を確認)
+      if (!isFocusedRef.current) return;
+
+      // 型アサーション
+      const keyEvent = e as unknown as KeyboardEvent;
+      const isCmdOrCtrl = keyEvent.ctrlKey || keyEvent.metaKey;
+
+      if (isCmdOrCtrl && keyEvent.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetPath = initialPathRef.current;
+        navigateToFolder(targetPath);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [navigateToFolder]);
 
   // 戻る
   const goBack = () => {
@@ -571,7 +612,10 @@ export function FileList({
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        navigateToFolder(text.trim());
+        const cleanPath = sanitizePath(text);
+        if (cleanPath) {
+          navigateToFolder(cleanPath);
+        }
       }
     } catch {
       showError("クリップボードの読み取りに失敗しました");
@@ -593,18 +637,20 @@ export function FileList({
   const handlePathSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const cleanPath = sanitizePath(pathInput);
+
     // 空のパスはスキップ
-    if (!pathInput || pathInput.trim() === "") {
+    if (!cleanPath) {
       return;
     }
 
     try {
       // パスの存在確認
-      const pathInfo = await getPathInfo(pathInput);
+      const pathInfo = await getPathInfo(cleanPath);
 
       if (pathInfo.type === "not_found") {
         // 存在しないパスの場合、エラーメッセージを表示して元のパスに戻す
-        showError(`指定されたパスが見つかりません: ${pathInput}\n\n元のパスに戻ります。`);
+        showError(`指定されたパスが見つかりません: ${cleanPath}\n\n元のパスに戻ります。`);
         setPathInput(currentPath || ""); // 入力フィールドを元に戻す
         return;
       }
@@ -612,12 +658,14 @@ export function FileList({
       if (pathInfo.type === "file" && pathInfo.parent) {
         // ファイルの場合、親フォルダに移動
         navigateToFolder(pathInfo.parent);
-        // ディレクトリの場合、そのまま移動
-        navigateToFolder(pathInput);
-
-        // 現在のパスと同じ場合でも履歴を更新動かしたい（一番上に持ってくる）
-        addToHistory(pathInput);
+        return;
       }
+
+      // ディレクトリの場合、そのまま移動
+      navigateToFolder(cleanPath);
+
+      // 現在のパスと同じ場合でも履歴を更新動かしたい（一番上に持ってくる）
+      addToHistory(cleanPath);
     } catch (error) {
       console.error("パス情報の取得に失敗しました:", error);
       showError(`パスの確認に失敗しました。\n\n元のパスに戻ります。`);
@@ -1602,15 +1650,7 @@ export function FileList({
       return;
     }
 
-    // ホームへ (Ctrl + H)
-    if (isCmdOrCtrl && e.key.toLowerCase() === 'h') {
-      e.preventDefault();
-      e.stopPropagation();
-      // 動的に最新のデフォルトパスを取得
-      const targetPath = initialPath ?? getDefaultBasePath();
-      navigateToFolder(targetPath);
-      return;
-    }
+
 
     // セクションごとの操作
     switch (focusedSection) {

@@ -2653,16 +2653,19 @@ def resolve_file_app_url(path_obj: Path) -> Optional[str]:
     
     該当しない場合は None を返す
     """
-    start_path = str(path_obj).lower()
 
     # --- Excalidraw ---
-    if (start_path.endswith('.excalidraw') or 
-        start_path.endswith('.excalidraw.md') or 
-        start_path.endswith('.excalidraw.svg') or 
-        start_path.endswith('.excalidraw.png')):
-        
-        encoded_path = urllib.parse.quote(str(path_obj))
-        return f"http://localhost:3001/?filepath={encoded_path}"
+    # ファイル名に .excalidraw が含まれていればExcalidrawとして扱う
+    # (例: file.excalidraw.md, file.excalidraw 1.md)
+    name_lower = path_obj.name.lower()
+    if '.excalidraw' in name_lower:
+        if (name_lower.endswith('.excalidraw') or 
+            name_lower.endswith('.md') or 
+            name_lower.endswith('.svg') or 
+            name_lower.endswith('.png')):
+            
+            encoded_path = urllib.parse.quote(str(path_obj))
+            return f"http://localhost:3001/?filepath={encoded_path}"
 
     # --- Jupyter (.ipynb) ---
     if start_path.endswith('.ipynb'):
