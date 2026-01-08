@@ -11,27 +11,33 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 const MAX_HISTORY_ITEMS = 300;
 import { API_BASE_URL } from '../config';
 
+export interface HistoryItem {
+    path: string;
+    count: number;
+    timestamp: number;
+}
+
 interface FolderHistoryContextType {
-    history: string[];
+    history: HistoryItem[];
     addToHistory: (path: string) => void;
-    searchHistory: (query: string) => string[];
+    searchHistory: (query: string) => HistoryItem[];
     clearHistory: () => void;
 }
 
 const FolderHistoryContext = createContext<FolderHistoryContextType | undefined>(undefined);
 
 export function FolderHistoryProvider({ children }: { children: ReactNode }) {
-    const [history, setHistory] = useState<string[]>([]);
+    const [history, setHistory] = useState<HistoryItem[]>([]);
 
     // 履歴をバックエンドに保存する関数
-    const saveHistoryToBackend = useCallback(async (newHistory: string[]) => {
+    const saveHistoryToBackend = useCallback(async (newHistory: HistoryItem[]) => {
         try {
             await fetch(`${API_BASE_URL}/api/history`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ paths: newHistory }),
+                body: JSON.stringify({ history: newHistory }),
             });
         } catch (error) {
             console.error('Failed to save history:', error);
@@ -46,6 +52,7 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
                 if (response.ok) {
                     const data = await response.json();
                     if (Array.isArray(data)) {
+                        // オブジェクトの配列であることを期待
                         setHistory(data.slice(0, MAX_HISTORY_ITEMS));
                     }
                 }
@@ -61,8 +68,36 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
         if (!path || path.trim() === "") return;
 
         setHistory((prev) => {
-            // 既存の履歴から同じパスを除外して先頭に追加
-            const newHistory = [path, ...prev.filter((p) => p !== path)].slice(0, MAX_HISTORY_ITEMS);
+            // 既存のエントリを探す
+            const existingIndex = prev.findIndex((item) => item.path === path);
+            let newItem: HistoryItem;
+            let newHistory: HistoryItem[];
+
+            if (existingIndex !== -1) {
+                // 既存: カウントアップしてタイムスタンプ更新
+                const existingItem = prev[existingIndex];
+                newItem = {
+                    ...existingItem,
+                    count: existingItem.count + 1,
+                    timestamp: Date.now()
+                };
+                // 既存を除外
+                const remaining = [...prev];
+                remaining.splice(existingIndex, 1);
+                // 先頭に追加
+                newHistory = [newItem, ...remaining];
+            } else {
+                // 新規: カウント1
+                newItem = {
+                    path: path,
+                    count: 1,
+                    timestamp: Date.now()
+                };
+                newHistory = [newItem, ...prev];
+            }
+
+            // 最大件数制限
+            newHistory = newHistory.slice(0, MAX_HISTORY_ITEMS);
 
             // バックエンドに保存
             saveHistoryToBackend(newHistory);
@@ -76,8 +111,8 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
         if (!query) return history;
 
         const lowerQuery = query.toLowerCase();
-        return history.filter(path =>
-            path.toLowerCase().includes(lowerQuery)
+        return history.filter(item =>
+            item.path.toLowerCase().includes(lowerQuery)
         );
     }, [history]);
 

@@ -94,7 +94,7 @@ export function FileList({
   const [extFilter, setExtFilter] = useState<string>(() => {
     // 左ペインと真ん中ペインのデフォルトは「常用」
     if (panelId === "left" || panelId === "center") {
-      return "md+svg+csv+pdf+ipynb+py+excalidraw+excalidraw.md+excalidraw.svg+excalidraw.png";
+      return "md+svg+csv+pdf+ipynb+py+excalidraw+excalidraw.md+excalidraw.svg+excalidraw.png+docx+xlsx+xlsm+pptx+msg+jpg+jpeg+png+gif+bmp+tiff";
     }
     return "all";
   });
@@ -985,8 +985,17 @@ export function FileList({
   }, [showHistory]);
 
   const filteredHistory = useMemo(() => {
-    if (!historyFilter) return allHistory;
-    return searchHistoryContext(historyFilter);
+    const items = historyFilter
+      ? searchHistoryContext(historyFilter)
+      : allHistory;
+
+    // 回数順（降順） > 最新順（降順）
+    return [...items].sort((a, b) => {
+      if (b.count !== a.count) {
+        return b.count - a.count;
+      }
+      return b.timestamp - a.timestamp;
+    });
   }, [allHistory, historyFilter, searchHistoryContext]);
 
   const handleHistoryKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -1018,7 +1027,7 @@ export function FileList({
       e.preventDefault();
       e.stopPropagation();
       if (filteredHistory[historySelectedIndex]) {
-        navigateToFolder(filteredHistory[historySelectedIndex]);
+        navigateToFolder(filteredHistory[historySelectedIndex].path);
         setShowHistory(false);
       }
     } else if (e.key === "Escape") {
@@ -1716,7 +1725,7 @@ export function FileList({
             e.preventDefault();
             e.stopPropagation();
             if (filteredHistory[historySelectedIndex]) {
-              navigateToFolder(filteredHistory[historySelectedIndex]);
+              navigateToFolder(filteredHistory[historySelectedIndex].path);
               setShowHistory(false);
             }
             return;
@@ -2492,18 +2501,26 @@ export function FileList({
         {showHistory && (
           <div className="history-dropdown">
             {filteredHistory.length > 0 ? (
-              filteredHistory.slice(0, 10).map((path, index) => (
+              filteredHistory.slice(0, 10).map((item, index) => (
                 <div
                   key={index}
                   data-index={index}
                   className={`history-item ${index === historySelectedIndex ? "selected" : ""}`}
                   onClick={() => {
-                    navigateToFolder(path);
+                    navigateToFolder(item.path);
                     setShowHistory(false);
                   }}
                   onMouseEnter={() => setHistorySelectedIndex(index)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
-                  {path || "/"}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.path || "/"}
+                  </span>
+                  {item.count > 1 && (
+                    <span style={{ fontSize: '0.8em', color: '#888', marginLeft: '8px', flexShrink: 0 }}>
+                      {item.count}回
+                    </span>
+                  )}
                 </div>
               ))
             ) : (

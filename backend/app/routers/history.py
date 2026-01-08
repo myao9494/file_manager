@@ -17,11 +17,18 @@ router = APIRouter()
 HISTORY_FILE = Path("folder_history.json")
 
 
-class HistoryList(BaseModel):
-    paths: List[str]
+import time
+
+class HistoryItem(BaseModel):
+    path: str
+    count: int = 1
+    timestamp: float = 0
+
+class HistoryPayload(BaseModel):
+    history: List[HistoryItem]
 
 
-@router.get("/history", response_model=List[str])
+@router.get("/history", response_model=List[HistoryItem])
 async def get_history():
     """
     フォルダ履歴を取得する
@@ -32,22 +39,39 @@ async def get_history():
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if isinstance(data, list):
-                return data
-            return []
+            
+            # リスト形式であるか確認
+            if not isinstance(data, list):
+                return []
+                
+            # 文字列のリスト（旧形式）の場合
+            if data and isinstance(data[0], str):
+                current_time = time.time()
+                # 旧形式を新形式に変換して返す (count=1)
+                # 順序は維持されるので、タイムスタンプを少しずつずらすか、同じにするか
+                return [
+                    HistoryItem(path=path, count=1, timestamp=current_time)
+                    for path in data
+                ]
+            
+            # 新形式（オブジェクトのリスト）の場合
+            return [HistoryItem(**item) for item in data]
+            
     except Exception as e:
         print(f"Error reading history file: {e}")
         return []
 
 
 @router.post("/history")
-async def save_history(history: HistoryList):
+async def save_history(payload: HistoryPayload):
     """
     フォルダ履歴を保存する
     """
     try:
+        # dict形式に変換して保存
+        save_data = [item.dict() for item in payload.history]
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-            json.dump(history.paths, f, ensure_ascii=False, indent=2)
+            json.dump(save_data, f, ensure_ascii=False, indent=2)
         return {"status": "success"}
     except Exception as e:
         print(f"Error saving history file: {e}")

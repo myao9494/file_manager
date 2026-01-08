@@ -2654,6 +2654,8 @@ def resolve_file_app_url(path_obj: Path) -> Optional[str]:
     該当しない場合は None を返す
     """
 
+    start_path = str(path_obj).lower()
+
     # --- Excalidraw ---
     # ファイル名に .excalidraw が含まれていればExcalidrawとして扱う
     # (例: file.excalidraw.md, file.excalidraw 1.md)
