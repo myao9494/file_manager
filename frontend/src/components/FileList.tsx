@@ -210,36 +210,14 @@ export function FileList({
 
   // 外部からのパス変更に同期（パスチェック付き）
   useEffect(() => {
-    const checkAndSetPath = async () => {
-      if (!path || path === currentPath) return;
-
-      try {
-        const pathInfo = await getPathInfo(path);
-
-        if (pathInfo.type === "not_found") {
-          // 存在しないパスの場合、エラーメッセージを表示
-          showError(`指定されたパスが見つかりません: ${path}`);
-          return;
-        }
-
-        if (pathInfo.type === "file" && pathInfo.parent) {
-          // ファイルの場合、親フォルダを設定
-          setCurrentPath(pathInfo.parent);
-          setPathInput(pathInfo.parent);
-        } else if (pathInfo.type === "directory") {
-          // ディレクトリの場合、そのまま設定
-          setCurrentPath(path);
-        }
-        setSelectedItems(new Set());
-        setSearchQuery("");
-        setShowHistory(false);
-      } catch (error) {
-        console.error("パス情報の取得に失敗しました:", error);
-        showError("パス情報の取得に失敗しました");
+    const syncPath = async () => {
+      // パスが変更され、現在のパスと異なる場合は移動
+      if (path && path !== currentPath) {
+        // navigateToFolderを使うことで履歴（戻るボタン）が正しく機能するようにする
+        await navigateToFolder(path);
       }
     };
-
-    checkAndSetPath();
+    syncPath();
   }, [path]);
 
   // パス変更時の履歴更新
