@@ -21,6 +21,9 @@ export function sanitizePath(path: string): string {
         cleanPath = cleanPath.slice(1, -1);
     }
 
+    // Windowsパス対策：バックスラッシュをスラッシュに置換
+    cleanPath = cleanPath.replace(/\\/g, "/");
+
     // もう一度トリミング（引用符の中にスペースがあった場合など）
     return cleanPath.trim();
 }
