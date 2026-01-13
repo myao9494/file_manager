@@ -62,6 +62,29 @@ class SearchResponse(BaseModel):
     items: List[FileItem]
 
 
+
+# ---------------------------------------------------------
+# NASパス変換設定
+# ---------------------------------------------------------
+def convert_storage_path(path: str) -> str:
+    """
+    ストレージパスの変更（NAS更新など）に対応するための変換関数。
+    normalize_pathの冒頭で呼び出され、アプリ全体に適用されます。
+    
+    引数:
+        path (str): 入力パス（/ や \\ が混在する可能性があります）
+        
+    戻り値:
+        str: 変換後のパス
+    """
+    # TODO: ここに作成されたパス変換ロジックを実装します
+    # 例:
+    # if "\\\\old-nas\\share" in path:
+    #     return path.replace("\\\\old-nas\\share", "\\\\new-nas\\share")
+    
+    return path
+
+
 def normalize_path(path: str) -> Path:
     """
     パスを正規化
@@ -69,6 +92,10 @@ def normalize_path(path: str) -> Path:
     - 相対パス: ベースディレクトリからの相対パスとして扱う
     - パストラバーサル対策を実施
     """
+    # 1. パス変換（NASリプレース対応など）
+    # API経由、外部連携経由のすべてのアクセスに対して有効になります
+    path = convert_storage_path(path)
+
     if not path:
         return settings.base_dir
 
@@ -83,6 +110,7 @@ def normalize_path(path: str) -> Path:
     # 環境変数の展開 (%USERPROFILE%, $HOME 等)
     expanded_path = os.path.expandvars(os.path.expanduser(path))
     normalized = Path(expanded_path)
+
 
     if normalized.is_absolute():
         try:
