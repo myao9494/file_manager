@@ -73,8 +73,12 @@ def normalize_path(path: str) -> Path:
         return settings.base_dir
 
     # Windowsの場合、/C:/... のようなパスの先頭のスラッシュを削除
-    if settings.is_windows and path.startswith("/") and len(path) > 2 and path[2] == ":":
-        path = path[1:]
+    if settings.is_windows:
+        if path.startswith("/") and len(path) > 2 and path[2] == ":":
+            path = path[1:]
+        # UNCパス対応: //server/share -> \\server\share
+        elif path.startswith("//"):
+             path = path.replace("/", "\\")
 
     # 環境変数の展開 (%USERPROFILE%, $HOME 等)
     expanded_path = os.path.expandvars(os.path.expanduser(path))

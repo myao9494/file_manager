@@ -37,6 +37,7 @@ import "./FileSearch.css";
 import { MarkdownEditorModal } from "./MarkdownEditorModal";
 import { updateFile } from "../api/files";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
+import { sanitizePath } from "../utils/pathUtils";
 
 
 interface FileSearchProps {
@@ -426,8 +427,9 @@ export function FileSearch({
   };
 
   const getParentPath = (path: string) => {
-    // パス区切りは / を想定（Mac/Linux）
-    const parts = path.split("/");
+    // Windowsパス対策：sanitizePathで正規化してから分割
+    const cleanPath = sanitizePath(path);
+    const parts = cleanPath.split("/");
     parts.pop();
     return parts.join("/") || "/";
   };

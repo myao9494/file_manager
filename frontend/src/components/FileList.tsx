@@ -414,13 +414,16 @@ export function FileList({
   };
 
   // 上の階層に移動
+  // 上の階層に移動
   const navigateUp = () => {
     if (!currentPath) return;
 
     // 現在のパスを保存して、移動後にフォーカスを当てる
     setPendingFocusPath(currentPath);
 
-    const parts = currentPath.split("/").filter(Boolean);
+    // Windowsパス対策：sanitizePathで正規化してから分割
+    const cleanPath = sanitizePath(currentPath);
+    const parts = cleanPath.split("/").filter(Boolean);
     parts.pop();
     navigateToFolder("/" + parts.join("/"));
   };
