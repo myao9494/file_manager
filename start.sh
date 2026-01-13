@@ -31,11 +31,19 @@ kill_port_process $FRONTEND_PORT
 
 echo "Starting Backend server (Port $BACKEND_PORT)..."
 cd backend
-if [ -d ".venv" ]; then
-    source .venv/bin/activate
+
+# バックエンド起動コマンドの決定
+if command -v uv >/dev/null 2>&1; then
+    echo "Using uv for backend..."
+    # --host 0.0.0.0 を追加してIPv4/IPv6の両方でアクセス可能にする
+    uv run uvicorn app.main:app --reload --host 0.0.0.0 --port $BACKEND_PORT &
+else
+    echo "uv not found. Falling back to standard python..."
+    if [ -d ".venv" ]; then
+        source .venv/bin/activate
+    fi
+    PYTHONPATH=. python -m uvicorn app.main:app --reload --host 0.0.0.0 --port $BACKEND_PORT &
 fi
-# --host 0.0.0.0 を追加してIPv4/IPv6の両方でアクセス可能にする
-PYTHONPATH=. python -m uvicorn app.main:app --reload --host 0.0.0.0 --port $BACKEND_PORT &
 BACKEND_PID=$!
 cd ..
 
@@ -57,7 +65,15 @@ echo " Backend is ready!"
 
 echo "Starting Frontend server (Port $FRONTEND_PORT)..."
 cd frontend
-npm run dev &
+
+# フロントエンド起動コマンドの決定
+if command -v pnpm >/dev/null 2>&1; then
+    echo "Using pnpm for frontend..."
+    pnpm run dev &
+else
+    echo "pnpm not found. Falling back to npm..."
+    npm run dev &
+fi
 FRONTEND_PID=$!
 cd ..
 
