@@ -77,12 +77,31 @@ def convert_storage_path(path: str) -> str:
     戻り値:
         str: 変換後のパス
     """
-    # TODO: ここに作成されたパス変換ロジックを実装します
-    # 例:
-    # if "\\\\old-nas\\share" in path:
-    #     return path.replace("\\\\old-nas\\share", "\\\\new-nas\\share")
+    # Windows以外の場合は変換を行わない
+    if not settings.is_windows:
+        return path
+
+    # マッピング辞書の定義（正規化されたパスを使用）
+    path_mapping = {
+        r"\\vnna44\aaa": r"\\aaaa\svss",
+        r"\\vss56\hst": r"\\athaeth\sss",
+    }
     
-    return path
+    # 入力パスの正規化（¥を\に変換し、小文字化して比較しやすくする）
+    # 注意: 実際の置換は元のケースを保持するか、辞書の値をそのまま使うか検討が必要
+    # ここでは単純にプレフィックス置換を行います
+    
+    normalized_input = path.replace("¥", "\\")
+    
+    for old_path, new_path in path_mapping.items():
+        # 大文字小文字を区別せずに比較したい場合
+        if normalized_input.lower().startswith(old_path.lower()):
+            # マッチした部分を新しいパスに置き換え（残りのパスはそのまま結合）
+            # old_pathの長さ分を削除して結合
+            remainder = normalized_input[len(old_path):]
+            return new_path + remainder
+            
+    return normalized_input
 
 
 def normalize_path(path: str) -> Path:
