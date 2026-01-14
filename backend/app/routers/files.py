@@ -3139,7 +3139,7 @@ async def get_test_folder_path():
     """
     テストフォルダのパスを取得
     Windows: %userprofile%\\000_work\\test
-    Mac: /Users/sudoupousei/000_work/test
+    Mac: /Users/mine/000_work/test
     """
     try:
         path_str = ""
@@ -3148,7 +3148,7 @@ async def get_test_folder_path():
         else:
             # Mac / Linux
             # ユーザー名直書き指定
-            path_str = "/Users/sudoupousei/000_work/test"
+            path_str = "/Users/mine/000_work/test"
         
         return {"success": True, "path": path_str}
     except Exception as e:

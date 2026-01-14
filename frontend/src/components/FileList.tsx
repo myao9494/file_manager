@@ -104,7 +104,7 @@ export function FileList({
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [lastSelectedPath, setLastSelectedPath] = useState<string | null>(null);
-  const { history: allHistory, addToHistory, searchHistory: searchHistoryContext } = useFolderHistory();
+  const { history: allHistory, addToHistory, searchHistory: searchHistoryContext, removeFromHistory } = useFolderHistory();
   const [showHistory, setShowHistory] = useState(false);
   const [pathInput, setPathInput] = useState("");
   const [navigationHistory, setNavigationHistory] = useState<NavigationHistoryEntry[]>([]);
@@ -303,8 +303,9 @@ export function FileList({
       const pathInfo = await getPathInfo(cleanPath);
 
       if (pathInfo.type === "not_found") {
-        // 存在しないパスの場合、エラーメッセージを表示
-        showError(`指定されたパスが見つかりません: ${cleanPath}`);
+        // 存在しないパスの場合、エラーメッセージを表示して履歴から削除
+        showError(`指定されたパスが見つかりません: ${cleanPath}\n履歴から削除しました。`);
+        removeFromHistory(cleanPath);
         return;
       }
 
@@ -423,9 +424,18 @@ export function FileList({
 
     // Windowsパス対策：sanitizePathで正規化してから分割
     const cleanPath = sanitizePath(currentPath);
+    const isUnc = cleanPath.startsWith("//");
+
     const parts = cleanPath.split("/").filter(Boolean);
     parts.pop();
-    navigateToFolder("/" + parts.join("/"));
+
+    let newPath = "/" + parts.join("/");
+    // UNCパスの場合、先頭にスラッシュを追加して //server/share の形に戻す
+    if (isUnc) {
+      newPath = "/" + newPath;
+    }
+
+    navigateToFolder(newPath);
   };
 
   // 右クリックメニュー

@@ -21,6 +21,7 @@ interface FolderHistoryContextType {
     history: HistoryItem[];
     addToHistory: (path: string) => void;
     searchHistory: (query: string) => HistoryItem[];
+    removeFromHistory: (path: string) => void;
     clearHistory: () => void;
 }
 
@@ -108,13 +109,32 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
 
     // 履歴検索
     const searchHistory = useCallback((query: string) => {
-        if (!query) return history;
+        let results = history;
+        if (query) {
+            const lowerQuery = query.toLowerCase();
+            results = history.filter(item =>
+                item.path.toLowerCase().includes(lowerQuery)
+            );
+        }
 
-        const lowerQuery = query.toLowerCase();
-        return history.filter(item =>
-            item.path.toLowerCase().includes(lowerQuery)
-        );
+        // ソート: 回数（降順） -> 日付（降順）
+        return [...results].sort((a, b) => {
+            if (a.count !== b.count) {
+                return b.count - a.count; // 回数が多い順
+            }
+            return b.timestamp - a.timestamp; // 新しい順
+        });
     }, [history]);
+
+    // 履歴から削除
+    const removeFromHistory = useCallback((path: string) => {
+        setHistory((prev) => {
+            const newHistory = prev.filter(item => item.path !== path);
+            // バックエンドに保存
+            saveHistoryToBackend(newHistory);
+            return newHistory;
+        });
+    }, [saveHistoryToBackend]);
 
     // 履歴クリア
     const clearHistory = useCallback(() => {
@@ -123,7 +143,7 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
     }, [saveHistoryToBackend]);
 
     return (
-        <FolderHistoryContext.Provider value={{ history, addToHistory, searchHistory, clearHistory }}>
+        <FolderHistoryContext.Provider value={{ history, addToHistory, searchHistory, removeFromHistory, clearHistory }}>
             {children}
         </FolderHistoryContext.Provider>
     );
