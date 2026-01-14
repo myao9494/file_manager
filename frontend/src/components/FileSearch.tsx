@@ -912,7 +912,7 @@ export function FileSearch({
             className="search-input"
           />
           {query && (
-            <button onClick={() => setQuery("")} className="clear-btn" title="クリア">
+            <button onClick={() => setQuery("")} className="clear-btn" title="クリア" tabIndex={-1}>
               <X size={14} />
             </button>
           )}
@@ -937,7 +937,7 @@ export function FileSearch({
             className="search-input"
           />
           {fileNamePattern && (
-            <button onClick={() => setFileNamePattern("")} className="clear-btn" title="クリア">
+            <button onClick={() => setFileNamePattern("")} className="clear-btn" title="クリア" tabIndex={-1}>
               <X size={14} />
             </button>
           )}
