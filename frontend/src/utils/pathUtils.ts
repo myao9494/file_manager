@@ -27,3 +27,37 @@ export function sanitizePath(path: string): string {
     // もう一度トリミング（引用符の中にスペースがあった場合など）
     return cleanPath.trim();
 }
+
+/**
+ * クリップボードコピー用にパスを整形する
+ * - Windows形式のパス（ドライブレター付きなど）の場合、バックスラッシュ区切りにする
+ * - 先頭の不要なスラッシュを除去 (/C:/... -> C:\...)
+ * 
+ * @param path整形前のパス
+ * @returns 整形後のパス
+ */
+export function formatPathForClipboard(path: string): string {
+    if (!path) return "";
+
+    let formatted = path;
+
+    // /C:/Users... のような形式の場合、先頭のスラッシュを除去
+    if (formatted.match(/^\/[a-zA-Z]:/)) {
+        formatted = formatted.substring(1);
+    }
+
+    // ドライブレターがある場合、大文字に統一 (c: -> C:)
+    if (formatted.match(/^[a-z]:/)) {
+        formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    }
+
+    // Windowsパスとみなされる場合（ドライブレターあり、またはUNCパス）
+    // バックスラッシュ区切りに変換
+    const isWindowsPath = /^[a-zA-Z]:/.test(formatted) || formatted.startsWith("//") || formatted.startsWith("\\\\");
+
+    if (isWindowsPath) {
+        return formatted.replace(/\//g, "\\");
+    }
+
+    return formatted;
+}

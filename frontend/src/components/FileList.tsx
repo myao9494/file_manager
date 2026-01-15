@@ -43,7 +43,7 @@ import { ConfirmationModal } from "./ConfirmationModal";
 import { getNetworkDrivePath, getDefaultBasePath } from "../config";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import { useFolderHistory } from "../contexts/FolderHistoryContext";
-import { sanitizePath } from "../utils/pathUtils";
+import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
 import "./FileList.css";
 
 interface FileListProps {
@@ -449,7 +449,7 @@ export function FileList({
     try {
       // item.pathは既に絶対パス
       const fullPath = item.path || currentPath || "";
-      await navigator.clipboard.writeText(fullPath);
+      await navigator.clipboard.writeText(formatPathForClipboard(fullPath));
       showSuccess("パスをコピーしました");
       setContextMenu(null);
     } catch {
@@ -617,7 +617,7 @@ export function FileList({
   const copyCurrentPath = async () => {
     if (!currentPath) return;
     try {
-      await navigator.clipboard.writeText(currentPath || "/");
+      await navigator.clipboard.writeText(formatPathForClipboard(currentPath || "/"));
       showSuccess("パスをコピーしました");
     } catch {
       showError("コピーに失敗しました");

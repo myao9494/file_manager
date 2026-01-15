@@ -37,7 +37,7 @@ import "./FileSearch.css";
 import { MarkdownEditorModal } from "./MarkdownEditorModal";
 import { updateFile } from "../api/files";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
-import { sanitizePath } from "../utils/pathUtils";
+import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
 
 
 interface FileSearchProps {
@@ -273,7 +273,7 @@ export function FileSearch({
   // パスをクリップボードにコピー
   const copyPath = useCallback(async (path: string) => {
     try {
-      await navigator.clipboard.writeText(path);
+      await navigator.clipboard.writeText(formatPathForClipboard(path));
     } catch {
       // 無視
     }
