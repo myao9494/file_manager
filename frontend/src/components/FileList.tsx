@@ -20,6 +20,7 @@ import {
   Gem,
   History,
   Copy,
+  Link,
   ArrowLeft,
   ArrowRight,
   Home,
@@ -624,6 +625,20 @@ export function FileList({
     }
   };
 
+  // リンクをコピー
+  const copyLinkToClipboard = async (path: string) => {
+    if (!path) return;
+    // URLエンコードを行う
+    const encodedPath = encodeURIComponent(path);
+    const url = `http://localhost:8001/api/open-path?path=${encodedPath}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showSuccess("リンクをコピーしました");
+    } catch {
+      showError("コピーに失敗しました");
+    }
+  };
+
   // パス入力の確定
   const handlePathSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -648,11 +663,13 @@ export function FileList({
 
       if (pathInfo.type === "file" && pathInfo.parent) {
         // ファイルの場合、親フォルダに移動
+        onRequestFocus?.();
         navigateToFolder(pathInfo.parent);
         return;
       }
 
       // ディレクトリの場合、そのまま移動
+      onRequestFocus?.();
       navigateToFolder(cleanPath);
 
       // 現在のパスと同じ場合でも履歴を更新動かしたい（一番上に持ってくる）
@@ -1018,8 +1035,13 @@ export function FileList({
       e.preventDefault();
       e.stopPropagation();
       if (filteredHistory[historySelectedIndex]) {
+        onRequestFocus?.();
         navigateToFolder(filteredHistory[historySelectedIndex].path);
         setShowHistory(false);
+        // フォーカスをリストに戻す
+        containerRef.current?.focus();
+        setFocusedSection('list');
+        setFocusedIndex(0);
       }
     } else if (e.key === "Escape") {
       e.preventDefault();
@@ -2394,6 +2416,9 @@ export function FileList({
         <button onClick={copyCurrentPath} title="フルパスをコピー" className="path-button">
           <Copy size={14} />
         </button>
+        <button onClick={() => copyLinkToClipboard(currentPath || "")} title="リンクをコピー" className="path-button">
+          <Link size={14} />
+        </button>
         <form onSubmit={handlePathSubmit} className="path-form">
           <input
             ref={pathInputRef}
@@ -2541,6 +2566,12 @@ export function FileList({
               containerRef.current?.focus();
               setFocusedSection('history');
               historyInputRef.current?.focus();
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              onRequestFocus?.();
+              containerRef.current?.focus();
+              setFocusedSection('list');
+              setFocusedIndex(0);
             }
           }}
         />
@@ -2623,6 +2654,16 @@ export function FileList({
                     >
                       <Copy size={12} />
                     </button>
+                    <button
+                      className="row-copy-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyLinkToClipboard(item.path);
+                      }}
+                      title="リンクをコピー"
+                    >
+                      <Link size={12} />
+                    </button>
                     <div
                       className="name-info-wrapper"
                       onClick={() => navigateToFolder(item.path)}
@@ -2694,6 +2735,16 @@ export function FileList({
                       title="フルパスをコピー"
                     >
                       <Copy size={12} />
+                    </button>
+                    <button
+                      className="row-copy-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyLinkToClipboard(item.path);
+                      }}
+                      title="リンクをコピー"
+                    >
+                      <Link size={12} />
                     </button>
                     <div className="name-info-wrapper">
                       <FileIcon name={item.name} type="file" className="icon" />

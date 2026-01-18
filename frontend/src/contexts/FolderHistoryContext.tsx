@@ -29,6 +29,7 @@ const FolderHistoryContext = createContext<FolderHistoryContextType | undefined>
 
 export function FolderHistoryProvider({ children }: { children: ReactNode }) {
     const [history, setHistory] = useState<HistoryItem[]>([]);
+    const [isInitialized, setIsInitialized] = useState(false);
 
     // 履歴をバックエンドに保存する関数
     const saveHistoryToBackend = useCallback(async (newHistory: HistoryItem[]) => {
@@ -50,19 +51,35 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
         const fetchHistory = async () => {
             try {
                 const response = await fetch(`${API_BASE_URL}/api/history`);
+                let fetchedData: HistoryItem[] = [];
                 if (response.ok) {
                     const data = await response.json();
                     if (Array.isArray(data)) {
-                        // オブジェクトの配列であることを期待
-                        setHistory(data.slice(0, MAX_HISTORY_ITEMS));
+                        fetchedData = data;
                     }
                 }
+
+                setHistory((prev) => {
+                    // ローカルの変更(prev)を優先し、バックエンドのデータ(fetchedData)をマージ
+                    // prevにあるものは、起動後にユーザーが移動したものなので最新とみなす
+                    const prevPaths = new Set(prev.map(p => p.path));
+                    
+                    // バックエンドにあってローカルにないものを追加
+                    const newItems = fetchedData.filter(item => !prevPaths.has(item.path));
+                    const merged = [...prev, ...newItems].slice(0, MAX_HISTORY_ITEMS);
+                    
+                    // マージ結果を保存して整合性を保つ
+                    saveHistoryToBackend(merged); 
+                    return merged;
+                });
             } catch (error) {
                 console.error('Failed to load history:', error);
+            } finally {
+                setIsInitialized(true);
             }
         };
         fetchHistory();
-    }, []);
+    }, [saveHistoryToBackend]);
 
     // 履歴に追加
     const addToHistory = useCallback((path: string) => {
@@ -100,12 +117,14 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
             // 最大件数制限
             newHistory = newHistory.slice(0, MAX_HISTORY_ITEMS);
 
-            // バックエンドに保存
-            saveHistoryToBackend(newHistory);
+            // 初期化完了後のみバックエンドに保存（初期化中は後でマージされるためスキップ）
+            if (isInitialized) {
+                saveHistoryToBackend(newHistory);
+            }
 
             return newHistory;
         });
-    }, [saveHistoryToBackend]);
+    }, [saveHistoryToBackend, isInitialized]);
 
     // 履歴検索
     const searchHistory = useCallback((query: string) => {
@@ -130,17 +149,20 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
     const removeFromHistory = useCallback((path: string) => {
         setHistory((prev) => {
             const newHistory = prev.filter(item => item.path !== path);
-            // バックエンドに保存
-            saveHistoryToBackend(newHistory);
+            if (isInitialized) {
+                saveHistoryToBackend(newHistory);
+            }
             return newHistory;
         });
-    }, [saveHistoryToBackend]);
+    }, [saveHistoryToBackend, isInitialized]);
 
     // 履歴クリア
     const clearHistory = useCallback(() => {
         setHistory([]);
-        saveHistoryToBackend([]);
-    }, [saveHistoryToBackend]);
+        if (isInitialized) {
+            saveHistoryToBackend([]);
+        }
+    }, [saveHistoryToBackend, isInitialized]);
 
     return (
         <FolderHistoryContext.Provider value={{ history, addToHistory, searchHistory, removeFromHistory, clearHistory }}>
