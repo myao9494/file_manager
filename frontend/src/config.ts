@@ -84,13 +84,16 @@ export function getNetworkDrivePath(): string {
 
   if (isWindows) {
     // Windowsの場合はUNCパス
-    return '\\\\vnau12\\xxx\\yyy';
+    // 環境変数からパス取得を試みる
+    return import.meta.env.VITE_NETWORK_DRIVE_PATH_WINDOWS || '\\\\vnau12\\xxx\\yyy';
   } else if (isMac) {
     // macOSの場合はマウントポイント
-    return '/Volumes/mine_nas';
+    // 環境変数からパス取得を試みる
+    return import.meta.env.VITE_NETWORK_DRIVE_PATH_MAC || '/Volumes/mine_nas';
   } else {
     // その他のプラットフォーム（Linux等）はmacOSと同じ扱い
-    return '/Volumes/mine_nas';
+    // 環境変数からパス取得を試みる
+    return import.meta.env.VITE_NETWORK_DRIVE_PATH_MAC || '/Volumes/mine_nas';
   }
 }
 
