@@ -982,7 +982,7 @@ export function FileList({
   // 履歴フィルタリングとキーボード操作
   useEffect(() => {
     if (showHistory) {
-      setHistoryFilter("");
+      // setHistoryFilter(""); // 入力直後に消えてしまうため削除
       setHistorySelectedIndex(0);
       // ドロップダウンが表示されたらフィルタ入力にフォーカス
       // requestAnimationFrameを使用して確実にDOMが更新された後にフォーカスを当てる

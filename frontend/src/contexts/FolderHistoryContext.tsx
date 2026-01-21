@@ -63,13 +63,13 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
                     // ローカルの変更(prev)を優先し、バックエンドのデータ(fetchedData)をマージ
                     // prevにあるものは、起動後にユーザーが移動したものなので最新とみなす
                     const prevPaths = new Set(prev.map(p => p.path));
-                    
+
                     // バックエンドにあってローカルにないものを追加
                     const newItems = fetchedData.filter(item => !prevPaths.has(item.path));
                     const merged = [...prev, ...newItems].slice(0, MAX_HISTORY_ITEMS);
-                    
+
                     // マージ結果を保存して整合性を保つ
-                    saveHistoryToBackend(merged); 
+                    saveHistoryToBackend(merged);
                     return merged;
                 });
             } catch (error) {
@@ -130,10 +130,15 @@ export function FolderHistoryProvider({ children }: { children: ReactNode }) {
     const searchHistory = useCallback((query: string) => {
         let results = history;
         if (query) {
-            const lowerQuery = query.toLowerCase();
-            results = history.filter(item =>
-                item.path.toLowerCase().includes(lowerQuery)
-            );
+            // 全角・半角スペースで分割してAND検索
+            const keywords = query.toLowerCase().split(/[\s　]+/).filter(k => k.length > 0);
+
+            if (keywords.length > 0) {
+                results = history.filter(item => {
+                    const lowerPath = item.path.toLowerCase();
+                    return keywords.every(keyword => lowerPath.includes(keyword));
+                });
+            }
         }
 
         // ソート: 回数（降順） -> 日付（降順）
