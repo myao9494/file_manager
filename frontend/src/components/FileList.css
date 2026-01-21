@@ -157,6 +157,15 @@
   color: var(--input-text);
   background-color: var(--input-bg);
   outline: none;
+  /* Textarea specifics for wrapping */
+  resize: vertical;
+  min-height: 24px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  field-sizing: content; /* Modern browsers */
+  height: auto;
+  font-family: inherit;
 }
 
 .path-input:focus {
@@ -180,7 +189,7 @@
   border: 1px solid var(--border-color);
   border-radius: 3px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  max-height: 200px;
+  max-height: 300px; /* Increased height */
   overflow-y: auto;
   z-index: 100;
   margin-top: 2px;
@@ -192,6 +201,14 @@
   font-size: 12px !important;
   color: var(--text-color);
   transition: background-color 0.2s;
+  /* Text wrapping */
+  overflow-wrap: anywhere;
+  height: auto;
+  border-bottom: 1px solid var(--border-color); /* Separator for clarity */
+}
+
+.history-item:last-child {
+  border-bottom: none;
 }
 
 .history-item:hover,

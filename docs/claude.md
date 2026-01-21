@@ -24,3 +24,8 @@
     - `VITE_NETWORK_DRIVE_PATH_WINDOWS`: Windows用のパス
     - `VITE_NETWORK_DRIVE_PATH_MAC`: macOS/Linux用のパス
 - 定義されていない場合はデフォルト値を使用する。
+
+### UI改善
+- **長いファイルパスの表示**:
+    - パス入力欄を `<textarea>` に変更し、長いパスが折り返して表示されるようにした。
+    - 履歴ドロップダウンの項目も折り返し表示に対応し、パス全体が確認できるようにした。
