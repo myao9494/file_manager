@@ -710,30 +710,22 @@ export function FileList({
 
   // VSCodeで開く
   const handleOpenVSCode = async () => {
-    const pathsToOpen = selectedItems.size > 0
-      ? Array.from(selectedItems)
-      : (currentPath ? [currentPath] : []);
+    // 選択状態に関わらず、常にカレントディレクトリを開く
+    const targetPath = currentPath;
 
-    if (pathsToOpen.length === 0) {
+    if (!targetPath) {
       showError("開く対象がありません");
       return;
     }
 
-    let successCount = 0;
-    for (const path of pathsToOpen) {
-      try {
-        await openInVSCode(path);
-        successCount++;
-      } catch (e: any) {
-        console.error(`Error opening in VSCode: ${path}`, e);
-        showError(`VSCode起動エラー: ${e.message}`);
-      }
-    }
-
-    if (successCount > 0) {
-      showSuccess(`${successCount}件をVSCodeで開きました`);
-    } else if (pathsToOpen.length > 0 && successCount === 0) {
-      // 上記catchでエラー表示済み
+    try {
+      await openInVSCode(targetPath);
+      // VSCodeを開くのは「成功」メッセージを出さない方が一般的かもしれないが、
+      // 既存の挙動に合わせておく（ただし複数件数表示はなくなる）
+      // showSuccess("VSCodeを開きました");
+    } catch (e: any) {
+      console.error(`Error opening in VSCode: ${targetPath}`, e);
+      showError(`VSCode起動エラー: ${e.message}`);
     }
   };
 
