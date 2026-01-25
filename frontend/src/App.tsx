@@ -29,6 +29,7 @@ const STORAGE_KEYS = {
   THEME: 'file_manager_theme',
   VERIFY_CHECKSUM: 'file_manager_verify_checksum',
   DEBUG_MODE: 'file_manager_debug_mode',
+  PANE_SIZES: 'file_manager_pane_sizes',
 };
 
 // フォーカス可能なペインの型
@@ -50,6 +51,19 @@ function AppContent() {
   const [debugMode, setDebugMode] = useState(() => {
     return localStorage.getItem(STORAGE_KEYS.DEBUG_MODE) === 'true';
   });
+
+  // ペインのリサイズ用状態
+  const [paneSizes, setPaneSizes] = useState(() => {
+    const savedSizes = localStorage.getItem(STORAGE_KEYS.PANE_SIZES);
+    if (savedSizes) {
+      return JSON.parse(savedSizes);
+    }
+    // デフォルトのペインサイズ (パーセンテージ)
+    return { left: 30, center: 30 };
+  });
+  const [resizingPane, setResizingPane] = useState<"left" | "center" | null>(null);
+  const [initialMouseX, setInitialMouseX] = useState(0);
+  const [initialPaneSizes, setInitialPaneSizes] = useState({ left: 0, center: 0 });
 
   // 起動時にバックエンドから設定を取得（キャッシュに保存）
   useEffect(() => {
@@ -76,6 +90,11 @@ function AppContent() {
     localStorage.setItem(STORAGE_KEYS.DEBUG_MODE, String(debugMode));
   }, [debugMode]);
 
+  // ペインサイズを保存
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PANE_SIZES, JSON.stringify(paneSizes));
+  }, [paneSizes]);
+
   // ハッシュルーティング（APIテストページ）
   const [currentPage, setCurrentPage] = useState(() => {
     return window.location.hash === '#api-test' ? 'api-test' : 'main';
@@ -88,6 +107,90 @@ function AppContent() {
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // ペインのリサイズ処理
+  const handleResizeStart = useCallback((pane: "left" | "center", e: React.MouseEvent) => {
+    e.preventDefault();
+    setResizingPane(pane);
+    setInitialMouseX(e.clientX);
+    setInitialPaneSizes(paneSizes);
+    document.body.style.cursor = 'ew-resize'; // カーソルを変更
+  }, [paneSizes]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!resizingPane) return;
+
+    const deltaX = e.clientX - initialMouseX;
+    const triplePaneElement = document.querySelector('.triple-pane');
+    const totalWidth = triplePaneElement ? triplePaneElement.clientWidth : window.innerWidth;
+    const minPaneWidth = 10; // 最小ペイン幅 (パーセンテージ)
+    const deltaPercent = (deltaX / totalWidth) * 100;
+
+    setPaneSizes(() => {
+      // 既存のサイズではなく、ドラッグ開始時のサイズを基準に計算する
+      // これにより、高速な移動でも値が暴れない
+
+      let newLeft = initialPaneSizes.left;
+      let newCenter = initialPaneSizes.center;
+
+      if (resizingPane === "left") {
+        // 左 vs 中央
+        // 合計幅(Left + Center)は一定に保つ
+        const combinedWidth = initialPaneSizes.left + initialPaneSizes.center;
+
+        // 新しいLeft幅を計算
+        newLeft = initialPaneSizes.left + deltaPercent;
+
+        // 制約適用
+        // 1. Left >= Min
+        if (newLeft < minPaneWidth) newLeft = minPaneWidth;
+        // 2. Center >= Min (Center = Combined - Left)
+        if (combinedWidth - newLeft < minPaneWidth) newLeft = combinedWidth - minPaneWidth;
+
+        // Centerを再計算
+        newCenter = combinedWidth - newLeft;
+
+      } else if (resizingPane === "center") {
+        // 中央 vs 右
+        // Leftは固定、(Center + Right)の境界を動かす
+        // Rightの幅 = 100 - Left - Center
+        const initialRight = 100 - initialPaneSizes.left - initialPaneSizes.center;
+        const combinedWidth = initialPaneSizes.center + initialRight;
+
+        // 新しいCenter幅を計算
+        newCenter = initialPaneSizes.center + deltaPercent;
+
+        // 制約適用
+        // 1. Center >= Min
+        if (newCenter < minPaneWidth) newCenter = minPaneWidth;
+        // 2. Right >= Min (Right = Combined - Center)
+        if (combinedWidth - newCenter < minPaneWidth) newCenter = combinedWidth - minPaneWidth;
+
+        // Leftは変更なし
+      }
+
+      return { left: newLeft, center: newCenter };
+    });
+  }, [resizingPane, initialMouseX, initialPaneSizes]);
+
+  const handleMouseUp = useCallback(() => {
+    setResizingPane(null);
+    document.body.style.cursor = 'default'; // カーソルを元に戻す
+  }, []);
+
+  useEffect(() => {
+    if (resizingPane) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    } else {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingPane, handleMouseMove, handleMouseUp]);
 
   // グローバルキーボードイベント（左右矢印でペイン切替、Ctrl+Z/Shift+Zで Undo/Redo）
   useEffect(() => {
@@ -255,7 +358,7 @@ function AppContent() {
   }, []);
 
   return (
-    <div className="app">
+    <div className={`app ${resizingPane ? 'resizing' : ''}`}>
       <header className="app-header">
         <h1>
           <a href="#" style={{ color: 'inherit', textDecoration: 'none' }}>
@@ -338,6 +441,7 @@ function AppContent() {
         <main className="app-main triple-pane" style={{ zoom: zoomLevel } as any}>
           <div
             className={`pane left-pane ${focusedPane === 'left' ? 'focused' : ''}`}
+            style={{ flex: `${paneSizes.left} 0 auto` }}
             onClick={() => setFocusedPane('left')}
           >
             <ErrorBoundary>
@@ -351,9 +455,13 @@ function AppContent() {
               />
             </ErrorBoundary>
           </div>
-          <div className="pane-divider" />
+          <div
+            className="pane-divider"
+            onMouseDown={(e) => handleResizeStart("left", e)}
+          />
           <div
             className={`pane center-pane ${focusedPane === 'center' ? 'focused' : ''}`}
+            style={{ flex: `${paneSizes.center} 0 auto` }}
             onClick={() => setFocusedPane('center')}
           >
             <ErrorBoundary>
@@ -367,9 +475,13 @@ function AppContent() {
               />
             </ErrorBoundary>
           </div>
-          <div className="pane-divider" />
+          <div
+            className="pane-divider"
+            onMouseDown={(e) => handleResizeStart("center", e)}
+          />
           <div
             className={`pane search-pane ${focusedPane === 'right' ? 'focused' : ''}`}
+            style={{ flex: `${100 - paneSizes.left - paneSizes.center} 0 auto` }}
             onClick={() => setFocusedPane('right')}
           >
             <ErrorBoundary>
