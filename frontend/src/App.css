@@ -145,49 +145,35 @@ body {
 }
 
 .left-pane {
+  flex: 35;
   min-width: 0;
 }
 
 .center-pane {
+  flex: 35;
   min-width: 0;
 }
 
 .right-pane {
+  flex: 30;
   min-width: 0;
 }
 
 .search-pane {
+  flex: 30;
   min-width: 0;
 }
 
 .pane-divider {
-  width: 8px;
-  /* 太くして掴みやすくする */
-  margin: 0 -4px;
-  /* ネガティブマージンで見た目の隙間を減らす */
+  width: 0;
   background-color: transparent;
   cursor: col-resize;
   flex-shrink: 0;
-  display: block;
-  /* 表示する */
-  z-index: 10;
-  position: relative;
+  display: none;
 }
 
 .pane-divider:hover {
-  background-color: rgba(25, 118, 210, 0.5);
-  /* ホバー時に色を付ける */
-}
-
-/* リサイズ中は操作しやすくする */
-.app.resizing {
-  user-select: none;
-  cursor: col-resize;
-}
-
-.app.resizing .pane {
-  pointer-events: none;
-  /* iframeなどがある場合の対策 */
+  background-color: #1976d2;
 }
 
 /* HOMEリンク */
