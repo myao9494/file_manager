@@ -11,6 +11,7 @@ import {
   Edit3,
   PanelLeftOpen,
   PanelRightOpen,
+  ExternalLink,
 } from "lucide-react";
 import { useRenameItem } from "../hooks/useFiles";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
@@ -26,6 +27,7 @@ interface ContextMenuProps {
   currentPath: string;
   onOpenInLeft?: () => void;
   onOpenInRight?: () => void;
+  onOpenLink?: () => void;
   onDeleteRequest: (item: FileItem) => void;
 }
 
@@ -67,6 +69,7 @@ export function ContextMenu({
   currentPath,
   onOpenInLeft,
   onOpenInRight,
+  onOpenLink,
   onDeleteRequest,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -222,7 +225,13 @@ export function ContextMenu({
           <span>右ペインで開く</span>
         </div>
       )}
-      {(onOpenInLeft || onOpenInRight) && <div className="menu-divider" />}
+      {onOpenLink && (
+        <div className="menu-item" onClick={onOpenLink}>
+          <ExternalLink size={16} />
+          <span>リンクを開く</span>
+        </div>
+      )}
+      {(onOpenInLeft || onOpenInRight || onOpenLink) && <div className="menu-divider" />}
 
       <div className="menu-item" onClick={() => setRenaming(true)}>
         <Edit3 size={16} />

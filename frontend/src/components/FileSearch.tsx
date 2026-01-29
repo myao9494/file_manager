@@ -14,6 +14,7 @@ import {
   ChevronUp,
   ChevronDown,
   Copy,
+  Link,
   Loader,
   AlertCircle,
   ExternalLink,
@@ -270,14 +271,8 @@ export function FileSearch({
     return new Date(isoDate).toLocaleDateString("ja-JP");
   };
 
-  // パスをクリップボードにコピー
-  const copyPath = useCallback(async (path: string) => {
-    try {
-      await navigator.clipboard.writeText(formatPathForClipboard(path));
-    } catch {
-      // 無視
-    }
-  }, []);
+  // パスをクリップボードにコピー（showSuccessはuseToast呼び出し後に定義されるため、関数内で直接呼び出さない）
+  // → useToast取得後に再定義
 
   // ファイル名パターンマッチング関数
   const matchesFileNamePattern = useCallback((fileName: string, pattern: string, isRegex: boolean): boolean => {
@@ -356,6 +351,38 @@ export function FileSearch({
   // コンテキストメニュー処理
   const deleteItemsBatch = useDeleteItemsBatch();
   const { showSuccess, showError } = useToast();
+
+  // パスをクリップボードにコピー
+  const copyPath = useCallback(async (path: string) => {
+    try {
+      await navigator.clipboard.writeText(formatPathForClipboard(path));
+      showSuccess("パスをコピーしました");
+    } catch {
+      // 無視
+    }
+  }, [showSuccess]);
+
+  // リンクをクリップボードにコピー
+  const copyLinkToClipboard = useCallback(async (path: string) => {
+    if (!path) return;
+    // URLエンコードを行う
+    const encodedPath = encodeURIComponent(path);
+    const url = `http://localhost:8001/api/open-path?path=${encodedPath}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showSuccess("リンクをコピーしました");
+    } catch {
+      showError("コピーに失敗しました");
+    }
+  }, [showSuccess, showError]);
+
+  // リンクを開く（ブラウザで開く）
+  const openLink = useCallback((path: string) => {
+    if (!path) return;
+    const encodedPath = encodeURIComponent(path);
+    const url = `http://localhost:8001/api/open-path?path=${encodedPath}`;
+    window.open(url, "_blank");
+  }, []);
 
   const handleContextMenu = (e: React.MouseEvent, item: { name: string; path: string; type: "file" | "directory" }) => {
     e.preventDefault();
@@ -1040,6 +1067,16 @@ export function FileSearch({
                     >
                       <Copy size={12} />
                     </button>
+                    <button
+                      className="row-copy-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyLinkToClipboard(item.path);
+                      }}
+                      title="リンクをコピー"
+                    >
+                      <Link size={12} />
+                    </button>
                     <FileIcon name={item.name} type="directory" size={16} className="icon folder-icon" />
                     <div className="name-info">
                       <span className="item-name">{item.name}</span>
@@ -1093,6 +1130,16 @@ export function FileSearch({
                     >
                       <Copy size={12} />
                     </button>
+                    <button
+                      className="row-copy-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyLinkToClipboard(item.path);
+                      }}
+                      title="リンクをコピー"
+                    >
+                      <Link size={12} />
+                    </button>
                     <FileIcon name={item.name} type="file" size={16} className="icon file-icon" />
                     <div className="name-info">
                       <span className="item-name">{item.name}</span>
@@ -1116,6 +1163,10 @@ export function FileSearch({
           onClose={() => setContextMenu(null)}
           onOpenInLeft={onSelectFolder ? handleOpenInLeft : undefined}
           onOpenInRight={onSelectRightFolder ? handleOpenInRight : undefined}
+          onOpenLink={() => {
+            openLink(contextMenu.item.path);
+            setContextMenu(null);
+          }}
           onDeleteRequest={async (item) => {
             if (window.confirm(`「${item.name}」を削除しますか？`)) {
               try {

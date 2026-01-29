@@ -639,6 +639,14 @@ export function FileList({
     }
   };
 
+  // リンクを開く（ブラウザで開く）
+  const openLink = (path: string) => {
+    if (!path) return;
+    const encodedPath = encodeURIComponent(path);
+    const url = `http://localhost:8001/api/open-path?path=${encodedPath}`;
+    window.open(url, "_blank");
+  };
+
   // パス入力の確定
   const handlePathSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2805,6 +2813,10 @@ export function FileList({
           item={contextMenu.item}
           onClose={() => setContextMenu(null)}
           currentPath={currentPath || ""}
+          onOpenLink={() => {
+            openLink(contextMenu.item.path);
+            setContextMenu(null);
+          }}
           onDeleteRequest={handleRequestDeleteFromMenu}
         />
       )}
