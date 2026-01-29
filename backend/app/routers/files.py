@@ -1161,6 +1161,65 @@ async def update_file(request: UpdateFileRequest):
         raise HTTPException(status_code=500, detail=f"ファイル更新に失敗しました: {str(e)}")
 
 
+from fastapi import UploadFile, File
+
+@router.post("/upload")
+async def upload_files(
+    path: str = Query(..., description="アップロード先ディレクトリ"),
+    files: List[UploadFile] = File(..., description="アップロードするファイルリスト"),
+):
+    """
+    ファイルをアップロード
+    Windows Explorerからのドラッグ＆ドロップに対応
+    """
+    target_dir = normalize_path(path)
+
+    if not target_dir.exists():
+        raise HTTPException(status_code=404, detail="アップロード先が見つかりません")
+    
+    if not target_dir.is_dir():
+        # ファイルを指定した場合はその親ディレクトリにアップロード
+        target_dir = target_dir.parent
+
+    uploaded_files = []
+    errors = []
+
+    for file in files:
+        try:
+            file_name = file.filename
+            if not file_name:
+                continue
+                
+            destination = target_dir / file_name
+            
+            # 上書き確認は行わず、強制的に上書きする（Explorer挙動に近づけるため）
+            # 必要であれば (1) などを付与するロジックを追加可能
+            
+            with open(destination, "wb") as buffer:
+                # チャンクごとに書き込み
+                shutil.copyfileobj(file.file, buffer)
+            
+            uploaded_files.append(file_name)
+        except Exception as e:
+            errors.append(f"{file.filename}: {str(e)}")
+        finally:
+            file.file.close()
+
+    if errors:
+        return {
+            "status": "partial_success" if uploaded_files else "error",
+            "message": f"{len(uploaded_files)}件アップロードしました。エラー: {len(errors)}件",
+            "uploaded": uploaded_files,
+            "errors": errors
+        }
+
+    return {
+        "status": "success",
+        "message": f"{len(uploaded_files)}件アップロードしました",
+        "uploaded": uploaded_files
+    }
+
+
 class RenameRequest(BaseModel):
     """リネームリクエストのスキーマ"""
 

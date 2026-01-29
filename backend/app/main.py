@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import files, everything, history
+from app.routers import files, everything, history, clipboard
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi import Request
@@ -52,6 +52,7 @@ app.add_middleware(
 app.include_router(files.router, prefix="/api", tags=["files"])
 app.include_router(everything.router, prefix="/api", tags=["everything"])
 app.include_router(history.router, prefix="/api", tags=["history"])
+app.include_router(clipboard.router, prefix="/api", tags=["clipboard"])
 
 
 

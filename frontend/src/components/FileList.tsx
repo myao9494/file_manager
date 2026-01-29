@@ -29,9 +29,10 @@ import {
   FlaskConical, // For Test Folder
 } from "lucide-react";
 import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useCopyItemsBatch } from "../hooks/useFiles";
+import { copyFilesToClipboard } from "../api/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
-import { getPathInfo, openInVSCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath } from "../api/files";
+import { getPathInfo, openInVSCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles } from "../api/files";
 import { MarkdownEditorModal } from "./MarkdownEditorModal";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
@@ -1181,6 +1182,26 @@ export function FileList({
     e.stopPropagation();
     setDragOverPath(null);
 
+    // OSからのファイルドロップ（アップロード）
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      showSuccess(`アップロード開始: ${files.length}件`);
+
+      try {
+        const result = await uploadFiles(targetPath, files);
+        if (result.status === "success" || result.status === "partial_success") {
+          showSuccess(result.message);
+          queryClient.invalidateQueries({ queryKey: ["files"] });
+        } else {
+          showError(result.message || "アップロードに失敗しました");
+        }
+      } catch (err) {
+        showError(`アップロードエラー: ${String(err)}`);
+      }
+      return;
+    }
+
+
     setDragOverPath(null);
 
     // グローバル変数から取得
@@ -2038,6 +2059,10 @@ export function FileList({
           paths: Array.from(selectedItems),
           op: 'copy'
         };
+
+        // OSクリップボードにもコピー (Explorer貼り付け用)
+        const paths = Array.from(selectedItems);
+        copyFilesToClipboard(paths).catch(err => console.error("OS copy failed", err));
 
         showSuccess(`${selectedItems.size}件をコピーしました`);
       }

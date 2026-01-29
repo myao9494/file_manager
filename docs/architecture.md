@@ -50,12 +50,9 @@ React + FastAPIによる軽量ファイルマネージャー。個人利用・VP
         │  └─────────────────────────┘  │  └──────────────────────────────────┘
         │              │                 │                  │
         │  ┌───────────▼──────────────┐ │                  │
-        │  │   routers/files.py       │ │                  │
-        │  │  - GET /files (一覧)     │ │                  │
-        │  │  - GET /search (Live)    │ │                  │
-        │  │  - DELETE /delete        │ │                  │
-        │  │  - POST /create-folder   │ │                  │
-        │  │  - POST /rename          │ │                  │
+        │  │   routers/               │ │                  │
+        │  │  - files.py (操作)       │ │                  │
+        │  │  - clipboard.py (OS連携) │ │                  │
         │  └──────────────────────────┘ │                  │
         │              │                 │                  │
         │  ┌───────────▼──────────────┐ │                  │
@@ -181,16 +178,16 @@ file_viewer/templates/base.htmlに準拠したアイコン配置：
 |----------|------|----------|
 | ChevronUp | 上の階層へ移動 | 実装済み |
 | ClipboardPaste | クリップボードから開く | 実装済み |
-| Download | ダウンロード | 未実装 |
-| Code | VSCodeで開く | 未実装 |
-| Pencil | Codeで開く | 未実装 |
-| FolderOpen | フォルダを開く | 未実装 |
-| BookOpen | Jupyterで開く | 未実装 |
-| Pentagon | Excalidrawで開く | 未実装 |
-| FileText | Markdownファイル作成 | 未実装 |
+| Download | ダウンロード | 実装済み (ブラウザ) |
+| Code | VSCodeで開く | 実装済み |
+| Pencil | Codeで開く | 実装済み |
+| FolderOpen | エクスプローラーで開く | 実装済み |
+| BookOpen | Jupyterで開く | 実装済み |
+| Pentagon | Excalidrawで開く | 実装済み |
+| FileText | Markdownファイル作成 | 実装済み |
 | Square | サーバーを停止 | 未実装 |
 | Info | ステータスを確認 | 未実装 |
-| Gem | Obsidianで開く | 未実装 |
+| Gem | Obsidianで開く | 実装済み |
 | FolderPlus | フォルダ作成 | 実装済み |
 | Trash2 | 削除 | 実装済み |
 | RefreshCw | 更新 | 実装済み |
@@ -327,21 +324,21 @@ file_viewer/templates/base.htmlに準拠したアイコン配置：
 
 ファイル/フォルダをリネーム
 
-**リクエストボディ:**
-```json
-{
-  "old_path": "/path/to/old_name",
-  "new_name": "new_name"
-}
-```
+#### POST /api/move/batch
 
-**レスポンス:**
-```json
-{
-  "status": "success",
-  "message": "リネームしました: /path/to/old_name → /path/to/new_name"
-}
-```
+複数ファイル/フォルダを一括移動 (安全な移動: コピー → 検証 → 削除)
+
+#### POST /api/copy/batch
+
+複数ファイル/フォルダを一括コピー
+
+#### POST /api/clipboard/copy
+
+ファイルパスリストをOS（Windows）クリップボードにコピー（Explorer貼り付け用）
+
+#### POST /api/upload
+
+マルチパート形式でのファイルアップロード（Explorerからのドロップ対応）
 
 ### 外部API（file_index_service:8080）
 
@@ -472,15 +469,10 @@ PYTHONPATH=. pytest tests/ -v
 
 360,000+ファイルでの高速検索を実現。
 
-## ドラッグ&ドロップ
+### 実装済み
 
-### 現在の実装
-
-- フロントエンドでのドラッグ&ドロップUI
+- **アプリ内ドラッグ&ドロップ**: フォルダ間でのファイル移動（move/batch API使用）
+- **Explorerからのドラッグ&ドロップ**: ブラウザへのファイルアップロード（upload API使用）
 - ドラッグ中のビジュアルフィードバック
 - フォルダへのドロップハイライト
-
-### 未実装
-
-- バックエンドのmove API
-- 実際のファイル移動処理
+- 同一ペイン内移動の誤操作防止アラート

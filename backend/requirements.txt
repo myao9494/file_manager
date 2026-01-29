@@ -9,3 +9,6 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 httpx>=0.25.0
 send2trash>=1.8.0
+
+# Windows環境でのクリップボード共有用（オプション）
+# pywin32>=306

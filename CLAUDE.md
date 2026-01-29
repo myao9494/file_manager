@@ -28,7 +28,7 @@ file_manager/
 │   ├── app/
 │   │   ├── main.py    # エントリーポイント
 │   │   ├── config.py  # 設定（ポート8001）
-│   │   └── routers/   # APIルーター
+│   │   └── routers/   # APIルーター (files.py, clipboard.py)
 │   └── tests/         # pytest テスト
 ├── frontend/          # React フロントエンド
 │   └── src/
@@ -259,8 +259,10 @@ SQLite FTS5を使用した高速検索システム。クエリ長に応じて最
 | POST | /api/create-file | ファイル作成 | 済 |
 | POST | /api/update-file | ファイル更新 | 済 |
 | POST | /api/rename | リネーム | 済 |
-| POST | /api/move | 移動 | 未 |
-| POST | /api/copy | コピー | 未 |
+| POST | /api/move | 移動 | 済 |
+| POST | /api/copy | コピー | 済 |
+| POST | /api/clipboard/copy | クリップボードにコピー (Windows) | 済 |
+| POST | /api/upload | ファイルアップロード | 済 |
 
 #### インデックス管理（外部サービス）
 
@@ -301,10 +303,14 @@ npm test
     - ファイル操作: get, delete, create-folder, create-file, update-file, rename
     - **安全な移動 (Safe Move)**: コピー → 検証 → 削除 のプロセスによりデータ消失を防ぐ。並列コピー対応。
     - **一括操作**: move/batch, copy/batch (並列処理)
- 2. ドラッグ&ドロップのバックエンド連携
+ 2. ドラッグ&ドロップのバックエンド連携 (ドラッグによる移動)
  3. タイルビュー表示（未実装）
- 4. ファイルアップロード (ダウンロードはネイティブ実装済)
- 5. 外部アプリ連携: VSCode (Windows: `%USERPROFILE%` path), Explorer, Antigravity, Download, Jupyter, Excalidraw, Markdown作成, Obsidian, **ゴミ箱**, **Test Folder**
+ 4. **ファイルアップロード/ダウンロード**:
+    - ダウンロード: ネイティブ実装、ブラウザ経由
+    - アップロード: **Explorerからのドラッグ&ドロップ対応** (OSからのファイルドロップ)
+ 5. **OS連携 (Windows)**:
+    - **クリップボード連携**: アプリ内のコピー (Ctrl+C) をOSクリップボード (Explorer) に同期。
+    - **外部アプリ**: VSCode, Explorer, Antigravity, Jupyter, Excalidraw, Obsidian, ゴミ箱, Test Folder
 
 ## ドキュメント更新
 

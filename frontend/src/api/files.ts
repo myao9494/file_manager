@@ -519,3 +519,29 @@ export async function getFileContent(path: string): Promise<string> {
   return data.content;
 }
 
+
+/**
+ * ファイルをアップロード
+ */
+export async function uploadFiles(path: string, files: File[]): Promise<{ status: string; message: string; uploaded?: string[]; errors?: string[] }> {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append("files", file);
+  });
+
+  const url = new URL(`${API_BASE_URL}/upload`);
+  url.searchParams.set("path", path);
+
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "アップロードに失敗しました");
+  }
+
+  return await response.json();
+}
+
