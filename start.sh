@@ -36,7 +36,7 @@ cd backend
 if command -v uv >/dev/null 2>&1; then
     echo "Using uv for backend..."
     # --host 0.0.0.0 を追加してIPv4/IPv6の両方でアクセス可能にする
-    uv run uvicorn app.main:app --reload --host 0.0.0.0 --port $BACKEND_PORT &
+    uv run python -m uvicorn app.main:app --reload --host 0.0.0.0 --port $BACKEND_PORT &
 else
     echo "uv not found. Falling back to standard python..."
     if [ -d ".venv" ]; then
