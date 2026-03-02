@@ -202,6 +202,7 @@ export function ContextMenu({
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
             if (e.key === "Enter") handleRename();
             if (e.key === "Escape") onClose();
           }}
