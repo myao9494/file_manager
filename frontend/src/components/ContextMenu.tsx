@@ -12,8 +12,9 @@ import {
   PanelLeftOpen,
   PanelRightOpen,
   ExternalLink,
+  Archive,
 } from "lucide-react";
-import { useRenameItem } from "../hooks/useFiles";
+import { useRenameItem, useUnzipItem } from "../hooks/useFiles";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import type { FileItem } from "../types/file";
 import "./ContextMenu.css";
@@ -79,6 +80,7 @@ export function ContextMenu({
 
   // const deleteItemsBatch = useDeleteItemsBatch(); // Moved to FileList
   const renameItem = useRenameItem();
+  const unzipItem = useUnzipItem();
   const { addOperation } = useOperationHistoryContext();
 
   // リネームモード開始時の初期化
@@ -146,6 +148,16 @@ export function ContextMenu({
   // 削除実行
   const handleDelete = async () => {
     onDeleteRequest(item);
+    onClose();
+  };
+
+  // Zip解凍
+  const handleUnzip = async () => {
+    try {
+      await unzipItem.mutateAsync(item.path);
+    } catch (error) {
+      console.error("解凍に失敗しました:", error);
+    }
     onClose();
   };
 
@@ -232,6 +244,16 @@ export function ContextMenu({
         </div>
       )}
       {(onOpenInLeft || onOpenInRight || onOpenLink) && <div className="menu-divider" />}
+
+      {item.name.toLowerCase().endsWith(".zip") && (
+        <>
+          <div className="menu-item" onClick={handleUnzip}>
+            <Archive size={16} />
+            <span>Zip解凍</span>
+          </div>
+          <div className="menu-divider" />
+        </>
+      )}
 
       <div className="menu-item" onClick={() => setRenaming(true)}>
         <Edit3 size={16} />

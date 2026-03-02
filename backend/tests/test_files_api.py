@@ -126,3 +126,47 @@ class TestGetFiles:
         assert "path" in data
         assert Path(data["path"]).suffix == "" # フォルダ名
         assert str(Path(data["path"]).name) == "folder1"
+
+import zipfile
+
+class TestUnzipFile:
+    """POST /api/files/unzip エンドポイントのテスト"""
+
+    def test_unzip_creates_directory_and_extracts_files(self, client, temp_dir, monkeypatch):
+        """zipファイルを解凍できること"""
+        from app import config
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        zip_path = temp_dir / "test.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("test_in_zip.txt", "hello zip")
+            zf.writestr("folder_in_zip/nested.txt", "nested zip")
+
+        response = client.post("/api/unzip", json={"path": "test.zip"})
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        
+        extract_dir = temp_dir / "test"
+        assert extract_dir.exists()
+        assert extract_dir.is_dir()
+        assert (extract_dir / "test_in_zip.txt").exists()
+        assert (extract_dir / "folder_in_zip" / "nested.txt").exists()
+
+    def test_unzip_nonexistent_file(self, client, temp_dir, monkeypatch):
+        """存在しないzipファイルの解凍はエラーになること"""
+        from app import config
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        response = client.post("/api/unzip", json={"path": "not_exist.zip"})
+        assert response.status_code == 404
+
+    def test_unzip_not_a_zip_file(self, client, temp_dir, monkeypatch):
+        """zipファイルでない場合の解凍はエラーになること"""
+        from app import config
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        response = client.post("/api/unzip", json={"path": "file1.txt"})
+        assert response.status_code == 400
+

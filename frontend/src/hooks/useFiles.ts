@@ -14,6 +14,7 @@ import {
   searchFiles,
   moveItemsBatch,
   copyItemsBatch,
+  unzipFile,
 } from "../api/files";
 import {
   getIndexServiceStatus,
@@ -164,6 +165,20 @@ export function useCopyItemsBatch() {
       if (!variables.asyncMode) {
         queryClient.invalidateQueries({ queryKey: ["files"] });
       }
+    },
+  });
+}
+
+/**
+ * ファイル解凍のミューテーション
+ */
+export function useUnzipItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (path: string) => unzipFile(path),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files"] });
     },
   });
 }

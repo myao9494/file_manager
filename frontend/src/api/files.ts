@@ -257,7 +257,28 @@ export async function updateFile(filePath: string, content: string): Promise<{ s
   return await response.json();
 }
 
+/**
+ * ZIPファイルを解凍
+ */
+export async function unzipFile(
+  path: string
+): Promise<{
+  status: string;
+  message: string;
+  extracted_path: string;
+}> {
+  const response = await fetch(`${API_BASE_URL}/unzip`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
 
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "解凍に失敗しました");
+  }
+  return await response.json();
+}
 // 複数ファイル/フォルダを移動（安全な移動: コピー → 検証 → 削除）
 // asyncMode=true の場合はタスクIDを返す（非同期処理）
 export const moveItemsBatch = async (

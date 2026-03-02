@@ -8,6 +8,7 @@
 """
 import fnmatch
 import hashlib
+import zipfile
 import threading
 import queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -775,6 +776,49 @@ async def count_files(request: CountFilesRequest):
             })
 
     return CountFilesResponse(total_count=total, details=details)
+
+
+class UnzipRequest(BaseModel):
+    """ZIP解凍リクエストのスキーマ"""
+    path: str
+
+@router.post("/unzip")
+async def unzip_file(request: UnzipRequest):
+    """
+    ZIPファイルを解凍する。
+    同じディレクトリ内に、ZIPファイル名（拡張子なし）のフォルダを作成して解凍する。
+    """
+    target_path = normalize_path(request.path)
+
+    if not target_path.exists():
+        raise HTTPException(status_code=404, detail="ファイルが見つかりません")
+        
+    if not target_path.is_file() or not zipfile.is_zipfile(target_path):
+        raise HTTPException(status_code=400, detail="有効なZIPファイルではありません")
+
+    extract_dir_name = target_path.stem
+    extract_path = target_path.parent / extract_dir_name
+
+    counter = 1
+    while extract_path.exists():
+        extract_path = target_path.parent / f"{extract_dir_name}_{counter}"
+        counter += 1
+
+    try:
+        extract_path.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(target_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_path)
+        
+        return {
+            "status": "success", 
+            "message": f"{extract_path.name} に解凍しました", 
+            "extracted_path": extract_path.as_posix()
+        }
+    except Exception as e:
+        if extract_path.exists():
+            import shutil
+            shutil.rmtree(extract_path, ignore_errors=True)
+        raise HTTPException(status_code=500, detail=f"解凍中にエラーが発生しました: {str(e)}")
 
 
 class BatchDeleteRequest(BaseModel):
