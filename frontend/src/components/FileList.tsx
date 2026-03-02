@@ -91,6 +91,7 @@ export function FileList({
     x: number;
     y: number;
     item: FileItem;
+    startRename?: boolean;
   } | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [extFilter, setExtFilter] = useState<string>(() => {
@@ -2226,6 +2227,28 @@ export function FileList({
         }
       }
     }
+
+    // リネーム (R)
+    if (!isCmdOrCtrl && e.key.toLowerCase() === 'r') {
+      if ((panelId === 'left' || panelId === 'center') && selectedItems.size === 1) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const selectedPath = Array.from(selectedItems)[0];
+        const selectedItem = allSortedItems.find(item => item.path === selectedPath);
+
+        if (selectedItem) {
+          setContextMenu({
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+            item: selectedItem,
+            startRename: true
+          });
+        }
+      }
+      return;
+    }
+
     // 削除 (Delete / Cmd + Backspace)
     if (e.key === 'Delete' || (isCmdOrCtrl && e.key === 'Backspace')) {
       if (selectedItems.size > 0) {
@@ -2838,6 +2861,7 @@ export function FileList({
           item={contextMenu.item}
           onClose={() => setContextMenu(null)}
           currentPath={currentPath || ""}
+          startRename={contextMenu.startRename}
           onOpenLink={() => {
             openLink(contextMenu.item.path);
             setContextMenu(null);

@@ -30,6 +30,7 @@ interface ContextMenuProps {
   onOpenInRight?: () => void;
   onOpenLink?: () => void;
   onDeleteRequest: (item: FileItem) => void;
+  startRename?: boolean;
 }
 
 // クリップボード用のグローバル状態（簡易実装）
@@ -72,9 +73,10 @@ export function ContextMenu({
   onOpenInRight,
   onOpenLink,
   onDeleteRequest,
+  startRename,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const [renaming, setRenaming] = useState(false);
+  const [renaming, setRenaming] = useState(startRename || false);
   const [newName, setNewName] = useState("");
   const [extension, setExtension] = useState("");
 
