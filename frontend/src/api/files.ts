@@ -4,16 +4,18 @@
  *
  * 注: インデックス検索は外部サービス（file_index_service）に移行
  *     → indexService.ts を参照
+ * PWA配信時は同一オリジンのため相対パスを使用
  */
 import type { DirectoryResponse, SearchResponse, SearchParams, PathInfoResponse } from "../types/file";
+import { API_BASE_URL } from "../config";
 
-const API_BASE_URL = "http://localhost:8001/api";
+const API_URL = `${API_BASE_URL}/api`;
 
 /**
  * パスの種別を取得（ファイル/ディレクトリ/存在しない）
  */
 export async function getPathInfo(path: string): Promise<PathInfoResponse> {
-  const url = new URL(`${API_BASE_URL}/path-info`);
+  const url = new URL(`${API_URL}/path-info`, window.location.origin);
   if (path) {
     url.searchParams.set("path", path);
   }
@@ -32,7 +34,7 @@ export async function getPathInfo(path: string): Promise<PathInfoResponse> {
  * ファイル一覧を取得
  */
 export async function getFiles(path: string = ""): Promise<DirectoryResponse> {
-  const url = new URL(`${API_BASE_URL}/files`);
+  const url = new URL(`${API_URL}/files`, window.location.origin);
   if (path) {
     url.searchParams.set("path", path);
   }
@@ -59,7 +61,7 @@ export async function deleteItem(
   message?: string;
   task_id?: string;
 }> {
-  const response = await fetch(`${API_BASE_URL}/delete`, {
+  const response = await fetch(`${API_URL}/delete`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -91,7 +93,7 @@ export async function countFiles(
     error?: string;
   }>;
 }> {
-  const response = await fetch(`${API_BASE_URL}/count-files`, {
+  const response = await fetch(`${API_URL}/count-files`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -122,7 +124,7 @@ export async function deleteItemsBatch(
   task_id?: string;
   message?: string;
 }> {
-  const response = await fetch(`${API_BASE_URL}/delete/batch`, {
+  const response = await fetch(`${API_URL}/delete/batch`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -146,7 +148,7 @@ export async function createFolder(
   parentPath: string,
   name: string
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/create-folder`, {
+  const response = await fetch(`${API_URL}/create-folder`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path: parentPath, name }),
@@ -165,7 +167,7 @@ export async function renameItem(
   oldPath: string,
   newName: string
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/rename`, {
+  const response = await fetch(`${API_URL}/rename`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ old_path: oldPath, new_name: newName }),
@@ -181,7 +183,7 @@ export async function renameItem(
  * ファイル検索（Liveモード用 - ディレクトリ走査）
  */
 export async function searchFiles(params: SearchParams): Promise<SearchResponse> {
-  const url = new URL(`${API_BASE_URL}/search`);
+  const url = new URL(`${API_URL}/search`, window.location.origin);
   url.searchParams.set("path", params.path);
   url.searchParams.set("query", params.query);
   url.searchParams.set("depth", params.depth.toString());
@@ -211,7 +213,7 @@ export async function moveItem(
   srcPath: string,
   destPath: string
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/move`, {
+  const response = await fetch(`${API_URL}/move`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ src_path: srcPath, dest_path: destPath }),
@@ -227,7 +229,7 @@ export async function moveItem(
  * ファイルを作成
  */
 export async function createFile(parentPath: string, name: string, content: string = ""): Promise<{ status: string; message: string; path: string }> {
-  const response = await fetch(`${API_BASE_URL}/create-file`, {
+  const response = await fetch(`${API_URL}/create-file`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path: parentPath, name, content }),
@@ -244,7 +246,7 @@ export async function createFile(parentPath: string, name: string, content: stri
  * ファイルの内容を更新
  */
 export async function updateFile(filePath: string, content: string): Promise<{ status: string; message: string }> {
-  const response = await fetch(`${API_BASE_URL}/update-file`, {
+  const response = await fetch(`${API_URL}/update-file`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path: filePath, content }),
@@ -289,7 +291,7 @@ export const moveItemsBatch = async (
   asyncMode: boolean = false,
   debugMode: boolean = false
 ): Promise<{ status: string; success_count?: number; fail_count?: number; results?: any[]; task_id?: string }> => {
-  const response = await fetch(`${API_BASE_URL}/move/batch`, {
+  const response = await fetch(`${API_URL}/move/batch`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -325,7 +327,7 @@ export const copyItemsBatch = async (
   results?: any[];
   task_id?: string;
 }> => {
-  const response = await fetch(`${API_BASE_URL}/copy/batch`, {
+  const response = await fetch(`${API_URL}/copy/batch`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -350,7 +352,7 @@ export const copyItemsBatch = async (
  * VS Codeで開く
  */
 export async function openInVSCode(path: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/open/vscode`, {
+  const response = await fetch(`${API_URL}/open/vscode`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -366,7 +368,7 @@ export async function openInVSCode(path: string): Promise<void> {
  * エクスプローラー/Finderで開く
  */
 export async function openInExplorer(path: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/open/explorer`, {
+  const response = await fetch(`${API_URL}/open/explorer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -382,7 +384,7 @@ export async function openInExplorer(path: string): Promise<void> {
  * ダウンロードURLを取得
  */
 export function getDownloadUrl(path: string): string {
-  const url = new URL(`${API_BASE_URL}/download`);
+  const url = new URL(`${API_URL}/download`, window.location.origin);
   url.searchParams.set("path", path);
   return url.toString();
 }
@@ -391,7 +393,7 @@ export function getDownloadUrl(path: string): string {
  * Antigravityで開く
  */
 export async function openInAntigravity(path: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/open/antigravity`, {
+  const response = await fetch(`${API_URL}/open/antigravity`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -407,7 +409,7 @@ export async function openInAntigravity(path: string): Promise<void> {
  * Jupyterで開く
  */
 export async function openInJupyter(path: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/open/jupyter`, {
+  const response = await fetch(`${API_URL}/open/jupyter`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -423,7 +425,7 @@ export async function openInJupyter(path: string): Promise<void> {
  * Excalidrawで開く
  */
 export async function openInExcalidraw(path: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/open/excalidraw`, {
+  const response = await fetch(`${API_URL}/open/excalidraw`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -440,7 +442,7 @@ export async function openInExcalidraw(path: string): Promise<void> {
  * パスに「obsidian」を含むディレクトリがある必要がある
  */
 export async function openInObsidian(path: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/open/obsidian`, {
+  const response = await fetch(`${API_URL}/open/obsidian`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -471,7 +473,7 @@ export interface SmartOpenResult {
  * バックエンドで種類判定を行い、適切な処理を実行
  */
 export async function openSmart(path: string): Promise<SmartOpenResult> {
-  const response = await fetch(`${API_BASE_URL}/open/smart`, {
+  const response = await fetch(`${API_URL}/open/smart`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -490,7 +492,7 @@ export async function openSmart(path: string): Promise<SmartOpenResult> {
  */
 export async function openInDefaultApp(path: string): Promise<{ success: boolean; message: string }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/open/default`, {
+    const response = await fetch(`${API_URL}/open/default`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path }),
@@ -511,7 +513,7 @@ export async function openInDefaultApp(path: string): Promise<{ success: boolean
  * ゴミ箱を開く
  */
 export async function openTrash(): Promise<{ success: boolean; message?: string; error?: string }> {
-  const response = await fetch(`${API_BASE_URL}/open/trash`, {
+  const response = await fetch(`${API_URL}/open/trash`, {
     method: "POST",
   });
   return await response.json();
@@ -521,7 +523,7 @@ export async function openTrash(): Promise<{ success: boolean; message?: string;
  * テストフォルダのパスを取得
  */
 export async function getTestFolderPath(): Promise<{ success: boolean; path?: string; error?: string }> {
-  const response = await fetch(`${API_BASE_URL}/test-folder-path`);
+  const response = await fetch(`${API_URL}/test-folder-path`);
   return await response.json();
 }
 
@@ -529,7 +531,7 @@ export async function getTestFolderPath(): Promise<{ success: boolean; path?: st
  * ファイルの内容を取得（Markdownエディタ用）
  */
 export async function getFileContent(path: string): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/file-content?path=${encodeURIComponent(path)}`);
+  const response = await fetch(`${API_URL}/file-content?path=${encodeURIComponent(path)}`);
 
   if (!response.ok) {
     const error = await response.json();
@@ -550,7 +552,7 @@ export async function uploadFiles(path: string, files: File[]): Promise<{ status
     formData.append("files", file);
   });
 
-  const url = new URL(`${API_BASE_URL}/upload`);
+  const url = new URL(`${API_URL}/upload`, window.location.origin);
   url.searchParams.set("path", path);
 
   const response = await fetch(url.toString(), {

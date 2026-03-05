@@ -1,8 +1,10 @@
 /**
  * クリップボード操作用APIクライアント
+ * config.tsの共通API_BASE_URLを使用
  */
-// import { API_BASE_URL } from "./config"; // config.ts is not in api dir
-const API_BASE_URL = "http://localhost:8001/api";
+import { API_BASE_URL } from "../config";
+
+const API_URL = `${API_BASE_URL}/api`;
 
 /**
  * ファイルパスのリストをOSのクリップボードにコピーする
@@ -10,7 +12,7 @@ const API_BASE_URL = "http://localhost:8001/api";
  */
 export async function copyFilesToClipboard(paths: string[]): Promise<{ status: string; message?: string; count?: number }> {
     try {
-        const response = await fetch(`${API_BASE_URL}/clipboard/copy`, {
+        const response = await fetch(`${API_URL}/clipboard/copy`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

@@ -49,10 +49,22 @@ file_manager/
 
 ### 起動スクリプト
 一括起動・ポート解放機能付きのスクリプトを使用できます：
-- **macOS/Linux**: `./start.sh`
-- **Windows**: `start.bat`
+- **本番モード（PWA配信）**: `./start.sh`
+- **開発モード**: `./start_dev.sh`
+- **Windows**: `start.bat` (開発), `start_windows_prod.bat` (本番)
 
 詳細は `docs/startup_scripts.md` を参照。
+
+### PWA配信モード
+
+本番モード（`./start.sh`）では、バックエンドがフロントエンドのビルド済みファイル（`frontend/dist/`）を配信します。
+
+- **単一ポート(8001)**でアプリ全体が動作
+- PWAとしてインストール可能（ホーム画面に追加）
+- フロントエンドのAPI URLは相対パス（`config.ts`の`API_BASE_URL = ""`）
+- 開発時はViteのプロキシ設定で`/api`をバックエンドに転送
+
+詳細は `docs/pwa_deployment.md` を参照。
 
 ## 環境変数設定
 

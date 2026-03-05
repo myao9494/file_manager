@@ -1,11 +1,12 @@
 /**
  * APIテストページ
  * 外部連携用APIをテストするためのページ
+ * PWA配信時は同一オリジンのため相対パスを使用
  */
 import { useState } from "react";
 import "./ApiTestPage.css";
 
-const API_BASE_URL = "http://localhost:8001/api";
+const API_BASE_URL = "/api";
 
 interface ApiResult {
     status: string;

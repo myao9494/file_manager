@@ -1,13 +1,14 @@
 #!/bin/bash
 
-# サーバー起動スクリプト (本番用 / PWA配信)
+# サーバー起動スクリプト (開発用)
 # 指定されたポートが使用されている場合はプロセスを終了してから、
-# バックエンドを起動し、フロントエンドのビルド済みファイルを配信する。
+# バックエンドとフロントエンドdevサーバーを両方起動する。
 #
 # 使用方法:
-#   ./start.sh
+#   ./start_dev.sh
 
 BACKEND_PORT=8001
+FRONTEND_PORT=5173
 
 # 関数: ポートを使用しているプロセスを終了する
 kill_port_process() {
@@ -27,20 +28,9 @@ kill_port_process() {
     fi
 }
 
-echo "Stopping existing server..."
+echo "Stopping existing servers..."
 kill_port_process $BACKEND_PORT
-
-# フロントエンドのビルドを確認
-if [ ! -d "frontend/dist" ]; then
-    echo "Building frontend..."
-    cd frontend
-    if command -v pnpm >/dev/null 2>&1; then
-        pnpm run build
-    else
-        npm run build
-    fi
-    cd ..
-fi
+kill_port_process $FRONTEND_PORT
 
 echo "Starting Backend server (Port $BACKEND_PORT)..."
 cd backend
@@ -48,12 +38,14 @@ cd backend
 # バックエンド起動コマンドの決定
 if command -v uv >/dev/null 2>&1; then
     echo "Using uv for backend..."
-    uv run uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT &
+    # --host 0.0.0.0 を追加してIPv4/IPv6の両方でアクセス可能にする
+    uv run uvicorn app.main:app --reload --host 0.0.0.0 --port $BACKEND_PORT &
 else
+    echo "uv not found. Falling back to standard python..."
     if [ -d ".venv" ]; then
         source .venv/bin/activate
     fi
-    PYTHONPATH=. python -m uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT &
+    PYTHONPATH=. python -m uvicorn app.main:app --reload --host 0.0.0.0 --port $BACKEND_PORT &
 fi
 BACKEND_PID=$!
 cd ..
@@ -74,13 +66,28 @@ while ! curl -s http://localhost:$BACKEND_PORT/ > /dev/null; do
 done
 echo " Backend is ready!"
 
-# 本番モード: バックエンドのみ（フロントエンドはビルド済みから配信）
+# 開発モード: フロントエンドdevサーバーも起動
+echo "Starting Frontend server (Port $FRONTEND_PORT)..."
+cd frontend
+
+# フロントエンド起動コマンドの決定
+if command -v pnpm >/dev/null 2>&1; then
+    echo "Using pnpm for frontend..."
+    pnpm run dev &
+else
+    echo "pnpm not found. Falling back to npm..."
+    npm run dev &
+fi
+FRONTEND_PID=$!
+cd ..
+
 echo "---------------------------------------"
-echo "Production mode: Backend is serving the frontend."
-echo "App: http://localhost:$BACKEND_PORT"
-echo "API: http://localhost:$BACKEND_PORT/api"
-echo "Press Ctrl+C to stop the server."
+echo "Development mode: Servers are running."
+echo "Frontend: http://localhost:$FRONTEND_PORT"
+echo "Backend API: http://localhost:$BACKEND_PORT/api"
+echo "Press Ctrl+C to stop both servers."
 echo "---------------------------------------"
 
-trap "echo ' Stopping server...'; kill $BACKEND_PID; exit" INT
+# Trap CTRL+C to kill both background processes
+trap "echo ' Stopping servers...'; kill $BACKEND_PID $FRONTEND_PID; exit" INT
 wait

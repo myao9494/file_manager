@@ -2,9 +2,10 @@
  * アプリケーション設定
  * プラットフォーム依存の設定を管理
  * バックエンドの/api/configから設定を取得
+ * PWA配信時は同一オリジンのため空文字列を使用
  */
 
-export const API_BASE_URL = "http://localhost:8001";
+export const API_BASE_URL = "";
 
 /**
  * バックエンドから取得した設定のキャッシュ
