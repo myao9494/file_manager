@@ -30,17 +30,11 @@ kill_port_process() {
 echo "Stopping existing server..."
 kill_port_process $BACKEND_PORT
 
-# フロントエンドのビルドを確認
-if [ ! -d "frontend/dist" ]; then
-    echo "Building frontend..."
-    cd frontend
-    if command -v pnpm >/dev/null 2>&1; then
-        pnpm run build
-    else
-        npm run build
-    fi
-    cd ..
-fi
+# フロントエンドのビルドを実行（常に実行して最新の変更を反映）
+echo "Building frontend..."
+cd frontend
+npm run build
+cd ..
 
 echo "Starting Backend server (Port $BACKEND_PORT)..."
 cd backend

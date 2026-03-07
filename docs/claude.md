@@ -46,3 +46,7 @@
     - `index.html` で `favicon.svg` をファビコンとして指定。
     - ビルド済み（`dist/`）に最新のアイコンが反映されるよう、`npm run build` を実行済み。
 
+### file_index_service の PWA配信対応
+- **GUIのポート変更**:
+    - `file_index_service` がPWA配信対応となったため、Viteの開発サーバー (localhost:5174) への依存を廃止。
+    - file_manager内のGUIへのリンクやドキュメントを、FastAPIバックエンド/PWA配信を兼ねる `http://localhost:8080` に統合した。

@@ -30,6 +30,8 @@ cd ..
 
 echo Starting Frontend server (Port %FRONTEND_PORT%)...
 cd frontend
+echo Building Frontend...
+call npm run build
 start "File Manager Frontend" cmd /c "npm run dev"
 cd ..
 

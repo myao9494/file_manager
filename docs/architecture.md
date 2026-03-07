@@ -168,7 +168,7 @@ file_manager/
 - テーマ切り替え（Light/Dark）
 - ストレージリセット（localStorage初期化）
 
-**注**: インデックス再構築は外部サービス（file_index_service:5174）のUIで実行します。
+**注**: インデックス再構築は外部サービス（file_index_service:8080）のUIで実行します。
 
 ### FileList.tsx - ツールバーアイコン
 
@@ -419,8 +419,7 @@ Everything互換検索API
 |----------|--------|
 | Backend (FastAPI) | 8001 |
 | Frontend (Vite dev) | 5173 |
-| file_index_service (FastAPI) | 8080 |
-| file_index_service (Vite dev) | 5174 |
+| file_index_service (FastAPI/PWA) | 8080 |
 
 ## テスト
 

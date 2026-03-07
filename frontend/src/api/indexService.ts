@@ -102,7 +102,7 @@ export interface IndexSearchResponse {
 
 export async function searchIndexService(params: IndexSearchParams): Promise<IndexSearchResponse> {
   const baseUrl = getIndexServiceUrl();
-  const url = new URL(baseUrl);
+  const url = new URL(baseUrl, window.location.origin);
 
   url.searchParams.set("search", params.query);
   url.searchParams.set("json", "1");
@@ -187,7 +187,7 @@ export async function addIndexWatchPath(path: string): Promise<{ path: string; s
  */
 export async function removeIndexWatchPath(path: string): Promise<{ path: string; status: string }> {
   const baseUrl = getIndexServiceUrl();
-  const url = new URL("/paths", baseUrl);
+  const url = new URL(`${baseUrl}/paths`, window.location.origin);
   url.searchParams.set("path", path);
 
   const response = await fetch(url.toString(), { method: "DELETE" });
@@ -205,7 +205,7 @@ export async function removeIndexWatchPath(path: string): Promise<{ path: string
  */
 export async function rebuildIndex(path?: string): Promise<{ status: string; message: string }> {
   const baseUrl = getIndexServiceUrl();
-  const url = new URL("/rebuild", baseUrl);
+  const url = new URL(`${baseUrl}/rebuild`, window.location.origin);
   if (path) {
     url.searchParams.set("path", path);
   }

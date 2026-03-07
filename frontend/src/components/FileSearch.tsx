@@ -908,7 +908,7 @@ export function FileSearch({
             </button>
           </div>
           <div className="external-link-container" style={{ marginLeft: '12px', fontSize: '12px' }}>
-            <a href="http://localhost:5174" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>
+            <a href="http://localhost:8080" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>
               index検索のGUIへのリンク
             </a>
           </div>
