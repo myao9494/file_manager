@@ -80,6 +80,7 @@ file_manager/
 **macOS/Linux:**
 ```env
 FILE_MANAGER_BASE_DIR=/Users/username/Documents
+FILE_MANAGER_OBSIDIAN_BASE_DIR=/Users/mine/000_work/obsidian-dagnetz/01_data
 ```
 
 **Windows:**
@@ -179,6 +180,7 @@ http://localhost:5173/?path=/Users/username/Documents
 - ツールバー（base.html準拠のアイコン）
 - 検索バー
 - フィルタバー（ラベル簡略化、1行表示、ファイル・フォルダ切替対応）
+- **Obsidian 今日のフォルダ**: 年月日（YYYY/MM/DD）のフォルダを自動作成して開く
 - ファイル/フォルダテーブル（パスコピー用アイコン付き）
 - ドラッグ&ドロップ
   - **Shift+ドラッグ**: テーブル行上でも範囲選択開始可能（ホバー効果を無視）
@@ -275,6 +277,7 @@ SQLite FTS5を使用した高速検索システム。クエリ長に応じて最
 | POST | /api/copy | コピー | 済 |
 | POST | /api/clipboard/copy | クリップボードにコピー (Windows) | 済 |
 | POST | /api/upload | ファイルアップロード | 済 |
+| GET | /api/obsidian/daily-path | Obsidian今日のフォルダ取得・作成 | 済 |
 
 #### インデックス管理（外部サービス）
 

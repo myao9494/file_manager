@@ -32,7 +32,7 @@ import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useC
 import { copyFilesToClipboard } from "../api/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
-import { getPathInfo, openInVSCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles } from "../api/files";
+import { getPathInfo, openInVSCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
 import { MarkdownEditorModal } from "./MarkdownEditorModal";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
@@ -981,6 +981,23 @@ export function FileList({
     }
   };
 
+  /**
+   * Obsidianの今日のフォルダを開く
+   */
+  const handleOpenObsidianDaily = async () => {
+    try {
+      const result = await getObsidianDailyPath();
+      if (result.path) {
+        await navigateToFolder(result.path);
+        // 作成されたペインをアクティブにする
+        onRequestFocus?.();
+      }
+    } catch (e: any) {
+      console.error("Failed to get obsidian daily path:", e);
+      showError(`Obsidianの今日のフォルダを取得できませんでした: ${e.message}`);
+    }
+  };
+
   // 履歴フィルタリングとキーボード操作
   useEffect(() => {
     if (showHistory) {
@@ -1713,8 +1730,9 @@ export function FileList({
         if (e.key === 'ArrowRight') {
           e.preventDefault();
           e.stopPropagation();
-          // ツールバーボタンの最大インデックス（約16ボタン）
-          const maxToolbarIndex = 15;
+          // ツールバーボタンの最大インデックスを動的に取得
+          const toolbarButtons = containerRef.current?.querySelectorAll('.icon-toolbar button');
+          const maxToolbarIndex = toolbarButtons ? Math.max(0, toolbarButtons.length - 1) : 0;
           if (toolbarButtonIndex < maxToolbarIndex) {
             setToolbarButtonIndex(toolbarButtonIndex + 1);
           }
@@ -2381,6 +2399,9 @@ export function FileList({
         </button>
         <button onClick={handleOpenAntigravity} title="Antigravityで開く">
           <Rocket size={14} />
+        </button>
+        <button onClick={handleOpenObsidianDaily} title="Obsidian 今日のフォルダ">
+          <img src="/obsidian.svg" alt="Obsidian Daily" width={14} height={14} />
         </button>
         <button onClick={handleOpenExplorer} title="フォルダを開く">
           <FolderOpen size={14} />

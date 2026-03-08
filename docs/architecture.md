@@ -281,6 +281,18 @@ file_viewer/templates/base.htmlに準拠したアイコン配置：
 }
 ```
 
+#### GET /api/open-path
+
+指定したパスを開く。
+
+**パラメータ:**
+- `path` (string): 開くファイルのパス
+
+**動作:**
+- **フォルダの場合**: 相対パス `/?path=...` にリダイレクトし、本アプリのフロントエンドでそのフォルダを表示する。
+- **ファイルの場合**: OSのデフォルトアプリケーションでファイルを開き、ブラウザのタブを閉じるHTMLを返す。
+- 以前は `http://localhost:5173` にリダイレクトされていたが、現在は相対パスに変更され、任意のポートで動作可能。
+
 #### DELETE /api/delete
 
 ファイル/フォルダを削除
@@ -415,11 +427,11 @@ Everything互換検索API
 
 ## ポート設定
 
-| サービス | ポート |
-|----------|--------|
-| Backend (FastAPI) | 8001 |
-| Frontend (Vite dev) | 5173 |
-| file_index_service (FastAPI/PWA) | 8080 |
+| サービス | ポート | 備考 |
+|----------|--------|------|
+| Backend / PWA | 8001 | FastAPI + Static Files (frontend) |
+| Frontend (Vite) | 5173 | 開発用サーバー（通常は不要） |
+| file_index_service | 8080 | 外部インデックスサービス |
 
 ## テスト
 

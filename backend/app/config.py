@@ -77,4 +77,22 @@ class Settings(BaseSettings):
         return self.base_dir
 
 
+    @property
+    def obsidian_base_dir(self) -> Path:
+        """Obsidianのベースディレクトリを取得"""
+        # 環境変数で指定されている場合はそれを使用
+        env_val = os.environ.get("FILE_MANAGER_OBSIDIAN_BASE_DIR")
+        if env_val:
+            return Path(env_val)
+
+        # デフォルト設定（ユーザー指定のパスを参考）
+        if self.is_windows:
+            # Windows版のデフォルト（例: D:\obsidian-dagnetz\01_data など、環境に合わせて変更可能）
+            # ここでは暫定的に base_dir / "obsidian-dagnetz" / "01_data" とする
+            return self.base_dir / "obsidian-dagnetz" / "01_data"
+        else:
+            # macOS版のデフォルト
+            return Path("/Users/mine/000_work/obsidian-dagnetz/01_data")
+
+
 settings = Settings()

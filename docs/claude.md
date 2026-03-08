@@ -50,3 +50,9 @@
 - **GUIのポート変更**:
     - `file_index_service` がPWA配信対応となったため、Viteの開発サーバー (localhost:5174) への依存を廃止。
     - file_manager内のGUIへのリンクやドキュメントを、FastAPIバックエンド/PWA配信を兼ねる `http://localhost:8080` に統合した。
+
+### 外部連携用API (`/api/open-path`)
+- **フォルダの表示**:
+    - `GET /api/open-path?path=...` を叩くことで、指定したフォルダを本アプリのフロントエンドで開くことができる。
+    - 以前は `localhost:5173` に固定されていたが、現在は相対パス (`/?path=...`) を使用するように改善され、ポート番号に関わらず動作する（例: `http://localhost:8001/api/open-path?path=...`）。
+    - ファイルパスが指定された場合は、OSのデフォルトアプリでファイルを開き、ブラウザの非表示タブを自動で閉じる。

@@ -568,3 +568,17 @@ export async function uploadFiles(path: string, files: File[]): Promise<{ status
   return await response.json();
 }
 
+/**
+ * Obsidianの今日のフォルダパスを取得（存在しない場合は作成される）
+ */
+export async function getObsidianDailyPath(): Promise<{ path: string }> {
+  const url = new URL(`${API_URL}/obsidian/daily-path`, window.location.origin);
+  const response = await fetch(url.toString());
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Obsidianパスの取得に失敗しました");
+  }
+
+  return response.json();
+}
