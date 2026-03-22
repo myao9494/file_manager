@@ -5,6 +5,7 @@
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 import './ProgressModal.css';
 
 // 進捗情報の型
@@ -48,7 +49,7 @@ export const ProgressModal: React.FC<ProgressModalProps> = ({
     operationType = 'move',
     onClose,
     onComplete,
-    apiBaseUrl = 'http://localhost:8001/api'
+    apiBaseUrl = `${API_BASE_URL}/api`
 }) => {
     const labels = OPERATION_LABELS[operationType];
     const [progress, setProgress] = useState<TaskProgress | null>(null);

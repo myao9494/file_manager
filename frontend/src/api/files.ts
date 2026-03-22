@@ -269,7 +269,7 @@ export async function unzipFile(
   message: string;
   extracted_path: string;
 }> {
-  const response = await fetch(`${API_BASE_URL}/unzip`, {
+  const response = await fetch(`${API_URL}/unzip`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -463,9 +463,10 @@ export async function openInObsidian(path: string): Promise<void> {
  */
 export interface SmartOpenResult {
   status: string;
-  action: "opened" | "open_modal";
+  action: "opened" | "open_modal" | "open_url";
   message: string;
   content?: string;  // action=open_modalの場合のファイル内容
+  url?: string;  // action=open_urlの場合のURL
 }
 
 /**

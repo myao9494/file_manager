@@ -1,5 +1,4 @@
-
-import React from "react";
+import React, { memo } from "react";
 import { extensionToIcon, filenameToIcon, folderToIcon } from "../utils/iconMapping";
 
 interface FileIconProps {
@@ -10,7 +9,7 @@ interface FileIconProps {
     className?: string;
 }
 
-export const FileIcon: React.FC<FileIconProps> = ({
+export const FileIcon: React.FC<FileIconProps> = memo(({
     name,
     type,
     isOpen = false,
@@ -75,4 +74,4 @@ export const FileIcon: React.FC<FileIconProps> = ({
             }}
         />
     );
-};
+});

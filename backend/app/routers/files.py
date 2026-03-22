@@ -239,9 +239,10 @@ def search_files_recursive(
     ignore_patterns: List[str],
     results: List[FileItem],
     max_results: int = 1000,
+    file_type_filter: str = "all",
 ) -> None:
     """
-    再帰的にファイルを検索
+    os.scandirを使って再帰的にファイルを検索
 
     Args:
         base_path: 検索開始ディレクトリ
@@ -251,80 +252,84 @@ def search_files_recursive(
         ignore_patterns: 除外パターンのリスト
         results: 検索結果を格納するリスト
         max_results: 最大結果数
+        file_type_filter: 返却するファイルタイプ（all/file/directory）
     """
-    if len(results) >= max_results:
+    if len(results) >= max_results or (max_depth > 0 and current_depth > max_depth):
         return
 
-    if max_depth > 0 and current_depth > max_depth:
-        return
+    query_lower = query.lower()
+    search_root = str(base_path.resolve())
+    stack: List[Tuple[Path, int]] = [(base_path, current_depth)]
 
-    try:
-        for item in base_path.iterdir():
-            if len(results) >= max_results:
-                return
+    while stack and len(results) < max_results:
+        current_path, depth = stack.pop()
 
-            try:
-                if should_ignore(item, ignore_patterns):
-                    continue
+        if max_depth > 0 and depth > max_depth:
+            continue
 
-                if item.is_symlink():
+        try:
+            with os.scandir(current_path) as entries:
+                child_dirs: List[Path] = []
+                for entry in entries:
+                    if len(results) >= max_results:
+                        return
+
                     try:
-                        resolved = item.resolve(strict=True)
-                        if str(resolved).startswith(str(base_path)):
+                        entry_path = Path(entry.path)
+
+                        if should_ignore(entry_path, ignore_patterns):
                             continue
-                    except (OSError, RuntimeError):
+
+                        if entry.is_symlink():
+                            try:
+                                resolved = str(entry_path.resolve(strict=True))
+                                if resolved.startswith(search_root):
+                                    continue
+                            except (OSError, RuntimeError):
+                                continue
+
+                        is_dir = entry.is_dir()
+                        if query_lower in entry.name.lower():
+                            if is_dir:
+                                if file_type_filter in ("all", "directory"):
+                                    results.append(
+                                        FileItem(
+                                            name=entry.name,
+                                            type="directory",
+                                            path=entry_path.as_posix(),
+                                        )
+                                    )
+                            elif file_type_filter in ("all", "file"):
+                                try:
+                                    stat = entry.stat()
+                                    results.append(
+                                        FileItem(
+                                            name=entry.name,
+                                            type="file",
+                                            path=entry_path.as_posix(),
+                                            size=stat.st_size,
+                                            modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                                        )
+                                    )
+                                except (PermissionError, OSError):
+                                    results.append(
+                                        FileItem(
+                                            name=entry.name,
+                                            type="file",
+                                            path=entry_path.as_posix(),
+                                        )
+                                    )
+
+                        if is_dir and (max_depth == 0 or depth < max_depth):
+                            child_dirs.append(entry_path)
+
+                    except (PermissionError, OSError):
                         continue
 
-                name_lower = item.name.lower()
-                query_lower = query.lower()
-
-                if query_lower in name_lower:
-                    item_absolute_path = item.as_posix()
-                    if item.is_dir():
-                        results.append(
-                            FileItem(
-                                name=item.name,
-                                type="directory",
-                                path=item_absolute_path,
-                            )
-                        )
-                    else:
-                        try:
-                            stat = item.stat()
-                            results.append(
-                                FileItem(
-                                    name=item.name,
-                                    type="file",
-                                    path=item_absolute_path,
-                                    size=stat.st_size,
-                                    modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                                )
-                            )
-                        except (PermissionError, OSError):
-                            results.append(
-                                FileItem(
-                                    name=item.name,
-                                    type="file",
-                                    path=item_absolute_path,
-                                )
-                            )
-
-                if item.is_dir():
-                    search_files_recursive(
-                        item,
-                        query,
-                        current_depth + 1,
-                        max_depth,
-                        ignore_patterns,
-                        results,
-                        max_results,
-                    )
-
-            except (PermissionError, OSError):
-                continue
-
-    except (PermissionError, OSError):
-        pass
+                for child_dir in reversed(child_dirs):
+                    stack.append((child_dir, depth + 1))
+        except (PermissionError, OSError):
+            continue
 
 
 class PathInfoResponse(BaseModel):
@@ -423,10 +428,8 @@ async def search_files(
         ignore_patterns,
         results,
         max_results,
+        file_type,
     )
-
-    if file_type != "all":
-        results = [r for r in results if r.type == file_type]
 
     return SearchResponse(
         query=query,
@@ -2813,11 +2816,13 @@ class SmartOpenResponse(BaseModel):
     action: 実行されたアクション
     - "opened": 外部アプリで開いた
     - "open_modal": フロントエンドでモーダルを開く（md編集用）
+    - "open_url": フロントエンドでURLを開く（PDF等）
     """
     status: str
     action: str
     message: str
     content: Optional[str] = None  # action=open_modalの場合のファイル内容
+    url: Optional[str] = None  # action=open_urlの場合のURL
 
 
 def resolve_file_app_url(path_obj: Path) -> Optional[str]:
@@ -2826,7 +2831,7 @@ def resolve_file_app_url(path_obj: Path) -> Optional[str]:
     - Excalidraw -> http://localhost:3001/...
     - Jupyter -> http://localhost:8888/...
     - Obsidian -> obsidian://...
-    - PDF(Mac) -> /api/view-pdf...
+    - PDF -> /api/view-pdf...
     
     該当しない場合は None を返す
     """
@@ -2892,16 +2897,11 @@ def resolve_file_app_url(path_obj: Path) -> Optional[str]:
             encoded_file = urllib.parse.quote(relative_file_path)
             return f"obsidian://open?vault={vault_name}&file={encoded_file}"
 
-    # --- PDF (macOS only for browser view) ---
-    # note: open_smart (server side) may handle this differently if it wants to open in default OS app
-    # but based on previous logic, open_smart for mac also used this URL.
-    if start_path.endswith('.pdf') and platform.system() == 'Darwin':
+    # --- PDF ---
+    # PDFはプラットフォームに関係なくブラウザで別タブ表示する
+    if start_path.endswith('.pdf'):
         encoded_path = urllib.parse.quote(str(path_obj))
-        # Use absolute URL for consistency if needed, but relative works for redirect
-        # For server-side open (webbrowser.open), we need full URL if running from backend?
-        # webbrowser.open handles relative if it assumes base, but usually needs http.
-        # open_smart previously used: http://localhost:8001/api/view-pdf...
-        return f"http://localhost:8001/api/view-pdf?path={encoded_path}"
+        return f"/api/view-pdf?path={encoded_path}"
 
     return None
 
@@ -2923,6 +2923,14 @@ async def open_smart(request: OpenRequest):
     
     if target_url:
         try:
+            if target_url.startswith("/"):
+                return SmartOpenResponse(
+                    status="success",
+                    action="open_url",
+                    message="ブラウザで開きます",
+                    url=target_url,
+                )
+
             # http/https は webbrowser で開く
             if target_url.startswith("http"):
                 webbrowser.open(target_url)

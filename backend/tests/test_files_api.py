@@ -170,3 +170,39 @@ class TestUnzipFile:
         response = client.post("/api/unzip", json={"path": "file1.txt"})
         assert response.status_code == 400
 
+
+class TestSearchFiles:
+    """GET /api/search エンドポイントのテスト"""
+
+    def test_search_files_finds_nested_matches(self, client, temp_dir, monkeypatch):
+        """再帰検索でネストしたファイルも見つかる"""
+        from app import config
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        (temp_dir / "folder1" / "report_match.txt").write_text("report")
+
+        response = client.get("/api/search", params={"path": "", "query": "match", "depth": 2})
+
+        assert response.status_code == 200
+        data = response.json()
+        names = [item["name"] for item in data["items"]]
+        assert "report_match.txt" in names
+
+    def test_search_files_respects_file_type_filter(self, client, temp_dir, monkeypatch):
+        """file_type=directory の場合はディレクトリのみ返す"""
+        from app import config
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        (temp_dir / "match_dir").mkdir()
+        (temp_dir / "match_file.txt").write_text("match")
+
+        response = client.get(
+            "/api/search",
+            params={"path": "", "query": "match", "depth": 1, "file_type": "directory"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["name"] == "match_dir"
+        assert data["items"][0]["type"] == "directory"

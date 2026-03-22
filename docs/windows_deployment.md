@@ -4,7 +4,7 @@
 
 ## 概要
 
-開発機（Mac/Linux）でフロントエンドをビルドし、その成果物をバックエンド（Python/FastAPI）に同梱して配布します。Windows側ではPython環境のみで動作します。
+開発機（Mac/Linux）でフロントエンドをビルドし、その成果物を配布して、Windows 側で起動します。
 
 ## 前提条件
 
@@ -15,18 +15,17 @@
 
 ### 1. 開発機での準備（ビルド）
 
-1. リポジトリのルートで以下のスクリプトを実行します。
+1. 開発機で `frontend/` のビルドを実行します。
 
    ```bash
-   ./scripts/build_for_windows.sh
+   cd frontend
+   npm run build
    ```
 
-   このスクリプトは以下の処理を行います：
-   - フロントエンド (`frontend/`) のビルド (`npm run build`)
-   - ビルド成果物 (`frontend/dist/`) をバックエンドの静的ファイルディレクトリ (`backend/static/`) にコピー
-
-2. ビルドが完了したら、`backend` フォルダと `start_windows_prod.bat` をWindows機にコピーします。
-   （`frontend` フォルダは不要です）
+2. Windows 機へ、少なくとも以下をコピーします。
+   - `backend/`
+   - `frontend/dist/`
+   - `start_windows_prod.bat`
 
 ### 2. Windows環境での実行
 
@@ -36,11 +35,13 @@
 
 ## 注意事項
 
-- **APIのエンドポイント**: 本番モード（ビルド済みフロントエンド）では、APIは同じポート（8001）の `/api` パスで提供されます。
+- **APIのエンドポイント**: API は `http://localhost:8001/api` です。
+- **フロントエンドのURL**: `start_windows_prod.bat` は `http://localhost:8001` でアプリ全体を提供します。
 - **設定**: `backend/.env` ファイルでベースディレクトリの設定などが可能です。
 - **トラブルシューティング**: 画面が真っ白になる場合は、ブラウザの開発者ツール（F12）でコンソールエラーを確認してください。
 
 ## 構成
 
-- `backend/app/main.py`: 静的ファイル (`/assets`, `index.html`) の配信設定が追加されています。
-- `frontend/src/api/files.ts`: ビルド時はAPIのURLが相対パス (`/api`) になるように調整されています。
+- `backend/app/main.py`: FastAPI アプリ本体
+- `frontend/dist/`: Windows で配信するビルド済みフロントエンド
+- `start_windows_prod.bat`: FastAPI (`8001`) で `frontend/dist` を配信する起動スクリプト

@@ -3,7 +3,7 @@
  * リストビューでファイル/フォルダを表示
  * ドラッグ&ドロップ対応、検索機能、ツールバー
  */
-import { useState, useRef, useMemo, useEffect, type KeyboardEvent } from "react";
+import { useState, useRef, useMemo, useEffect, lazy, Suspense, type KeyboardEvent } from "react";
 import {
   // Folder,
   // File,
@@ -33,7 +33,6 @@ import { copyFilesToClipboard } from "../api/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
 import { getPathInfo, openInVSCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
-import { MarkdownEditorModal } from "./MarkdownEditorModal";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
@@ -47,6 +46,10 @@ import { useOperationHistoryContext } from "../contexts/OperationHistoryContext"
 import { useFolderHistory } from "../contexts/FolderHistoryContext";
 import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
 import "./FileList.css";
+
+const MarkdownEditorModal = lazy(() =>
+  import("./MarkdownEditorModal").then((module) => ({ default: module.MarkdownEditorModal }))
+);
 
 interface FileListProps {
   initialPath?: string;
@@ -630,11 +633,10 @@ export function FileList({
   // リンクをコピー
   const copyLinkToClipboard = async (path: string) => {
     if (!path) return;
-    // URLエンコードを行う
-    const encodedPath = encodeURIComponent(path);
-    const url = `http://localhost:8001/api/open-path?path=${encodedPath}`;
+    const url = new URL("/api/open-path", window.location.origin);
+    url.searchParams.set("path", path);
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(url.toString());
       showSuccess("リンクをコピーしました");
     } catch {
       showError("コピーに失敗しました");
@@ -644,9 +646,9 @@ export function FileList({
   // リンクを開く（ブラウザで開く）
   const openLink = (path: string) => {
     if (!path) return;
-    const encodedPath = encodeURIComponent(path);
-    const url = `http://localhost:8001/api/open-path?path=${encodedPath}`;
-    window.open(url, "_blank");
+    const url = new URL("/api/open-path", window.location.origin);
+    url.searchParams.set("path", path);
+    window.open(url.toString(), "_blank");
   };
 
   // パス入力の確定
@@ -1069,67 +1071,74 @@ export function FileList({
     }
   };
 
-  // フィルタリングと検索
-  const filteredItems = useMemo(() => {
-    let items = data?.items || [];
-
-    // 検索フィルタ
-    if (searchQuery) {
-      if (isRegex) {
-        try {
-          const regex = new RegExp(searchQuery, 'i');
-          items = items.filter((item) => regex.test(item.name));
-        } catch {
-          // 正規表現エラー時は単純な文字列検索にフォールバック
-          const query = searchQuery.toLowerCase();
-          items = items.filter((item) => item.name.toLowerCase().includes(query));
-        }
-      } else {
-        const query = searchQuery.toLowerCase();
-        items = items.filter((item) => item.name.toLowerCase().includes(query));
-      }
+  const compiledSearchRegex = useMemo(() => {
+    if (!searchQuery || !isRegex) return null;
+    try {
+      return new RegExp(searchQuery, "i");
+    } catch {
+      return null;
     }
+  }, [searchQuery, isRegex]);
 
-    // タイプフィルタ (全/F/D)
-    if (typeFilter === "folders") {
-      items = items.filter((item) => item.type === "directory");
-    } else if (typeFilter === "files") {
-      items = items.filter((item) => item.type === "file");
-    }
+  const normalizedSearchQuery = useMemo(() => searchQuery.toLowerCase(), [searchQuery]);
+  const allowedExtensions = useMemo(() => (
+    extFilter === "all" ? null : new Set(extFilter.split("+").filter(Boolean))
+  ), [extFilter]);
 
-    // 拡張子フィルタ
-    if (extFilter !== "all") {
-      items = items.filter((item) => {
-        if (item.type === "directory") return true;
-        const ext = item.name.split(".").pop()?.toLowerCase();
-        return extFilter.split('+').includes(ext || '');
-      });
-    }
-
-    return items;
-  }, [data?.items, searchQuery, typeFilter, extFilter]);
-
-  // フォルダとファイルを分離してソート
-  const { folders, files } = useMemo(() => {
-    const f = filteredItems.filter((item) => item.type === "directory");
-    const fi = filteredItems.filter((item) => item.type === "file");
-
-    const sortFn = (a: any, b: any) => {
+  const compareItems = useMemo(() => {
+    return (a: FileItem, b: FileItem) => {
       let res = 0;
       if (sortKey === "name") {
         res = a.name.localeCompare(b.name);
       } else if (sortKey === "size") {
         res = (a.size || 0) - (b.size || 0);
       } else if (sortKey === "date") {
-        const dateA = a.modified ? new Date(a.modified).getTime() : 0;
-        const dateB = b.modified ? new Date(b.modified).getTime() : 0;
+        const dateA = a.modified ? Date.parse(a.modified) : 0;
+        const dateB = b.modified ? Date.parse(b.modified) : 0;
         res = dateA - dateB;
       }
       return sortOrder === "asc" ? res : -res;
     };
+  }, [sortKey, sortOrder]);
 
-    return { folders: f.sort(sortFn), files: fi.sort(sortFn) };
-  }, [filteredItems, sortKey, sortOrder]);
+  // フィルタリング・分離・ソートを単一パスで実行
+  const { folders, files } = useMemo(() => {
+    const sourceItems = data?.items || [];
+    const nextFolders: FileItem[] = [];
+    const nextFiles: FileItem[] = [];
+
+    for (const item of sourceItems) {
+      if (searchQuery) {
+        const matches = compiledSearchRegex
+          ? compiledSearchRegex.test(item.name)
+          : item.name.toLowerCase().includes(normalizedSearchQuery);
+        if (!matches) {
+          continue;
+        }
+      }
+
+      if (typeFilter === "folders" && item.type !== "directory") continue;
+      if (typeFilter === "files" && item.type !== "file") continue;
+
+      if (allowedExtensions && item.type === "file") {
+        const ext = item.name.split(".").pop()?.toLowerCase() || "";
+        if (!allowedExtensions.has(ext)) {
+          continue;
+        }
+      }
+
+      if (item.type === "directory") {
+        nextFolders.push(item);
+      } else {
+        nextFiles.push(item);
+      }
+    }
+
+    nextFolders.sort(compareItems);
+    nextFiles.sort(compareItems);
+
+    return { folders: nextFolders, files: nextFiles };
+  }, [data?.items, searchQuery, compiledSearchRegex, normalizedSearchQuery, typeFilter, allowedExtensions, compareItems]);
 
   // 全アイテム（フィルタとソート適用後）をメモ化
   const allSortedItems = useMemo(() => [...folders, ...files], [folders, files]);
@@ -1667,6 +1676,8 @@ export function FileList({
         setMdEditorFilePath(item.path);
         setMdEditorInitialContent(result.content || "");
         setMdEditorOpen(true);
+      } else if (result.action === "open_url" && result.url) {
+        window.open(result.url, "_blank", "noopener,noreferrer");
       } else {
         // 外部アプリで開いた
         showSuccess(result.message);
@@ -2895,14 +2906,18 @@ export function FileList({
       {/* トースト通知はApp.tsxのToastProviderで表示 */}
 
       {/* Markdownエディタモーダル */}
-      <MarkdownEditorModal
-        isOpen={mdEditorOpen}
-        onClose={handleCloseMdEditor}
-        onSave={handleSaveMarkdown}
-        fileName={mdEditorFileName}
-        isSaving={mdEditorSaving}
-        initialContent={mdEditorInitialContent}
-      />
+      {mdEditorOpen && (
+        <Suspense fallback={null}>
+          <MarkdownEditorModal
+            isOpen={mdEditorOpen}
+            onClose={handleCloseMdEditor}
+            onSave={handleSaveMarkdown}
+            fileName={mdEditorFileName}
+            isSaving={mdEditorSaving}
+            initialContent={mdEditorInitialContent}
+          />
+        </Suspense>
+      )}
 
       {/* プログレスモーダル */}
       <ProgressModal

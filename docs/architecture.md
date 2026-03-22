@@ -36,7 +36,7 @@ React + FastAPIによる軽量ファイルマネージャー。個人利用・VP
 │                          │                              │                     │
 │  ┌───────────────────────▼────────────────┐  ┌──────────▼──────────────────┐│
 │  │   API Client (files.ts)                │  │ API Client (indexService.ts)││
-│  │   http://localhost:8001/api            │  │ http://localhost:8080/      ││
+│  │   /api (同一オリジン)                  │  │ http://localhost:8080/      ││
 │  └────────────────────────────────────────┘  └─────────────────────────────┘│
 └───────────────────────┬──────────────────────────────────┬───────────────────┘
                         │ HTTP (CORS)                      │ HTTP
@@ -92,7 +92,7 @@ file_manager/
 ├── frontend/
 │   ├── src/
 │   │   ├── api/
-│   │   │   ├── files.ts         # 内部API（port 8001）
+│   │   │   ├── files.ts         # 内部API（同一オリジン /api）
 │   │   │   └── indexService.ts  # 外部サービスAPI（port 8080）
 │   │   ├── components/
 │   │   │   ├── FileList.tsx     # メインコンポーネント
@@ -176,21 +176,24 @@ file_viewer/templates/base.htmlに準拠したアイコン配置：
 
 | アイコン | 機能 | 実装状況 |
 |----------|------|----------|
+| ArrowLeft / ArrowRight | 戻る / 進む | 実装済み |
 | ChevronUp | 上の階層へ移動 | 実装済み |
+| Home | ホームへ移動 | 実装済み |
+| Network | ネットワークドライブへ移動 | 実装済み |
 | ClipboardPaste | クリップボードから開く | 実装済み |
-| Download | ダウンロード | 実装済み (ブラウザ) |
+| Download | ダウンロード | 実装済み |
 | Code | VSCodeで開く | 実装済み |
-| Pencil | Codeで開く | 実装済み |
-| FolderOpen | エクスプローラーで開く | 実装済み |
-| BookOpen | Jupyterで開く | 実装済み |
-| Pentagon | Excalidrawで開く | 実装済み |
-| FileText | Markdownファイル作成 | 実装済み |
-| Square | サーバーを停止 | 未実装 |
-| Info | ステータスを確認 | 未実装 |
+| Rocket | Antigravityで開く | 実装済み |
+| Obsidian アイコン | Obsidian 今日のフォルダを開く | 実装済み |
+| FolderOpen | Finder / Explorer で開く | 実装済み |
+| Jupyter アイコン | Jupyterで開く | 実装済み |
+| Excalidraw アイコン | Excalidrawで開く | 実装済み |
+| Markdown アイコン | Markdownファイル作成 | 実装済み |
 | Gem | Obsidianで開く | 実装済み |
 | FolderPlus | フォルダ作成 | 実装済み |
 | Trash2 | 削除 | 実装済み |
 | RefreshCw | 更新 | 実装済み |
+| FlaskConical | テストフォルダを開く | 実装済み |
 
 ## API設計
 
@@ -210,7 +213,6 @@ file_viewer/templates/base.htmlに準拠したアイコン配置：
 ```json
 {
   "type": "directory",
-  "path": "/absolute/path/to/current",
   "items": [
     {
       "name": "folder1",
@@ -430,7 +432,7 @@ Everything互換検索API
 | サービス | ポート | 備考 |
 |----------|--------|------|
 | Backend / PWA | 8001 | FastAPI + Static Files (frontend) |
-| Frontend (Vite) | 5173 | 開発用サーバー（通常は不要） |
+| Frontend (Vite) | 5173 | 開発用サーバー |
 | file_index_service | 8080 | 外部インデックスサービス |
 
 ## テスト
@@ -467,6 +469,12 @@ PYTHONPATH=. pytest tests/ -v
 - **結果表示**: フォルダ→ファイルの順で表示、パスコピー用アイコンボタン
 - **コンパクトUI**: ウィンドウ幅の30%を使用、最小限のスペースで最大の機能
 - **日本語部分一致**: 日本語ファイル名の部分一致検索に対応（例: 「申告」→「確定申告.pdf」）
+
+## 起動モード補足
+
+- macOS/Linux の `./start.sh` は FastAPI が `frontend/dist/` を配信する単一ポート構成 (`8001`)
+- `./start_dev.sh` は Vite (`5173`) + FastAPI (`8001`)
+- Windows の `start_windows_prod.bat` も FastAPI が `frontend/dist/` を配信する単一ポート構成 (`8001`)
 
 ### 検索インデックス
 

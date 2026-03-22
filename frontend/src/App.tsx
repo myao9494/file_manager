@@ -8,12 +8,11 @@
  *
  * デフォルトパスはバックエンドの環境変数（FILE_MANAGER_BASE_DIR）から取得
  */
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import { Menu, Trash2, Sun, Moon, FlaskConical, Home } from "lucide-react";
 import { FileList } from "./components/FileList";
 import { FileSearch } from "./components/FileSearch";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { ApiTestPage } from "./pages/ApiTestPage";
 import { getPathInfo } from "./api/files";
 import { useToast } from "./hooks/useToast";
 import { getConfig, getDefaultBasePath } from "./config";
@@ -22,6 +21,10 @@ import { FolderHistoryProvider } from "./contexts/FolderHistoryContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ZoomProvider, useZoomContext } from "./contexts/ZoomContext";
 import "./App.css";
+
+const ApiTestPage = lazy(() =>
+  import("./pages/ApiTestPage").then((module) => ({ default: module.ApiTestPage }))
+);
 
 const STORAGE_KEYS = {
   LEFT_PATH: 'file_manager_left_path',
@@ -263,7 +266,7 @@ function AppContent() {
           </a>
         </h1>
         <div className="header-actions">
-          <a href="http://localhost:5173/" className="home-link" title="ホームに戻る">
+          <a href="/" className="home-link" title="ホームに戻る">
             <Home size={20} />
           </a>
           <a href="#api-test" target="_blank" className="api-test-link" title="APIテストページ">
@@ -332,7 +335,9 @@ function AppContent() {
       </header>
       {currentPage === 'api-test' ? (
         <main className="app-main api-test-main" style={{ zoom: zoomLevel } as any}>
-          <ApiTestPage />
+          <Suspense fallback={<div className="loading">読み込み中...</div>}>
+            <ApiTestPage />
+          </Suspense>
         </main>
       ) : (
         <main className="app-main triple-pane" style={{ zoom: zoomLevel } as any}>

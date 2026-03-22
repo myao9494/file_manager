@@ -6,6 +6,9 @@ File ManagerはPWA（Progressive Web App）として動作します。
 バックエンド（FastAPI）がフロントエンドのビルド済みファイルを静的配信し、
 単一ポート（8001）でアプリ全体が動作します。
 
+注:
+- macOS/Linux の `./start.sh` と Windows の `start_windows_prod.bat` の両方で、単一ポート (`8001`) 配信に対応しています
+
 ## 動作モード
 
 ### 開発モード（従来通り）
@@ -27,6 +30,14 @@ File ManagerはPWA（Progressive Web App）として動作します。
 - **アプリ全体**: `http://localhost:8001`
 - バックエンドがフロントエンドのビルド済みファイル（`frontend/dist/`）を配信
 - `frontend/dist/`が未ビルドの場合、自動でビルド実行
+
+### Windows 配信モード
+
+`start_windows_prod.bat` も、以下の構成で動作します。
+
+- **アプリ全体**: `http://localhost:8001`
+- バックエンドが `frontend/dist/` を静的配信
+- API も同一オリジンの `/api` で提供
 
 ## フロントエンドのビルド
 

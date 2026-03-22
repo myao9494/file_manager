@@ -4,7 +4,7 @@
  * 検索階層と除外パターンを設定可能
  * 外部インデックスサービス対応（Everything互換）
  */
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import {
   Search,
   File,
@@ -33,12 +33,15 @@ import {
 import { getIndexServiceUrl } from "../api/indexService";
 import { openSmart } from "../api/files";
 import { getDefaultBasePath } from "../config";
-import type { SearchParams } from "../types/file";
+import type { FileItem, SearchParams } from "../types/file";
 import "./FileSearch.css";
-import { MarkdownEditorModal } from "./MarkdownEditorModal";
 import { updateFile } from "../api/files";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
+
+const MarkdownEditorModal = lazy(() =>
+  import("./MarkdownEditorModal").then((module) => ({ default: module.MarkdownEditorModal }))
+);
 
 
 interface FileSearchProps {
@@ -302,49 +305,71 @@ export function FileSearch({
     }
   }, []);
 
-  // フォルダとファイルを分離してソート（フィルタ適用）
+  const compiledFileNamePattern = useMemo(() => {
+    if (!debouncedFileNamePattern || !useRegex) return null;
+    try {
+      return new RegExp(debouncedFileNamePattern, "i");
+    } catch {
+      return null;
+    }
+  }, [debouncedFileNamePattern, useRegex]);
+
+  const compareSearchItems = useCallback((a: FileItem, b: FileItem) => {
+    let result = 0;
+    if (sortKey === "name") {
+      result = a.name.localeCompare(b.name);
+    } else if (sortKey === "size") {
+      result = (a.size || 0) - (b.size || 0);
+    } else if (sortKey === "date") {
+      const dateA = a.modified ? Date.parse(a.modified) : 0;
+      const dateB = b.modified ? Date.parse(b.modified) : 0;
+      result = dateA - dateB;
+    }
+    return sortOrder === "asc" ? result : -result;
+  }, [sortKey, sortOrder]);
+
+  // フォルダとファイルを単一パスでフィルタ・分離・ソート
   const sortedResults = useMemo(() => {
-    if (!searchData?.items) return { folders: [], files: [], total: 0 };
+    if (!searchData?.items) return { folders: [] as FileItem[], files: [] as FileItem[], total: 0 };
 
-    let filteredItems = searchData.items;
+    const folders: FileItem[] = [];
+    const files: FileItem[] = [];
 
-    // タイプフィルタを適用
-    if (typeFilter === "file") {
-      filteredItems = searchData.items.filter((item) => item.type === "file");
-    } else if (typeFilter === "directory") {
-      filteredItems = searchData.items.filter((item) => item.type === "directory");
-    }
+    for (const item of searchData.items) {
+      if (typeFilter === "file" && item.type !== "file") continue;
+      if (typeFilter === "directory" && item.type !== "directory") continue;
 
-    // ファイル名パターンフィルタを適用
-    if (debouncedFileNamePattern) {
-      filteredItems = filteredItems.filter((item) =>
-        matchesFileNamePattern(item.name, debouncedFileNamePattern, useRegex)
-      );
-    }
-
-    const folders = filteredItems.filter((item) => item.type === "directory");
-    const files = filteredItems.filter((item) => item.type === "file");
-
-    const sortFn = (a: any, b: any) => {
-      let res = 0;
-      if (sortKey === "name") {
-        res = a.name.localeCompare(b.name);
-      } else if (sortKey === "size") {
-        res = (a.size || 0) - (b.size || 0);
-      } else if (sortKey === "date") {
-        const dateA = a.modified ? new Date(a.modified).getTime() : 0;
-        const dateB = b.modified ? new Date(b.modified).getTime() : 0;
-        res = dateA - dateB;
+      if (debouncedFileNamePattern) {
+        const matches = compiledFileNamePattern
+          ? compiledFileNamePattern.test(item.name)
+          : matchesFileNamePattern(item.name, debouncedFileNamePattern, useRegex);
+        if (!matches) continue;
       }
-      return sortOrder === "asc" ? res : -res;
-    };
+
+      if (item.type === "directory") {
+        folders.push(item);
+      } else {
+        files.push(item);
+      }
+    }
+
+    folders.sort(compareSearchItems);
+    files.sort(compareSearchItems);
 
     return {
-      folders: folders.sort(sortFn),
-      files: files.sort(sortFn),
-      total: filteredItems.length
+      folders,
+      files,
+      total: folders.length + files.length,
     };
-  }, [searchData?.items, typeFilter, debouncedFileNamePattern, useRegex, matchesFileNamePattern, sortKey, sortOrder]);
+  }, [
+    searchData?.items,
+    typeFilter,
+    debouncedFileNamePattern,
+    compiledFileNamePattern,
+    matchesFileNamePattern,
+    useRegex,
+    compareSearchItems,
+  ]);
 
 
 
@@ -365,11 +390,10 @@ export function FileSearch({
   // リンクをクリップボードにコピー
   const copyLinkToClipboard = useCallback(async (path: string) => {
     if (!path) return;
-    // URLエンコードを行う
-    const encodedPath = encodeURIComponent(path);
-    const url = `http://localhost:8001/api/open-path?path=${encodedPath}`;
+    const url = new URL("/api/open-path", window.location.origin);
+    url.searchParams.set("path", path);
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(url.toString());
       showSuccess("リンクをコピーしました");
     } catch {
       showError("コピーに失敗しました");
@@ -379,9 +403,9 @@ export function FileSearch({
   // リンクを開く（ブラウザで開く）
   const openLink = useCallback((path: string) => {
     if (!path) return;
-    const encodedPath = encodeURIComponent(path);
-    const url = `http://localhost:8001/api/open-path?path=${encodedPath}`;
-    window.open(url, "_blank");
+    const url = new URL("/api/open-path", window.location.origin);
+    url.searchParams.set("path", path);
+    window.open(url.toString(), "_blank");
   }, []);
 
   const handleContextMenu = (e: React.MouseEvent, item: { name: string; path: string; type: "file" | "directory" }) => {
@@ -404,6 +428,8 @@ export function FileSearch({
         setMdEditorFilePath(item.path);
         setMdEditorInitialContent(result.content || "");
         setMdEditorOpen(true);
+      } else if (result.action === "open_url" && result.url) {
+        window.open(result.url, "_blank", "noopener,noreferrer");
       } else {
         // 外部アプリで開いた
         showSuccess(result.message);
@@ -1182,14 +1208,18 @@ export function FileSearch({
       )}
 
       {/* Markdownエディタモーダル */}
-      <MarkdownEditorModal
-        isOpen={mdEditorOpen}
-        onClose={handleCloseMdEditor}
-        onSave={handleSaveMarkdown}
-        fileName={mdEditorFileName}
-        isSaving={mdEditorSaving}
-        initialContent={mdEditorInitialContent}
-      />
+      {mdEditorOpen && (
+        <Suspense fallback={null}>
+          <MarkdownEditorModal
+            isOpen={mdEditorOpen}
+            onClose={handleCloseMdEditor}
+            onSave={handleSaveMarkdown}
+            fileName={mdEditorFileName}
+            isSaving={mdEditorSaving}
+            initialContent={mdEditorInitialContent}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
