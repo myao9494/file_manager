@@ -29,6 +29,8 @@ import platform
 import subprocess
 import ctypes
 import struct
+import stat
+import time
 
 from app.config import settings
 from app.task_manager import task_manager, TaskInfo
@@ -461,6 +463,61 @@ def _is_network_drive(path: Path) -> bool:
     return False
 
 
+def _move_to_trash(path_str: str) -> None:
+    """send2trash 呼び出しを差し替えやすくする薄いラッパー"""
+    from send2trash import send2trash
+
+    send2trash(path_str)
+
+
+def _clear_windows_readonly(path: Path) -> None:
+    """Windowsで削除前に読み取り専用属性を解除する"""
+    if not settings.is_windows:
+        return
+
+    try:
+        path.chmod(path.stat().st_mode | stat.S_IWRITE)
+    except OSError:
+        pass
+
+
+def _handle_rmtree_remove_readonly(func, path_str, exc_info):
+    """Windowsでreadonlyが原因のrmtree失敗を再試行する"""
+    exc = exc_info[1]
+    if not settings.is_windows or not isinstance(exc, PermissionError):
+        raise exc
+
+    retry_path = Path(path_str)
+    _clear_windows_readonly(retry_path)
+    func(path_str)
+
+
+def _delete_with_retry(path: Path, is_network: bool) -> None:
+    """Windowsで一時的なファイルロックが残るケースを吸収する"""
+    retry_count = 5 if settings.is_windows else 1
+    last_error: Exception | None = None
+
+    for attempt in range(retry_count):
+        try:
+            _clear_windows_readonly(path)
+            if is_network:
+                if path.is_file() or path.is_symlink():
+                    path.unlink()
+                else:
+                    path.rmdir()
+            else:
+                _move_to_trash(str(path))
+            return
+        except (PermissionError, OSError) as exc:
+            last_error = exc
+            if not settings.is_windows or attempt == retry_count - 1:
+                raise
+            time.sleep(0.2 * (attempt + 1))
+
+    if last_error is not None:
+        raise last_error
+
+
 def _safe_delete(path: Path, debug_mode: bool = False) -> tuple[bool, str]:
     """
     安全にファイル/フォルダを削除する（一括削除版）
@@ -478,16 +535,18 @@ def _safe_delete(path: Path, debug_mode: bool = False) -> tuple[bool, str]:
         if is_network:
             # ネットワークドライブの場合は直接削除
             log(f"ネットワークドライブ検出、直接削除: {path}")
-            if path.is_file():
-                path.unlink()
+            if path.is_file() or path.is_symlink():
+                _delete_with_retry(path, is_network=True)
             else:
-                shutil.rmtree(str(path))
+                shutil.rmtree(
+                    str(path),
+                    onerror=_handle_rmtree_remove_readonly if settings.is_windows else None
+                )
             return True, "削除しました（ネットワークドライブ）"
         else:
             # ローカルドライブの場合はゴミ箱に移動
             log(f"ローカルドライブ、ゴミ箱に移動: {path}")
-            from send2trash import send2trash
-            send2trash(str(path))
+            _delete_with_retry(path, is_network=False)
             return True, "ゴミ箱に移動しました"
 
     except Exception as e:
@@ -581,23 +640,13 @@ def _safe_delete_with_progress(
             try:
                 if item.is_file() or item.is_symlink():
                     # ファイルまたはシンボリックリンクを削除
-                    if is_network:
-                        item.unlink()
-                    else:
-                        # ローカルの場合はゴミ箱に移動（ファイル単位）
-                        from send2trash import send2trash
-                        send2trash(str(item))
+                    _delete_with_retry(item, is_network=is_network)
                     log(f"削除成功 ({i+1}/{total_items}): {item.name}")
                     success_count += 1
                 elif item.is_dir():
                     # ディレクトリを削除（この時点で中身は空のはず）
                     try:
-                        if is_network:
-                            item.rmdir()  # 空のディレクトリを削除
-                        else:
-                            # ローカルの場合はゴミ箱に移動
-                            from send2trash import send2trash
-                            send2trash(str(item))
+                        _delete_with_retry(item, is_network=is_network)
                         log(f"ディレクトリ削除成功 ({i+1}/{total_items}): {item.name}")
                         success_count += 1
                     except OSError as e:
@@ -606,7 +655,10 @@ def _safe_delete_with_progress(
                         # 空でないディレクトリは強制削除を試みる
                         if is_network:
                             try:
-                                shutil.rmtree(str(item))
+                                shutil.rmtree(
+                                    str(item),
+                                    onerror=_handle_rmtree_remove_readonly if settings.is_windows else None
+                                )
                                 success_count += 1
                             except Exception:
                                 fail_count += 1
@@ -951,16 +1003,8 @@ def _execute_batch_delete_async(
                     error_msg = ""
 
                     try:
-                        if is_network:
-                            if target_path.is_file() or target_path.is_symlink():
-                                target_path.unlink()
-                            elif target_path.is_dir():
-                                target_path.rmdir()
-                            item_success = True
-                        else:
-                            from send2trash import send2trash
-                            send2trash(str(target_path))
-                            item_success = True
+                        _delete_with_retry(target_path, is_network=is_network)
+                        item_success = True
                     except Exception as e:
                         error_msg = str(e)
 
@@ -1024,18 +1068,17 @@ def _execute_batch_delete_async(
         try:
             if d.exists():
                 is_network = _is_network_drive(d)
-                if is_network:
-                     d.rmdir()
-                else:
-                     from send2trash import send2trash
-                     send2trash(str(d))
+                _delete_with_retry(d, is_network=is_network)
                 log(f"ディレクトリ削除: {d.name}")
         except Exception as e:
             # 既に消えている、または中身が残っている場合
             # 中身が残っているならrmtreeを試みる（安全のため）
             try:
                 if d.exists():
-                    shutil.rmtree(str(d))
+                    shutil.rmtree(
+                        str(d),
+                        onerror=_handle_rmtree_remove_readonly if settings.is_windows else None
+                    )
                     log(f"ディレクトリ強制削除: {d.name}")
             except Exception as e2:
                 log(f"ディレクトリ削除失敗: {d} - {e2}")
