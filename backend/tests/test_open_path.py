@@ -43,3 +43,158 @@ class TestOpenPath:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "window.close()" in response.text
+
+
+class TestOpenExplorer:
+    """Explorer起動時のWindows固有挙動を確認するテスト"""
+
+    def test_open_explorer_tries_to_bring_window_to_front_on_windows(self, client, temp_dir, monkeypatch):
+        """WindowsではExplorer起動後に前面化処理を試みる"""
+        from app import config
+        from app.routers import files
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Windows")
+
+        popen_calls = []
+        focus_calls = []
+
+        class DummyProcess:
+            pid = 4321
+
+        def fake_popen(args):
+            popen_calls.append(args)
+            return DummyProcess()
+
+        monkeypatch.setattr(files.subprocess, "Popen", fake_popen)
+        monkeypatch.setattr(files, "_bring_explorer_to_front", lambda pid, path: focus_calls.append((pid, path)))
+
+        response = client.post("/api/open/explorer", json={"path": str(temp_dir / "folder1")})
+
+        assert response.status_code == 200
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0] == "explorer"
+        assert popen_calls[0][1].endswith("\\folder1")
+        assert len(focus_calls) == 1
+        assert focus_calls[0][0] == 4321
+        assert str(focus_calls[0][1]).endswith("/folder1")
+
+    def test_open_folder_tries_to_bring_window_to_front_on_windows(self, client, temp_dir, monkeypatch):
+        """file_viewer互換APIでもExplorer前面化処理を試みる"""
+        from app import config
+        from app.routers import files
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Windows")
+
+        popen_calls = []
+        focus_calls = []
+
+        class DummyProcess:
+            pid = 9876
+
+        def fake_popen(args):
+            popen_calls.append(args)
+            return DummyProcess()
+
+        monkeypatch.setattr(files.subprocess, "Popen", fake_popen)
+        monkeypatch.setattr(files, "_bring_explorer_to_front", lambda pid, path: focus_calls.append((pid, path)))
+
+        response = client.post("/api/open-folder", json={"path": str(temp_dir / "folder1" / "nested.txt")})
+
+        assert response.status_code == 200
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0] == "explorer"
+        assert popen_calls[0][1].endswith("\\folder1")
+        assert len(focus_calls) == 1
+        assert focus_calls[0][0] == 9876
+        assert str(focus_calls[0][1]).endswith("/folder1")
+
+
+class TestProgramCodeActions:
+    """プログラムコード用の右クリックアクションAPIテスト"""
+
+    def test_open_editor_opens_textedit_on_macos(self, client, temp_dir, monkeypatch):
+        """macOSではTextEditでコードファイルを開く"""
+        from app import config
+        from app.routers import files
+
+        script_path = temp_dir / "script.py"
+        script_path.write_text("print('hello')\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        response = client.post("/api/open/editor", json={"path": str(script_path)})
+
+        assert response.status_code == 200
+        assert len(popen_calls) == 1
+        assert popen_calls[0][:3] == ["open", "-a", "TextEdit"]
+        assert Path(popen_calls[0][3]).resolve() == script_path.resolve()
+
+    def test_open_editor_rejects_non_program_code_file(self, client, temp_dir, monkeypatch):
+        """対象外の拡張子ではエディター起動を拒否する"""
+        from app import config
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        response = client.post("/api/open/editor", json={"path": str(temp_dir / "file1.txt")})
+
+        assert response.status_code == 400
+        assert "プログラムコード" in response.json()["detail"]
+
+    def test_execute_program_runs_python_script_on_macos(self, client, temp_dir, monkeypatch):
+        """macOSではPythonスクリプトをpython3で実行する"""
+        from app import config
+        from app.routers import files
+
+        script_path = temp_dir / "runner.py"
+        script_path.write_text("print('run')\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
+
+        popen_calls = []
+
+        def fake_popen(args, cwd=None):
+            popen_calls.append((args, cwd))
+
+        monkeypatch.setattr(files.subprocess, "Popen", fake_popen)
+
+        response = client.post("/api/open/execute", json={"path": str(script_path)})
+
+        assert response.status_code == 200
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0][0] == "python3"
+        assert Path(popen_calls[0][0][1]).resolve() == script_path.resolve()
+        assert Path(popen_calls[0][1]).resolve() == temp_dir.resolve()
+
+    def test_execute_program_runs_batch_file_on_windows(self, client, temp_dir, monkeypatch):
+        """Windowsではbatをcmd /cで実行する"""
+        from app import config
+        from app.routers import files
+
+        script_path = temp_dir / "runner.bat"
+        script_path.write_text("@echo off\r\necho hello\r\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Windows")
+
+        popen_calls = []
+
+        def fake_popen(args, cwd=None, creationflags=0):
+            popen_calls.append((args, cwd, creationflags))
+
+        monkeypatch.setattr(files.subprocess, "Popen", fake_popen)
+
+        response = client.post("/api/open/execute", json={"path": str(script_path)})
+
+        assert response.status_code == 200
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0][:2] == ["cmd", "/c"]
+        assert Path(popen_calls[0][0][2]).resolve() == script_path.resolve()
+        assert Path(popen_calls[0][1]).resolve() == temp_dir.resolve()
+        assert popen_calls[0][2] == 0

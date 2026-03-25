@@ -32,7 +32,7 @@ import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useC
 import { copyFilesToClipboard } from "../api/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
-import { getPathInfo, openInVSCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
+import { getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
@@ -45,6 +45,7 @@ import { getNetworkDrivePath, getDefaultBasePath } from "../config";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import { useFolderHistory } from "../contexts/FolderHistoryContext";
 import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
+import { isProgramCodeFile } from "../utils/codeFileActions";
 import "./FileList.css";
 
 const MarkdownEditorModal = lazy(() =>
@@ -738,6 +739,37 @@ export function FileList({
     } catch (e: any) {
       console.error(`Error opening in VSCode: ${targetPath}`, e);
       showError(`VSCode起動エラー: ${e.message}`);
+    }
+  };
+
+  const handleOpenProgramCodeInVSCode = async (item: FileItem) => {
+    try {
+      await openInVSCode(item.path);
+      setContextMenu(null);
+    } catch (e: any) {
+      console.error(`Error opening program code in VSCode: ${item.path}`, e);
+      showError(`コード起動エラー: ${e.message}`);
+    }
+  };
+
+  const handleOpenProgramCodeInEditor = async (item: FileItem) => {
+    try {
+      await openInEditor(item.path);
+      setContextMenu(null);
+    } catch (e: any) {
+      console.error(`Error opening program code in editor: ${item.path}`, e);
+      showError(`エディター起動エラー: ${e.message}`);
+    }
+  };
+
+  const handleExecuteProgramCode = async (item: FileItem) => {
+    try {
+      await executeProgramCode(item.path);
+      showSuccess(`実行を開始しました: ${item.name}`);
+      setContextMenu(null);
+    } catch (e: any) {
+      console.error(`Error executing program code: ${item.path}`, e);
+      showError(`実行エラー: ${e.message}`);
     }
   };
 
@@ -2898,6 +2930,9 @@ export function FileList({
             openLink(contextMenu.item.path);
             setContextMenu(null);
           }}
+          onOpenInCode={isProgramCodeFile(contextMenu.item.name) ? () => handleOpenProgramCodeInVSCode(contextMenu.item) : undefined}
+          onOpenInEditor={isProgramCodeFile(contextMenu.item.name) ? () => handleOpenProgramCodeInEditor(contextMenu.item) : undefined}
+          onExecute={isProgramCodeFile(contextMenu.item.name) ? () => handleExecuteProgramCode(contextMenu.item) : undefined}
           onDeleteRequest={handleRequestDeleteFromMenu}
         />
       )}

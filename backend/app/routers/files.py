@@ -71,6 +71,88 @@ class ObsidianPathResponse(BaseModel):
     path: str
 
 
+def _bring_explorer_to_front(process_id: int, target_path: Path) -> None:
+    """
+    Windowsで起動したExplorerウィンドウを前面に出すことを試みる。
+
+    Windowsのフォアグラウンド制御制限により必ず成功する保証はないが、
+    起動直後の数回リトライでユーザー体感を改善する。
+    """
+    if platform.system() != "Windows":
+        return
+
+    def worker() -> None:
+        try:
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+        except Exception:
+            return
+
+        target_name = target_path.name.lower()
+        shell_window = user32.GetShellWindow()
+        current_thread_id = kernel32.GetCurrentThreadId()
+
+        def try_focus_window(hwnd: int) -> bool:
+            if not hwnd or hwnd == shell_window:
+                return False
+            if not user32.IsWindowVisible(hwnd):
+                return False
+
+            class_name_buffer = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(hwnd, class_name_buffer, len(class_name_buffer))
+            class_name = class_name_buffer.value
+            if class_name not in {"CabinetWClass", "ExploreWClass"}:
+                return False
+
+            window_text_buffer = ctypes.create_unicode_buffer(512)
+            user32.GetWindowTextW(hwnd, window_text_buffer, len(window_text_buffer))
+            window_title = window_text_buffer.value.lower()
+
+            window_process_id = ctypes.c_ulong()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_process_id))
+
+            if (
+                window_process_id.value != process_id
+                and target_name
+                and target_name not in window_title
+            ):
+                return False
+
+            window_thread_id = user32.GetWindowThreadProcessId(hwnd, None)
+            attached = False
+            if window_thread_id and window_thread_id != current_thread_id:
+                attached = bool(user32.AttachThreadInput(current_thread_id, window_thread_id, True))
+
+            try:
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                user32.BringWindowToTop(hwnd)
+                return bool(user32.SetForegroundWindow(hwnd))
+            finally:
+                if attached:
+                    user32.AttachThreadInput(current_thread_id, window_thread_id, False)
+
+        for _ in range(10):
+            focused = False
+
+            @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+            def enum_windows_proc(hwnd, _lparam):
+                nonlocal focused
+                if focused:
+                    return False
+                focused = try_focus_window(hwnd)
+                return not focused
+
+            try:
+                user32.EnumWindows(enum_windows_proc, 0)
+            except Exception:
+                return
+
+            if focused:
+                return
+            time.sleep(0.2)
+
+    threading.Thread(target=worker, daemon=True).start()
+
 
 # ---------------------------------------------------------
 # NASパス変換設定
@@ -2732,6 +2814,67 @@ async def copy_items_batch(request: BatchCopyRequest):
 class OpenRequest(BaseModel):
     path: str
 
+
+PROGRAM_CODE_EXTENSIONS = {
+    ".py",
+    ".pyw",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".command",
+    ".bat",
+    ".cmd",
+    ".ps1",
+}
+
+
+def _is_program_code_file(path: Path) -> bool:
+    """右クリックメニュー拡張対象のプログラムコードファイルか判定する。"""
+    return path.is_file() and path.suffix.lower() in PROGRAM_CODE_EXTENSIONS
+
+
+def _ensure_program_code_file(path: Path) -> None:
+    """プログラムコードファイルでない場合はエラーを返す。"""
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="ファイルが見つかりません")
+    if not path.is_file():
+        raise HTTPException(status_code=400, detail="ファイルを指定してください")
+    if not _is_program_code_file(path):
+        raise HTTPException(status_code=400, detail="プログラムコードファイルのみ対応しています")
+
+
+def _build_editor_open_command(path: Path) -> List[str]:
+    """OSごとのテキストエディター起動コマンドを返す。"""
+    system = platform.system()
+    if system == "Darwin":
+        return ["open", "-a", "TextEdit", str(path)]
+    if system == "Windows":
+        return ["notepad.exe", str(path)]
+    return ["xdg-open", str(path)]
+
+
+def _build_execute_command(path: Path) -> List[str]:
+    """拡張子に応じた実行コマンドを返す。"""
+    system = platform.system()
+    suffix = path.suffix.lower()
+
+    if suffix in {".py", ".pyw"}:
+        return ["py", str(path)] if system == "Windows" else ["python3", str(path)]
+    if suffix in {".sh", ".bash", ".command"}:
+        return ["bash", str(path)]
+    if suffix == ".zsh":
+        return ["zsh", str(path)]
+    if suffix in {".bat", ".cmd"}:
+        if system != "Windows":
+            raise HTTPException(status_code=400, detail=f"{suffix} はこのOSでは実行できません")
+        return ["cmd", "/c", str(path)]
+    if suffix == ".ps1":
+        if system == "Windows":
+            return ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(path)]
+        raise HTTPException(status_code=400, detail=".ps1 はこのOSでは実行できません")
+
+    raise HTTPException(status_code=400, detail="このファイルは実行対象外です")
+
 @router.post("/open/vscode")
 async def open_in_vscode(request: OpenRequest):
     """
@@ -2763,6 +2906,43 @@ async def open_in_vscode(request: OpenRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"VS Codeの起動に失敗しました: {str(e)}")
 
+
+@router.post("/open/editor")
+async def open_in_editor(request: OpenRequest):
+    """
+    指定されたプログラムコードファイルをテキストエディターで開く
+    """
+    path = normalize_path(request.path)
+    _ensure_program_code_file(path)
+
+    try:
+        subprocess.Popen(_build_editor_open_command(path))
+        return {"status": "success", "message": "エディターで開きました"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"エディターの起動に失敗しました: {str(e)}")
+
+
+@router.post("/open/execute")
+async def execute_program_code(request: OpenRequest):
+    """
+    指定されたプログラムコードファイルを実行する
+    """
+    path = normalize_path(request.path)
+    _ensure_program_code_file(path)
+
+    try:
+        popen_kwargs = {"cwd": str(path.parent)}
+        if platform.system() == "Windows":
+            popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+        subprocess.Popen(_build_execute_command(path), **popen_kwargs)
+        return {"status": "success", "message": "実行を開始しました"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"実行に失敗しました: {str(e)}")
+
 @router.post("/open/explorer")
 async def open_in_explorer(request: OpenRequest):
     """
@@ -2776,7 +2956,8 @@ async def open_in_explorer(request: OpenRequest):
 
     try:
         if platform.system() == "Windows":
-            subprocess.Popen(['explorer', str(target_path).replace('/', '\\')])
+            process = subprocess.Popen(['explorer', str(target_path).replace('/', '\\')])
+            _bring_explorer_to_front(process.pid, target_path)
         elif platform.system() == "Darwin":
             subprocess.Popen(["open", str(target_path)])
         else:
@@ -3301,7 +3482,8 @@ async def open_folder(request: OpenRequest):
     
     try:
         if platform.system() == "Windows":
-            subprocess.Popen(['explorer', str(path).replace('/', '\\')])
+            process = subprocess.Popen(['explorer', str(path).replace('/', '\\')])
+            _bring_explorer_to_front(process.pid, path)
         elif platform.system() == "Darwin":
             subprocess.Popen(["open", str(path)])
         else:

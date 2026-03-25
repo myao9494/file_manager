@@ -365,6 +365,38 @@ export async function openInVSCode(path: string): Promise<void> {
 }
 
 /**
+ * テキストエディターで開く
+ */
+export async function openInEditor(path: string): Promise<void> {
+  const response = await fetch(`${API_URL}/open/editor`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "エディターで開けませんでした");
+  }
+}
+
+/**
+ * プログラムコードファイルを実行する
+ */
+export async function executeProgramCode(path: string): Promise<void> {
+  const response = await fetch(`${API_URL}/open/execute`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "実行に失敗しました");
+  }
+}
+
+/**
  * エクスプローラー/Finderで開く
  */
 export async function openInExplorer(path: string): Promise<void> {

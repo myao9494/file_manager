@@ -9,6 +9,9 @@ import {
   Clipboard,
   Trash2,
   Edit3,
+  Code,
+  FilePenLine,
+  Play,
   PanelLeftOpen,
   PanelRightOpen,
   ExternalLink,
@@ -29,6 +32,9 @@ interface ContextMenuProps {
   onOpenInLeft?: () => void;
   onOpenInRight?: () => void;
   onOpenLink?: () => void;
+  onOpenInCode?: () => void;
+  onOpenInEditor?: () => void;
+  onExecute?: () => void;
   onDeleteRequest: (item: FileItem) => void;
   startRename?: boolean;
 }
@@ -72,6 +78,9 @@ export function ContextMenu({
   onOpenInLeft,
   onOpenInRight,
   onOpenLink,
+  onOpenInCode,
+  onOpenInEditor,
+  onExecute,
   onDeleteRequest,
   startRename,
 }: ContextMenuProps) {
@@ -247,6 +256,30 @@ export function ContextMenu({
         </div>
       )}
       {(onOpenInLeft || onOpenInRight || onOpenLink) && <div className="menu-divider" />}
+
+      {(onOpenInCode || onOpenInEditor || onExecute) && (
+        <>
+          {onOpenInCode && (
+            <div className="menu-item" onClick={onOpenInCode}>
+              <Code size={16} />
+              <span>コードで開く</span>
+            </div>
+          )}
+          {onOpenInEditor && (
+            <div className="menu-item" onClick={onOpenInEditor}>
+              <FilePenLine size={16} />
+              <span>エディターで開く</span>
+            </div>
+          )}
+          {onExecute && (
+            <div className="menu-item" onClick={onExecute}>
+              <Play size={16} />
+              <span>実行</span>
+            </div>
+          )}
+          <div className="menu-divider" />
+        </>
+      )}
 
       {item.name.toLowerCase().endsWith(".zip") && (
         <>
