@@ -422,6 +422,16 @@ export function getDownloadUrl(path: string): string {
 }
 
 /**
+ * PDF表示用URLを取得
+ * ダブルクリック時に同期的に新規タブを開くために利用する
+ */
+export function getPdfViewUrl(path: string): string {
+  const url = new URL(`${API_URL}/view-pdf`, window.location.origin);
+  url.searchParams.set("path", path);
+  return url.toString();
+}
+
+/**
  * Antigravityで開く
  */
 export async function openInAntigravity(path: string): Promise<void> {

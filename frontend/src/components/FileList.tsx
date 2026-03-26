@@ -32,7 +32,7 @@ import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useC
 import { copyFilesToClipboard } from "../api/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
-import { getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
+import { getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, getPdfViewUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
@@ -1700,6 +1700,13 @@ export function FileList({
   // バックエンドの/api/open/smartでファイル種類判定・処理を行う
   const handleFileClick = async (item: FileItem) => {
     try {
+      // PDFはawait後のwindow.openだとポップアップブロックされやすいため、
+      // ユーザー操作の同期コンテキストで直接開く
+      if (item.name.toLowerCase().endsWith(".pdf")) {
+        window.open(getPdfViewUrl(item.path), "_blank", "noopener,noreferrer");
+        return;
+      }
+
       const result = await openSmart(item.path);
 
       if (result.action === "open_modal") {
