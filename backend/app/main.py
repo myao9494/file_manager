@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 
 from app.config import settings
-from app.routers import files, everything, history, clipboard
+from app.routers import files, everything, history, clipboard, terminal
 from fastapi.exceptions import RequestValidationError
 from fastapi import Request
 import mimetypes
@@ -60,6 +60,7 @@ app.include_router(files.router, prefix="/api", tags=["files"])
 app.include_router(everything.router, prefix="/api", tags=["everything"])
 app.include_router(history.router, prefix="/api", tags=["history"])
 app.include_router(clipboard.router, prefix="/api", tags=["clipboard"])
+app.include_router(terminal.router, prefix="/api", tags=["terminal"])
 
 
 
@@ -104,4 +105,3 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host=settings.host, port=settings.port, reload=True)
-

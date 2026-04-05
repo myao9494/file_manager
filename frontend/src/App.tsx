@@ -12,6 +12,7 @@ import { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import { Menu, Trash2, Sun, Moon, FlaskConical, Home } from "lucide-react";
 import { FileList } from "./components/FileList";
 import { FileSearch } from "./components/FileSearch";
+import { ServerTerminal } from "./components/ServerTerminal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getPathInfo } from "./api/files";
 import { useToast } from "./hooks/useToast";
@@ -378,15 +379,26 @@ function AppContent() {
             onClick={() => setFocusedPane('right')}
           >
             <ErrorBoundary>
-              <FileSearch
-                initialPath={defaultPath}
-                leftPanePath={leftPath}
-                rightPanePath={centerPath}
-                onSelectFolder={handleSelectFolder}
-                onSelectRightFolder={handleSelectRightFolder}
-                isFocused={focusedPane === 'right'}
-                onRequestFocus={() => setFocusedPane('right')}
-              />
+              <div className="search-pane-layout">
+                <div className="search-pane-search">
+                  <FileSearch
+                    initialPath={defaultPath}
+                    leftPanePath={leftPath}
+                    rightPanePath={centerPath}
+                    onSelectFolder={handleSelectFolder}
+                    onSelectRightFolder={handleSelectRightFolder}
+                    isFocused={focusedPane === 'right'}
+                    onRequestFocus={() => setFocusedPane('right')}
+                  />
+                </div>
+                <div className="search-pane-terminal">
+                  <ServerTerminal
+                    leftCwd={leftPath}
+                    centerCwd={centerPath}
+                    onRequestFocus={() => setFocusedPane('right')}
+                  />
+                </div>
+              </div>
             </ErrorBoundary>
           </div>
         </main>

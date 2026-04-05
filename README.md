@@ -1,6 +1,6 @@
 # File Manager
 
-React + FastAPI による軽量ファイルマネージャーです。3ペイン構成で、左右のファイル一覧と検索ペインを並べて操作できます。
+React + FastAPI による軽量ファイルマネージャーです。3ペイン構成で、左右のファイル一覧と検索ペインを並べて操作できます。検索ペイン下部にはサーバーターミナルも埋め込めます。
 
 ## 概要
 
@@ -116,6 +116,11 @@ http://localhost:5173/?path=\\server\share\folder
   - 深さ指定
   - ファイル名フィルタ
   - 正規表現モード
+- サーバーターミナル
+  - 右ペイン下部に常駐
+  - WebSocket + PTY 経由でローカルシェルに接続
+  - Windows では `cmd.exe` を既定シェルとして使用
+  - `Open Here` で中央ペインの現在パスから再接続
 
 ## API の現状
 
@@ -135,6 +140,7 @@ http://localhost:5173/?path=\\server\share\folder
 - `DELETE /api/delete/{path}`
 - `POST /api/upload`
 - `GET /api/obsidian/daily-path`
+- `WS /api/terminal/ws`
 
 詳細は [docs/architecture.md](docs/architecture.md) を参照してください。
 

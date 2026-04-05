@@ -1,0 +1,89 @@
+/**
+ * サーバーターミナルのスタイル
+ * 右ペイン下部に常駐する埋め込み端末の見た目と余白を定義する
+ */
+.server-terminal {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
+    #0f1218;
+  color: #f4f7fb;
+}
+
+.server-terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.server-terminal-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.server-terminal-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #b0bac8;
+}
+
+.server-terminal-status.is-connected {
+  color: #69d2a0;
+}
+
+.server-terminal-status.is-error {
+  color: #ff8e8e;
+}
+
+.server-terminal-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f7fb;
+}
+
+.server-terminal-button:first-of-type {
+  margin-left: auto;
+}
+
+.server-terminal-button:hover {
+  border-color: rgba(120, 177, 255, 0.6);
+  background: rgba(120, 177, 255, 0.16);
+}
+
+.server-terminal-subtitle {
+  padding: 6px 10px 0;
+  font-size: 11px;
+  color: #9ba7b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.server-terminal-body {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 10px 10px;
+}
+
+.server-terminal-body .xterm {
+  height: 100%;
+}
+
+.server-terminal-body .xterm-viewport {
+  border-radius: 8px;
+}

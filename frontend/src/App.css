@@ -164,6 +164,24 @@ body {
   min-width: 0;
 }
 
+.search-pane-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.search-pane-search {
+  flex: 3;
+  min-height: 0;
+}
+
+.search-pane-terminal {
+  flex: 1;
+  min-height: 180px;
+  border-top: 1px solid var(--border-color);
+}
+
 .pane-divider {
   width: 0;
   background-color: transparent;
