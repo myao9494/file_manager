@@ -20,34 +20,15 @@ interface ServerTerminalProps {
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
 
+export function shouldPreventTerminalTabFocus(event: KeyboardEvent): boolean {
+  return event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
+}
+
 function buildTerminalWebSocketUrl(cwd: string): string {
   const apiUrl = new URL(`${API_BASE_URL}/api/terminal/ws`, window.location.origin);
   apiUrl.protocol = apiUrl.protocol === "https:" ? "wss:" : "ws:";
   apiUrl.searchParams.set("cwd", cwd);
   return apiUrl.toString();
-}
-
-function writeLocalInput(xterm: Terminal, data: string): void {
-  for (const char of data) {
-    if (char === "\r") {
-      xterm.write("\r\n");
-      continue;
-    }
-
-    if (char === "\u007f") {
-      xterm.write("\b \b");
-      continue;
-    }
-
-    if (char === "\t") {
-      xterm.write("    ");
-      continue;
-    }
-
-    if (char >= " " && char !== "\u007f") {
-      xterm.write(char);
-    }
-  }
 }
 
 export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTerminalProps) {
@@ -56,7 +37,6 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
   const fitAddonRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  const currentLineRef = useRef("");
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [sessionCwd, setSessionCwd] = useState(centerCwd);
 
@@ -93,7 +73,7 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
     xterm.attachCustomKeyEventHandler((event) => {
-      if (event.key === "Tab") {
+      if (shouldPreventTerminalTabFocus(event)) {
         event.preventDefault();
       }
       return true;
@@ -152,34 +132,9 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
     const connectId = setTimeout(() => {
       socket = new WebSocket(buildTerminalWebSocketUrl(sessionCwd));
       socketRef.current = socket;
-      currentLineRef.current = "";
 
       dataDisposable = xterm.onData((data) => {
         if (socket && socket.readyState === WebSocket.OPEN) {
-          if (data === "\t") {
-            socket.send(JSON.stringify({ type: "complete", line: currentLineRef.current }));
-            return;
-          }
-
-          if (data === "\r") {
-            writeLocalInput(xterm, data);
-            socket.send(JSON.stringify({ type: "input", data: `${currentLineRef.current}\r` }));
-            currentLineRef.current = "";
-            return;
-          }
-
-          if (data === "\u007f") {
-            currentLineRef.current = currentLineRef.current.slice(0, -1);
-            writeLocalInput(xterm, data);
-            return;
-          }
-
-          if (data >= " " && data !== "\u007f") {
-            currentLineRef.current += data;
-            writeLocalInput(xterm, data);
-            return;
-          }
-
           socket.send(JSON.stringify({ type: "input", data }));
         }
       });
@@ -210,14 +165,8 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
           xterm.write(payload.data);
         }
 
-        if (payload.type === "completion" && payload.append) {
-          currentLineRef.current = payload.line ?? `${currentLineRef.current}${payload.append}`;
-          writeLocalInput(xterm, payload.append);
-        }
-
         if (payload.type === "exit") {
           setStatus("disconnected");
-          currentLineRef.current = "";
           xterm.writeln("");
           xterm.writeln(`[terminal exited: ${payload.code ?? 0}]`);
         }
