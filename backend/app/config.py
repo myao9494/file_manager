@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     )
 
     # サーバー設定
-    host: str = "0.0.0.0"
-    port: int = 8001
+    host: str = "127.0.0.1"
+    port: int = 8010
 
     # OS判定
     is_windows: bool = platform.system() == "Windows"

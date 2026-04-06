@@ -1,16 +1,20 @@
 """
 WebSocket ターミナルルーター
-右ペイン下部へJupyter風の対話型ターミナルを埋め込むため、
-サーバー側のシェルをPTY経由でWebSocketへ中継する
+- Windows: 既定で cmd.exe + パイプ実装、必要時のみ pywinpty を使用
+- POSIX: pty を使用
+- 管理者権限なしでも動作するように設計
 """
 import asyncio
+import codecs
 import json
+import locale
 import os
 import platform
 import shutil
 import struct
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -19,18 +23,42 @@ from app.config import settings
 router = APIRouter()
 
 
+def should_use_winpty() -> bool:
+    """Windows で pywinpty を明示利用するかどうかを返す"""
+    value = os.environ.get("FILE_MANAGER_WINDOWS_TERMINAL_BACKEND", "").strip().lower()
+    return value in {"winpty", "conpty", "pywinpty"}
+
+
+def get_windows_shell() -> str:
+    """Windows のターミナルシェル種別を返す"""
+    value = os.environ.get("FILE_MANAGER_WINDOWS_TERMINAL_SHELL", "").strip().lower()
+    if value in {"powershell", "pwsh"}:
+        return "powershell"
+    return "cmd"
+
 def get_shell_command() -> list[str]:
     """実行する対話型シェルコマンドを返す"""
     if platform.system() == "Windows":
-        return [os.environ.get("COMSPEC", "cmd.exe")]
+        if get_windows_shell() == "cmd":
+            return [os.environ.get("COMSPEC", "cmd.exe"), "/Q", "/U"]
+        powershell = shutil.which("pwsh") or shutil.which("powershell") or "powershell.exe"
+        return [
+            powershell,
+            "-NoLogo",
+            "-NoProfile",
+            "-NoExit",
+            "-Command",
+            "[Console]::InputEncoding=[System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false)",
+        ]
 
     shell = os.environ.get("SHELL") or shutil.which("zsh") or shutil.which("bash") or "/bin/sh"
     return [shell, "-i"]
 
-
 def resolve_terminal_cwd(raw_cwd: str | None) -> Path:
     """開始ディレクトリを決定し、不正または存在しない場合はデフォルトへフォールバックする"""
     if raw_cwd:
+        # 文字列のクリーンアップ（引用符などの除去）
+        raw_cwd = raw_cwd.strip("'\"")
         candidate = Path(raw_cwd).expanduser()
         if candidate.exists() and candidate.is_dir():
             return candidate
@@ -38,12 +66,96 @@ def resolve_terminal_cwd(raw_cwd: str | None) -> Path:
     return settings.start_dir
 
 
+def _split_completion_token(line: str) -> tuple[str, str, str]:
+    """補完対象のトークンを `先頭部分`, `トークン本体`, `引用符` に分解する"""
+    in_quote = False
+    quote_char = ""
+    token_start = 0
+
+    for index, char in enumerate(line):
+        if char in {'"', "'"}:
+            if in_quote and char == quote_char:
+                in_quote = False
+                quote_char = ""
+            elif not in_quote:
+                in_quote = True
+                quote_char = char
+        elif char.isspace() and not in_quote:
+            token_start = index + 1
+
+    prefix = line[:token_start]
+    token = line[token_start:]
+    token_quote = token[0] if token.startswith(("\"", "'")) else ""
+    raw_token = token[1:] if token_quote else token
+    return prefix, raw_token, token_quote
+
+
+def _common_prefix(values: list[str], *, case_sensitive: bool) -> str:
+    """候補一覧の共通接頭辞を返す"""
+    if not values:
+        return ""
+
+    prefix = values[0]
+    for value in values[1:]:
+        matched: list[str] = []
+        for left, right in zip(prefix, value):
+            if left == right if case_sensitive else left.lower() == right.lower():
+                matched.append(left)
+            else:
+                break
+        prefix = "".join(matched)
+        if not prefix:
+            break
+    return prefix
+
+
+def build_completion_result(cwd: Path, line: str) -> dict[str, str]:
+    """現在行に対するパス補完結果を返す"""
+    prefix, token, token_quote = _split_completion_token(line)
+    if not token:
+        return {"append": "", "line": line}
+
+    expanded = Path(token).expanduser()
+    token_path = expanded if expanded.is_absolute() else cwd / expanded
+    parent = token_path.parent if token_path.parent != Path("") else cwd
+    fragment = token_path.name
+
+    if not parent.exists() or not parent.is_dir():
+        return {"append": "", "line": line}
+
+    case_sensitive = os.name != "nt"
+    entries = sorted(parent.iterdir(), key=lambda item: item.name.lower() if not case_sensitive else item.name)
+    matches = [
+        entry for entry in entries
+        if (entry.name.startswith(fragment) if case_sensitive else entry.name.lower().startswith(fragment.lower()))
+    ]
+
+    if not matches:
+        return {"append": "", "line": line}
+
+    names = [entry.name for entry in matches]
+    common_name = _common_prefix(names, case_sensitive=case_sensitive)
+    if common_name == fragment and len(matches) != 1:
+        return {"append": "", "line": line}
+
+    target_entry = matches[0] if len(matches) == 1 else None
+    completed_name = target_entry.name if target_entry is not None else common_name
+    append = completed_name[len(fragment):]
+
+    if target_entry is not None and target_entry.is_dir():
+        append += os.sep
+
+    completed_token = f"{token_quote}{raw}" if (raw := token + append) else ""
+    return {
+        "append": append,
+        "line": f"{prefix}{completed_token}",
+    }
+
 class ShellProcess:
     """シェルプロセスとの入出力を抽象化する"""
 
     def __init__(self, cwd: Path):
         self.cwd = cwd
-        self.process: subprocess.Popen[bytes] | None = None
 
     async def start(self) -> None:
         raise NotImplementedError
@@ -57,23 +169,14 @@ class ShellProcess:
     async def resize(self, cols: int, rows: int) -> None:
         return None
 
+    def decode_output(self, chunk: bytes) -> str:
+        return chunk.decode("utf-8", errors="replace")
+
     async def wait(self) -> int:
-        if self.process is None:
-            return 0
-        return await asyncio.to_thread(self.process.wait)
+        raise NotImplementedError
 
     async def terminate(self) -> None:
-        if self.process is None:
-            return
-
-        if self.process.poll() is None:
-            self.process.terminate()
-            try:
-                await asyncio.wait_for(asyncio.to_thread(self.process.wait), timeout=1.0)
-            except asyncio.TimeoutError:
-                self.process.kill()
-                await asyncio.to_thread(self.process.wait)
-
+        raise NotImplementedError
 
 class PtyShellProcess(ShellProcess):
     """POSIX環境向けPTYベースの対話型シェル"""
@@ -81,32 +184,28 @@ class PtyShellProcess(ShellProcess):
     def __init__(self, cwd: Path):
         super().__init__(cwd)
         self.master_fd: int | None = None
-        self.slave_fd: int | None = None
+        self.process: subprocess.Popen | None = None
 
     async def start(self) -> None:
         import pty
-
-        self.master_fd, self.slave_fd = pty.openpty()
+        self.master_fd, slave_fd = pty.openpty()
         env = os.environ.copy()
         env.setdefault("TERM", "xterm-256color")
 
         self.process = subprocess.Popen(
             get_shell_command(),
-            stdin=self.slave_fd,
-            stdout=self.slave_fd,
-            stderr=self.slave_fd,
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
             cwd=self.cwd,
             env=env,
             close_fds=True,
         )
-
-        os.close(self.slave_fd)
-        self.slave_fd = None
+        os.close(slave_fd)
 
     async def read_chunk(self) -> bytes:
         if self.master_fd is None:
             return b""
-
         try:
             return await asyncio.to_thread(os.read, self.master_fd, 4096)
         except OSError:
@@ -120,90 +219,208 @@ class PtyShellProcess(ShellProcess):
     async def resize(self, cols: int, rows: int) -> None:
         if self.master_fd is None:
             return
-
         import fcntl
         import termios
-
         winsize = struct.pack("HHHH", max(rows, 1), max(cols, 1), 0, 0)
         await asyncio.to_thread(fcntl.ioctl, self.master_fd, termios.TIOCSWINSZ, winsize)
 
+    async def wait(self) -> int:
+        if self.process is None:
+            return 0
+        return await asyncio.to_thread(self.process.wait)
+
     async def terminate(self) -> None:
-        try:
-            await super().terminate()
-        finally:
-            if self.master_fd is not None:
-                try:
-                    os.close(self.master_fd)
-                except OSError:
-                    pass
-                self.master_fd = None
-            if self.slave_fd is not None:
-                try:
-                    os.close(self.slave_fd)
-                except OSError:
-                    pass
-                self.slave_fd = None
+        if self.process:
+            self.process.terminate()
+            await asyncio.to_thread(self.process.wait)
+        if self.master_fd is not None:
+            os.close(self.master_fd)
+            self.master_fd = None
 
+class WinPtyShellProcess(ShellProcess):
+    """Windows向け pywinpty ベースの対話型シェル"""
 
-class PipeShellProcess(ShellProcess):
-    """PTYが使えない環境向けの簡易シェル"""
+    def __init__(self, cwd: Path):
+        super().__init__(cwd)
+        self.pty: Any = None
 
     async def start(self) -> None:
-        env = os.environ.copy()
-        env.setdefault("TERM", "xterm-256color")
+        try:
+            from winpty import PTY as PtyClass
+        except ImportError:
+            from winpty import Pty as PtyClass
+            
+        shell_cmd = get_shell_command()[0]
+        # Jupyter Notebook のように、管理者権限なしでも安定して動作させるため、
+        # WinPTY (backend=1) の使用を優先するか、ConPTYでエラーが出た場合は安全にフォールバックする
+        try:
+            self.pty = PtyClass(80, 24, backend=1) 
+            self.pty.spawn(shell_cmd, cwd=str(self.cwd))
+        except Exception as e:
+            print(f"Failed to start with WinPTY, trying ConPTY: {e}")
+            self.pty = PtyClass(80, 24, backend=0)
+            self.pty.spawn(shell_cmd, cwd=str(self.cwd))
 
+    async def read_chunk(self) -> bytes:
+        if self.pty is None:
+            return b""
+        try:
+            # readはブロックするためto_threadを使用
+            data = await asyncio.to_thread(self.pty.read, 4096)
+            return data.encode("utf-8", errors="replace")
+        except (EOFError, Exception):
+            return b""
+
+    async def write_input(self, data: str) -> None:
+        if self.pty is None:
+            return
+        await asyncio.to_thread(self.pty.write, str(data))
+
+    async def resize(self, cols: int, rows: int) -> None:
+        if self.pty is None:
+            return
+        try:
+            c = max(int(cols), 1)
+            r = max(int(rows), 1)
+            self.pty.set_size(c, r)
+        except Exception:
+            pass
+
+    async def wait(self) -> int:
+        if self.pty is None:
+            return 0
+        while self.pty.isalive():
+            await asyncio.sleep(0.1)
+        return 0
+
+    async def terminate(self) -> None:
+        if self.pty:
+            try:
+                self.pty.close()
+            except Exception:
+                pass
+            self.pty = None
+
+class PipeShellProcess(ShellProcess):
+    """PTYが使えない場合のフォールバック（非推奨）"""
+
+    def __init__(self, cwd: Path):
+        super().__init__(cwd)
+        self.process: subprocess.Popen | None = None
+        if os.name == "nt" and get_windows_shell() == "cmd":
+            self.encoding = locale.getpreferredencoding(False) or "utf-8"
+            self.output_encoding = "utf-16le"
+        else:
+            self.encoding = "utf-8" if os.name == "nt" else (locale.getpreferredencoding(False) or "utf-8")
+            self.output_encoding = self.encoding
+        self.decoder = codecs.getincrementaldecoder(self.output_encoding)(errors="replace")
+
+    async def start(self) -> None:
         self.process = subprocess.Popen(
             get_shell_command(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             cwd=self.cwd,
-            env=env,
+            text=False,
+            bufsize=0
         )
 
     async def read_chunk(self) -> bytes:
-        if self.process is None or self.process.stdout is None:
+        if not self.process or not self.process.stdout:
             return b""
-
         try:
-            return await asyncio.to_thread(self.process.stdout.read, 4096)
-        except OSError:
+            read1 = getattr(self.process.stdout, "read1", None)
+            if callable(read1):
+                return await asyncio.to_thread(read1, 4096)
+            return await asyncio.to_thread(self.process.stdout.read, 1)
+        except Exception:
             return b""
 
     async def write_input(self, data: str) -> None:
-        if self.process is None or self.process.stdin is None:
+        if not self.process or not self.process.stdin:
             return
+        try:
+            normalized = str(data)
+            if os.name == "nt":
+                normalized = normalized.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\r\n")
+            self.process.stdin.write(normalized.encode(self.encoding, errors="replace"))
+            self.process.stdin.flush()
+        except Exception:
+            pass
 
-        self.process.stdin.write(data.encode("utf-8"))
-        self.process.stdin.flush()
+    def decode_output(self, chunk: bytes) -> str:
+        return self.decoder.decode(chunk)
 
+    async def wait(self) -> int:
+        if self.process is None:
+            return 0
+        return await asyncio.to_thread(self.process.wait)
+
+    async def terminate(self) -> None:
+        if self.process:
+            try:
+                self.process.terminate()
+                await asyncio.to_thread(self.process.wait)
+            except Exception:
+                pass
 
 def create_shell_process(cwd: Path) -> ShellProcess:
     """環境に応じて最適なシェル実装を返す"""
-    if os.name != "nt":
+    if platform.system() != "Windows":
         return PtyShellProcess(cwd)
+    if should_use_winpty():
+        try:
+            import winpty # noqa
+            return WinPtyShellProcess(cwd)
+        except ImportError:
+            print("Warning: pywinpty not found. Falling back to PipeShellProcess.")
     return PipeShellProcess(cwd)
-
 
 @router.websocket("/terminal/ws")
 async def terminal_websocket(websocket: WebSocket, cwd: str | None = None):
     """WebSocket経由で対話型ターミナルを提供する"""
     await websocket.accept()
 
-    shell = create_shell_process(resolve_terminal_cwd(cwd))
-    await shell.start()
+    resolved_cwd = resolve_terminal_cwd(cwd)
+    shell = create_shell_process(resolved_cwd)
+    try:
+        await shell.start()
+    except Exception as e:
+        if platform.system() == "Windows" and not isinstance(shell, PipeShellProcess):
+            shell = PipeShellProcess(resolved_cwd)
+            try:
+                await shell.start()
+            except Exception as fallback_error:
+                try:
+                    await websocket.send_json({"type": "output", "data": f"\r\nError starting shell: {str(fallback_error)}\r\n"})
+                    await websocket.close()
+                except Exception:
+                    pass
+                return
+        else:
+            try:
+                await websocket.send_json({"type": "output", "data": f"\r\nError starting shell: {str(e)}\r\n"})
+                await websocket.close()
+            except Exception:
+                pass
+            return
 
-    async def forward_output() -> None:
+    async def forward_output():
         try:
             while True:
                 chunk = await shell.read_chunk()
                 if not chunk:
                     break
-
-                await websocket.send_json({
-                    "type": "output",
-                    "data": chunk.decode("utf-8", errors="replace"),
-                })
+                try:
+                    await websocket.send_json({
+                        "type": "output",
+                        "data": shell.decode_output(chunk),
+                    })
+                except Exception:
+                    break
+        except Exception:
+            pass
         finally:
             exit_code = await shell.wait()
             try:
@@ -211,35 +428,51 @@ async def terminal_websocket(websocket: WebSocket, cwd: str | None = None):
             except Exception:
                 pass
 
-    async def receive_input() -> None:
-        while True:
-            message = await websocket.receive_text()
-            payload = json.loads(message)
-            message_type = payload.get("type")
-
-            if message_type == "input":
-                await shell.write_input(payload.get("data", ""))
-            elif message_type == "resize":
-                await shell.resize(int(payload.get("cols", 0)), int(payload.get("rows", 0)))
+    async def receive_input():
+        try:
+            while True:
+                message = await websocket.receive_text()
+                if not message:
+                    continue
+                try:
+                    payload = json.loads(message)
+                except Exception:
+                    continue
+                
+                m_type = payload.get("type")
+                if m_type == "input":
+                    data = payload.get("data", "")
+                    if data is None:
+                        data = ""
+                    await shell.write_input(data)
+                elif m_type == "complete":
+                    result = build_completion_result(resolved_cwd, str(payload.get("line", "")))
+                    await websocket.send_json({
+                        "type": "completion",
+                        "append": result["append"],
+                        "line": result["line"],
+                    })
+                elif m_type == "resize":
+                    cols = payload.get("cols", 80)
+                    rows = payload.get("rows", 24)
+                    if cols is None: cols = 80
+                    if rows is None: rows = 24
+                    await shell.resize(cols, rows)
+        except Exception:
+            pass
 
     output_task = asyncio.create_task(forward_output())
     input_task = asyncio.create_task(receive_input())
 
     try:
-        done, pending = await asyncio.wait(
-            {output_task, input_task},
-            return_when=asyncio.FIRST_EXCEPTION,
-        )
-
-        for task in done:
-            exc = task.exception()
-            if exc and not isinstance(exc, WebSocketDisconnect):
-                raise exc
-    except WebSocketDisconnect:
+        await asyncio.wait([output_task, input_task], return_when=asyncio.FIRST_COMPLETED)
+    except Exception:
         pass
     finally:
-        for task in (output_task, input_task):
-            if not task.done():
-                task.cancel()
-
+        output_task.cancel()
+        input_task.cancel()
         await shell.terminate()
+        try:
+            await websocket.close()
+        except Exception:
+            pass

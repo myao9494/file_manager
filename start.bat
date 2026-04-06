@@ -7,6 +7,13 @@ REM バックエンドとフロントエンドを起動する。
 
 set BACKEND_PORT=8001
 set FRONTEND_PORT=5173
+set PYTHON_EXE=python
+
+if exist "backend\.venv_fix\Scripts\python.exe" (
+    set PYTHON_EXE=%~dp0backend\.venv_fix\Scripts\python.exe
+) else if exist "backend\.venv\Scripts\python.exe" (
+    set PYTHON_EXE=%~dp0backend\.venv\Scripts\python.exe
+)
 
 echo Stopping existing servers...
 
@@ -24,9 +31,7 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :%FRONTEND_PORT% ^| findstr L
 )
 
 echo Starting Backend server (Port %BACKEND_PORT%)...
-cd backend
-start "File Manager Backend" cmd /c "set PYTHONPATH=. && python -m uvicorn app.main:app --reload --port %BACKEND_PORT%"
-cd ..
+start "File Manager Backend" cmd /c "cd /d %~dp0backend && "%PYTHON_EXE%" -m uvicorn --app-dir %~dp0backend app.main:app --reload --port %BACKEND_PORT%"
 
 echo Starting Frontend server (Port %FRONTEND_PORT%)...
 cd frontend

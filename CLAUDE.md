@@ -53,7 +53,7 @@ file_manager/
 - **開発モード**: `./start_dev.sh`
 - **Windows**: `start.bat` (開発), `start_windows_prod.bat` (本番)
 
-詳細は `docs/startup_scripts.md` を参照。
+詳細は `docs/startup_scripts.md` および `docs/server_setup.md` を参照。
 
 ### PWA配信モード
 
@@ -98,6 +98,23 @@ FILE_MANAGER_BASE_DIR=\\server\share\folder
 1. バックエンド起動時に `.env` から `FILE_MANAGER_BASE_DIR` を読み込み
 2. フロントエンドは起動時に `/api/config` から設定を取得
 3. フロントエンドはビルド済み（dist）でも動作（バックエンドから動的に取得するため）
+
+## サーバーセットアップ
+
+1. **バックエンドの依存関係インストール**
+   ```powershell
+   cd backend
+   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+   ```
+2. **フロントエンドの依存関係インストール**
+   ```powershell
+   cd frontend
+   npm install
+   ```
+3. **開発サーバーの起動 (両方)**
+   ```powershell
+   .\start.bat
+   ```
 
 ## URLパラメータ
 

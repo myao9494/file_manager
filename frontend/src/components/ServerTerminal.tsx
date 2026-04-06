@@ -27,14 +27,43 @@ function buildTerminalWebSocketUrl(cwd: string): string {
   return apiUrl.toString();
 }
 
+function writeLocalInput(xterm: Terminal, data: string): void {
+  for (const char of data) {
+    if (char === "\r") {
+      xterm.write("\r\n");
+      continue;
+    }
+
+    if (char === "\u007f") {
+      xterm.write("\b \b");
+      continue;
+    }
+
+    if (char === "\t") {
+      xterm.write("    ");
+      continue;
+    }
+
+    if (char >= " " && char !== "\u007f") {
+      xterm.write(char);
+    }
+  }
+}
+
 export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTerminalProps) {
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const currentLineRef = useRef("");
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [sessionCwd, setSessionCwd] = useState(centerCwd);
+
+  const focusTerminal = () => {
+    onRequestFocus?.();
+    xtermRef.current?.focus();
+  };
 
   useEffect(() => {
     setSessionCwd((current) => current || centerCwd);
@@ -63,6 +92,12 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
 
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
+    xterm.attachCustomKeyEventHandler((event) => {
+      if (event.key === "Tab") {
+        event.preventDefault();
+      }
+      return true;
+    });
     xterm.open(terminalRef.current);
     fitAddon.fit();
     xterm.focus();
@@ -108,59 +143,106 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
     xterm.writeln(`cwd: ${sessionCwd}`);
     xterm.writeln("");
 
-    const socket = new WebSocket(buildTerminalWebSocketUrl(sessionCwd));
-    socketRef.current = socket;
+    let socket: WebSocket | null = null;
+    let dataDisposable: { dispose: () => void } | null = null;
+    let resizeDisposable: { dispose: () => void } | null = null;
 
-    const dataDisposable = xterm.onData((data) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "input", data }));
-      }
-    });
+    // StrictModeによるuseEffectの即時クリーンアップ時にWebSocketが接続中だと
+    // ブラウザがエラーを吐きViteプロキシがクラッシュするのを防ぐため、少し遅延させる
+    const connectId = setTimeout(() => {
+      socket = new WebSocket(buildTerminalWebSocketUrl(sessionCwd));
+      socketRef.current = socket;
+      currentLineRef.current = "";
 
-    const resizeDisposable = xterm.onResize(({ cols, rows }) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "resize", cols, rows }));
-      }
-    });
+      dataDisposable = xterm.onData((data) => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          if (data === "\t") {
+            socket.send(JSON.stringify({ type: "complete", line: currentLineRef.current }));
+            return;
+          }
 
-    socket.addEventListener("open", () => {
-      setStatus("connected");
-      fitAddon.fit();
-      socket.send(JSON.stringify({
-        type: "resize",
-        cols: xterm.cols,
-        rows: xterm.rows,
-      }));
-    });
+          if (data === "\r") {
+            writeLocalInput(xterm, data);
+            socket.send(JSON.stringify({ type: "input", data: `${currentLineRef.current}\r` }));
+            currentLineRef.current = "";
+            return;
+          }
 
-    socket.addEventListener("message", (event) => {
-      const payload = JSON.parse(event.data) as { type: string; data?: string; code?: number };
+          if (data === "\u007f") {
+            currentLineRef.current = currentLineRef.current.slice(0, -1);
+            writeLocalInput(xterm, data);
+            return;
+          }
 
-      if (payload.type === "output" && payload.data) {
-        xterm.write(payload.data);
-      }
+          if (data >= " " && data !== "\u007f") {
+            currentLineRef.current += data;
+            writeLocalInput(xterm, data);
+            return;
+          }
 
-      if (payload.type === "exit") {
-        setStatus("disconnected");
+          socket.send(JSON.stringify({ type: "input", data }));
+        }
+      });
+
+      resizeDisposable = xterm.onResize(({ cols, rows }) => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "resize", cols, rows }));
+        }
+      });
+
+      socket.addEventListener("open", () => {
+        setStatus("connected");
+        fitAddon.fit();
+        xterm.focus();
+        if (socket) {
+          socket.send(JSON.stringify({
+            type: "resize",
+            cols: xterm.cols,
+            rows: xterm.rows,
+          }));
+        }
+      });
+
+      socket.addEventListener("message", (event) => {
+        const payload = JSON.parse(event.data) as { type: string; data?: string; code?: number; append?: string; line?: string };
+
+        if (payload.type === "output" && payload.data) {
+          xterm.write(payload.data);
+        }
+
+        if (payload.type === "completion" && payload.append) {
+          currentLineRef.current = payload.line ?? `${currentLineRef.current}${payload.append}`;
+          writeLocalInput(xterm, payload.append);
+        }
+
+        if (payload.type === "exit") {
+          setStatus("disconnected");
+          currentLineRef.current = "";
+          xterm.writeln("");
+          xterm.writeln(`[terminal exited: ${payload.code ?? 0}]`);
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        setStatus((current) => (current === "error" ? current : "disconnected"));
+      });
+
+      socket.addEventListener("error", () => {
+        setStatus("error");
         xterm.writeln("");
-        xterm.writeln(`[terminal exited: ${payload.code ?? 0}]`);
-      }
-    });
-
-    socket.addEventListener("close", () => {
-      setStatus((current) => (current === "error" ? current : "disconnected"));
-    });
-
-    socket.addEventListener("error", () => {
-      setStatus("error");
-      xterm.writeln("");
-      xterm.writeln("[connection error]");
-    });
+        xterm.writeln("[connection error]");
+      });
+    }, 100);
 
     return () => {
-      dataDisposable.dispose();
-      resizeDisposable.dispose();
-      socket.close();
+      clearTimeout(connectId);
+      if (dataDisposable) dataDisposable.dispose();
+      if (resizeDisposable) resizeDisposable.dispose();
+      if (socket) {
+        if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
+          socket.close();
+        }
+      }
       if (socketRef.current === socket) {
         socketRef.current = null;
       }
@@ -168,7 +250,7 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
   }, [sessionCwd]);
 
   return (
-    <section className="server-terminal" onMouseDown={onRequestFocus}>
+    <section className="server-terminal" onMouseDown={focusTerminal}>
       <div className="server-terminal-header">
         <div className="server-terminal-title">Server Terminal</div>
         <div className={`server-terminal-status is-${status}`}>
@@ -197,7 +279,7 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
       <div className="server-terminal-subtitle" title={sessionCwd}>
         {sessionCwd}
       </div>
-      <div className="server-terminal-body" ref={terminalRef} />
+      <div className="server-terminal-body" ref={terminalRef} onMouseDown={focusTerminal} />
     </section>
   );
 }

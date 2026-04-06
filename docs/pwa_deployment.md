@@ -8,6 +8,7 @@ File ManagerはPWA（Progressive Web App）として動作します。
 
 注:
 - macOS/Linux の `./start.sh` と Windows の `start_windows_prod.bat` の両方で、単一ポート (`8001`) 配信に対応しています
+- macOS/Linux は仮想環境利用、Windows は仮想環境なし運用でも対応可能です
 
 ## 動作モード
 
@@ -38,6 +39,9 @@ File ManagerはPWA（Progressive Web App）として動作します。
 - **アプリ全体**: `http://localhost:8001`
 - バックエンドが `frontend/dist/` を静的配信
 - API も同一オリジンの `/api` で提供
+- 起動時は `backend/.venv_fix`、`backend/.venv`、システム `python` の順で利用可能な Python を選択
+- 仮想環境がない Windows では、システム `python` に依存関係が入っていれば起動可能
+- Windows の Server Terminal は既定で `cmd.exe` を利用
 
 ## フロントエンドのビルド
 

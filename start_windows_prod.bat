@@ -5,6 +5,13 @@ REM Windows本番環境用一括起動スクリプト
 REM backend/app/main.py が frontend/dist を配信する単一ポート構成で起動します。
 
 set BACKEND_PORT=8001
+set PYTHON_EXE=python
+
+if exist "backend\.venv_fix\Scripts\python.exe" (
+    set PYTHON_EXE=%~dp0backend\.venv_fix\Scripts\python.exe
+) else if exist "backend\.venv\Scripts\python.exe" (
+    set PYTHON_EXE=%~dp0backend\.venv\Scripts\python.exe
+)
 
 echo Stopping existing servers...
 
@@ -23,9 +30,7 @@ if not exist "frontend\dist" (
 )
 
 echo Starting Backend server (Port %BACKEND_PORT%)...
-cd backend
-start "File Manager Backend" cmd /c "set PYTHONPATH=. && python -m uvicorn app.main:app --host 0.0.0.0 --port %BACKEND_PORT% --workers 1 --log-level info"
-cd ..
+start "File Manager Backend" cmd /c "cd /d %~dp0backend && "%PYTHON_EXE%" -m uvicorn --app-dir %~dp0backend app.main:app --host 0.0.0.0 --port %BACKEND_PORT% --workers 1 --log-level info"
 
 echo Server is starting up.
 echo App:         http://localhost:%BACKEND_PORT%
