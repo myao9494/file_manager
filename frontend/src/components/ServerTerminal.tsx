@@ -20,8 +20,54 @@ interface ServerTerminalProps {
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
 
+interface TerminalSocketMessage {
+  type: string;
+  data?: string;
+  code?: number;
+  append?: string;
+  line?: string;
+  localEcho?: boolean;
+  cwd?: string;
+}
+
 export function shouldPreventTerminalTabFocus(event: KeyboardEvent): boolean {
   return event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
+}
+
+export function applyLocalTerminalEcho(data: string): string {
+  if (data === "\r") {
+    return "\r\n";
+  }
+  if (data === "\u007F") {
+    return "\b \b";
+  }
+  return data;
+}
+
+export function updateTrackedTerminalInput(currentLine: string, data: string): string {
+  if (data === "\r") {
+    return "";
+  }
+  if (data === "\u007F") {
+    return currentLine.slice(0, -1);
+  }
+  if (data === "\t") {
+    return currentLine;
+  }
+  if (data.startsWith("\u001B")) {
+    return currentLine;
+  }
+  return `${currentLine}${data}`;
+}
+
+export function buildLocalLineReplacement(currentLine: string, nextLine: string, cursorIndex: number): string {
+  const eraseCurrentLine = "\b \b".repeat(currentLine.length);
+  const moveCursorLeft = nextLine.length > cursorIndex ? `\u001B[${nextLine.length - cursorIndex}D` : "";
+  return `${eraseCurrentLine}${nextLine}${moveCursorLeft}`;
+}
+
+export function isPrintableTerminalInput(data: string): boolean {
+  return data.length > 0 && !data.includes("\r") && !data.includes("\u007F") && !data.startsWith("\u001B");
 }
 
 function buildTerminalWebSocketUrl(cwd: string): string {
@@ -37,16 +83,62 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
   const fitAddonRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const localEchoEnabledRef = useRef(false);
+  const currentInputLineRef = useRef("");
+  const cursorIndexRef = useRef(0);
+  const completionPendingRef = useRef(false);
+  const pendingEnterRef = useRef(false);
+  const commandHistoryRef = useRef<string[]>([]);
+  const historyIndexRef = useRef<number | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [sessionCwd, setSessionCwd] = useState(centerCwd);
+  const [displayCwd, setDisplayCwd] = useState(centerCwd);
 
   const focusTerminal = () => {
     onRequestFocus?.();
     xtermRef.current?.focus();
   };
 
+  const replaceCurrentInputLine = (nextLine: string, nextCursorIndex = nextLine.length) => {
+    const xterm = xtermRef.current;
+    if (!xterm) {
+      return;
+    }
+
+    const currentLine = currentInputLineRef.current;
+    const currentCursor = cursorIndexRef.current;
+    const moveCursorToEnd = currentLine.length > currentCursor ? `\u001B[${currentLine.length - currentCursor}C` : "";
+    xterm.write(`${moveCursorToEnd}${buildLocalLineReplacement(currentLine, nextLine, nextCursorIndex)}`);
+    currentInputLineRef.current = nextLine;
+    cursorIndexRef.current = nextCursorIndex;
+  };
+
+  const commitCurrentInputLine = (socket: WebSocket) => {
+    const line = currentInputLineRef.current;
+    if (line.trim()) {
+      const history = commandHistoryRef.current;
+      if (history[history.length - 1] !== line) {
+        history.push(line);
+        if (history.length > 200) {
+          history.shift();
+        }
+      }
+    }
+
+    historyIndexRef.current = null;
+    cursorIndexRef.current = 0;
+    currentInputLineRef.current = "";
+    xtermRef.current?.write("\r\n");
+
+    if (line) {
+      socket.send(JSON.stringify({ type: "input", data: line }));
+    }
+    socket.send(JSON.stringify({ type: "input", data: "\r" }));
+  };
+
   useEffect(() => {
     setSessionCwd((current) => current || centerCwd);
+    setDisplayCwd((current) => current || centerCwd);
   }, [centerCwd]);
 
   useEffect(() => {
@@ -118,6 +210,13 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
     }
 
     setStatus("connecting");
+    localEchoEnabledRef.current = false;
+    currentInputLineRef.current = "";
+    cursorIndexRef.current = 0;
+    completionPendingRef.current = false;
+    pendingEnterRef.current = false;
+    historyIndexRef.current = null;
+    setDisplayCwd(sessionCwd);
     xterm.clear();
     xterm.writeln(`Connecting to server terminal...`);
     xterm.writeln(`cwd: ${sessionCwd}`);
@@ -135,7 +234,124 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
 
       dataDisposable = xterm.onData((data) => {
         if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "input", data }));
+          if (!localEchoEnabledRef.current) {
+            socket.send(JSON.stringify({ type: "input", data }));
+            return;
+          }
+
+          if (data === "\u001B[A" || data === "\u001B[B") {
+            const history = commandHistoryRef.current;
+            if (history.length === 0) {
+              return;
+            }
+
+            let nextIndex = historyIndexRef.current;
+
+            if (data === "\u001B[A") {
+              nextIndex = nextIndex === null ? history.length - 1 : Math.max(0, nextIndex - 1);
+            } else if (nextIndex !== null) {
+              nextIndex = nextIndex >= history.length - 1 ? null : nextIndex + 1;
+            } else {
+              return;
+            }
+
+            const nextLine = nextIndex === null ? "" : history[nextIndex] ?? "";
+            historyIndexRef.current = nextIndex;
+            replaceCurrentInputLine(nextLine);
+            return;
+          }
+
+          if (data === "\u001B[D") {
+            if (cursorIndexRef.current > 0) {
+              cursorIndexRef.current -= 1;
+              xterm.write("\u001B[D");
+            }
+            return;
+          }
+
+          if (data === "\u001B[C") {
+            if (cursorIndexRef.current < currentInputLineRef.current.length) {
+              cursorIndexRef.current += 1;
+              xterm.write("\u001B[C");
+            }
+            return;
+          }
+
+          if (data === "\u001B[H") {
+            if (cursorIndexRef.current > 0) {
+              xterm.write(`\u001B[${cursorIndexRef.current}D`);
+              cursorIndexRef.current = 0;
+            }
+            return;
+          }
+
+          if (data === "\u001B[F") {
+            const distance = currentInputLineRef.current.length - cursorIndexRef.current;
+            if (distance > 0) {
+              xterm.write(`\u001B[${distance}C`);
+              cursorIndexRef.current = currentInputLineRef.current.length;
+            }
+            return;
+          }
+
+          if (data === "\u001B[3~") {
+            const line = currentInputLineRef.current;
+            const cursor = cursorIndexRef.current;
+            if (cursor < line.length) {
+              replaceCurrentInputLine(line.slice(0, cursor) + line.slice(cursor + 1), cursor);
+            }
+            return;
+          }
+
+          if (data === "\u007F") {
+            const line = currentInputLineRef.current;
+            const cursor = cursorIndexRef.current;
+            if (cursor > 0) {
+              replaceCurrentInputLine(line.slice(0, cursor - 1) + line.slice(cursor), cursor - 1);
+            }
+            return;
+          }
+
+          if (data === "\t") {
+            completionPendingRef.current = true;
+            socket.send(JSON.stringify({
+              type: "complete",
+              line: currentInputLineRef.current,
+            }));
+            return;
+          }
+
+          if (data === "\r") {
+            if (completionPendingRef.current) {
+              pendingEnterRef.current = true;
+              return;
+            }
+            commitCurrentInputLine(socket);
+            return;
+          }
+
+          if (completionPendingRef.current) {
+            if (data === "\r") {
+              pendingEnterRef.current = true;
+            }
+            return;
+          }
+
+          if (data === "\u0003") {
+            xterm.write("^C\r\n");
+            currentInputLineRef.current = "";
+            cursorIndexRef.current = 0;
+            historyIndexRef.current = null;
+            socket.send(JSON.stringify({ type: "input", data }));
+            return;
+          }
+
+          if (isPrintableTerminalInput(data)) {
+            const line = currentInputLineRef.current;
+            const cursor = cursorIndexRef.current;
+            const nextLine = `${line.slice(0, cursor)}${data}${line.slice(cursor)}`;
+            replaceCurrentInputLine(nextLine, cursor + data.length);
+          }
         }
       });
 
@@ -159,24 +375,64 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
       });
 
       socket.addEventListener("message", (event) => {
-        const payload = JSON.parse(event.data) as { type: string; data?: string; code?: number; append?: string; line?: string };
+        const payload = JSON.parse(event.data) as TerminalSocketMessage;
+
+        if (payload.type === "ready") {
+          localEchoEnabledRef.current = Boolean(payload.localEcho);
+          currentInputLineRef.current = "";
+          cursorIndexRef.current = 0;
+          completionPendingRef.current = false;
+          pendingEnterRef.current = false;
+          historyIndexRef.current = null;
+          setDisplayCwd(payload.cwd ?? sessionCwd);
+          return;
+        }
+
+        if (payload.type === "cwd") {
+          if (payload.cwd) {
+            setDisplayCwd(payload.cwd);
+          }
+          return;
+        }
 
         if (payload.type === "output" && payload.data) {
           xterm.write(payload.data);
         }
 
+        if (payload.type === "completion" && localEchoEnabledRef.current) {
+          completionPendingRef.current = false;
+          replaceCurrentInputLine(payload.line ?? currentInputLineRef.current);
+          if (pendingEnterRef.current && socket) {
+            commitCurrentInputLine(socket);
+            pendingEnterRef.current = false;
+          }
+        }
+
         if (payload.type === "exit") {
           setStatus("disconnected");
+          currentInputLineRef.current = "";
+          cursorIndexRef.current = 0;
+          completionPendingRef.current = false;
+          pendingEnterRef.current = false;
+          historyIndexRef.current = null;
           xterm.writeln("");
           xterm.writeln(`[terminal exited: ${payload.code ?? 0}]`);
         }
       });
 
       socket.addEventListener("close", () => {
+        completionPendingRef.current = false;
+        pendingEnterRef.current = false;
+        cursorIndexRef.current = 0;
+        historyIndexRef.current = null;
         setStatus((current) => (current === "error" ? current : "disconnected"));
       });
 
       socket.addEventListener("error", () => {
+        completionPendingRef.current = false;
+        pendingEnterRef.current = false;
+        cursorIndexRef.current = 0;
+        historyIndexRef.current = null;
         setStatus("error");
         xterm.writeln("");
         xterm.writeln("[connection error]");
@@ -225,8 +481,8 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
           <span>Open Center</span>
         </button>
       </div>
-      <div className="server-terminal-subtitle" title={sessionCwd}>
-        {sessionCwd}
+      <div className="server-terminal-subtitle" title={displayCwd}>
+        {displayCwd}
       </div>
       <div className="server-terminal-body" ref={terminalRef} onMouseDown={focusTerminal} />
     </section>

@@ -1,10 +1,16 @@
 /**
  * サーバーターミナルの入力補助ロジックのテスト
- * Tabキーでブラウザフォーカスが移らない判定を検証する
+ * Tabキーのフォーカス制御とローカルエコー整形を検証する
  */
 import { describe, expect, it } from "vitest";
 
-import { shouldPreventTerminalTabFocus } from "./ServerTerminal";
+import {
+  applyLocalTerminalEcho,
+  buildLocalLineReplacement,
+  isPrintableTerminalInput,
+  shouldPreventTerminalTabFocus,
+  updateTrackedTerminalInput,
+} from "./ServerTerminal";
 
 describe("ServerTerminal helpers", () => {
   it("prevents plain Tab from moving browser focus away", () => {
@@ -17,5 +23,43 @@ describe("ServerTerminal helpers", () => {
     const event = { key: "Tab", altKey: false, ctrlKey: true, metaKey: false } as KeyboardEvent;
 
     expect(shouldPreventTerminalTabFocus(event)).toBe(false);
+  });
+
+  it("renders Enter locally as a line break when shell echo is unavailable", () => {
+    expect(applyLocalTerminalEcho("\r")).toBe("\r\n");
+  });
+
+  it("renders typed characters locally without altering them", () => {
+    expect(applyLocalTerminalEcho("abc")).toBe("abc");
+  });
+
+  it("renders Backspace locally so the visible line is updated", () => {
+    expect(applyLocalTerminalEcho("\u007F")).toBe("\b \b");
+  });
+
+  it("tracks typed text for Tab completion requests", () => {
+    expect(updateTrackedTerminalInput("cd Doc", "u")).toBe("cd Docu");
+  });
+
+  it("clears the tracked line after Enter", () => {
+    expect(updateTrackedTerminalInput("dir", "\r")).toBe("");
+  });
+
+  it("keeps the tracked line unchanged for Tab and arrow keys", () => {
+    expect(updateTrackedTerminalInput("cd Doc", "\t")).toBe("cd Doc");
+    expect(updateTrackedTerminalInput("cd Doc", "\u001B[D")).toBe("cd Doc");
+  });
+
+  it("replaces the visible line for history navigation", () => {
+    expect(buildLocalLineReplacement("cd old", "cd backend", 10)).toBe("\b \b\b \b\b \b\b \b\b \b\b \bcd backend");
+  });
+
+  it("moves the cursor left after replacing the visible line", () => {
+    expect(buildLocalLineReplacement("abc", "backend", 4)).toBe("\b \b\b \b\b \bbackend\u001B[3D");
+  });
+
+  it("treats plain text as printable terminal input", () => {
+    expect(isPrintableTerminalInput("backend")).toBe(true);
+    expect(isPrintableTerminalInput("\u001B[A")).toBe(false);
   });
 });

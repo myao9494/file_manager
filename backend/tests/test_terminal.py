@@ -75,14 +75,14 @@ class TestPipeShellProcess:
     """Windows向けパイプシェルの出力読み取りを検証する"""
 
     def test_get_shell_command_uses_quiet_unicode_cmd_on_windows_by_default(self, monkeypatch):
-        """Windowsでは既定でコマンドプロンプトを使う"""
+        """Windowsでは既定で静かなコマンドプロンプトを使う"""
         from app.routers import terminal
 
         monkeypatch.setattr(terminal.platform, "system", lambda: "Windows")
         monkeypatch.delenv("FILE_MANAGER_WINDOWS_TERMINAL_SHELL", raising=False)
         monkeypatch.setenv("COMSPEC", "C:\\Windows\\System32\\cmd.exe")
 
-        assert terminal.get_shell_command() == ["C:\\Windows\\System32\\cmd.exe", "/Q", "/U"]
+        assert terminal.get_shell_command() == ["C:\\Windows\\System32\\cmd.exe", "/Q"]
 
     def test_get_shell_command_can_use_powershell_on_windows(self, monkeypatch):
         """環境変数で PowerShell へ切り替えられる"""
@@ -174,11 +174,11 @@ class TestPipeShellProcess:
         from app.routers.terminal import PipeShellProcess
 
         shell = PipeShellProcess(Path.cwd())
-        shell.output_encoding = "utf-16le"
+        shell.output_encoding = "cp932"
         import codecs
         shell.decoder = codecs.getincrementaldecoder(shell.output_encoding)(errors="replace")
 
-        assert shell.decode_output("日本語".encode("utf-16le")) == "日本語"
+        assert shell.decode_output("日本語".encode("cp932")) == "日本語"
 
 
 class TestWindowsFallback:
@@ -229,8 +229,11 @@ class TestWindowsFallback:
         monkeypatch.setattr(terminal, "PipeShellProcess", WorkingPipeShell)
 
         with client.websocket_connect("/api/terminal/ws") as websocket:
+            ready = websocket.receive_json()
             message = websocket.receive_json()
 
+        assert ready["type"] == "ready"
+        assert ready["localEcho"] is True
         assert message["type"] == "output"
         assert "fallback ok" in message["data"]
 
@@ -260,6 +263,17 @@ class TestWindowsShellSelection:
         shell = terminal.create_shell_process(Path.cwd())
 
         assert isinstance(shell, terminal.WinPtyShellProcess)
+
+
+class TestTerminalReadyMessage:
+    """接続初期化時のクライアント設定通知を検証する"""
+
+    def test_should_use_local_echo_for_pipe_shell(self):
+        """PipeShellProcess 利用時はクライアント側エコーを有効化する"""
+        from app.routers.terminal import PipeShellProcess, PtyShellProcess, should_use_local_echo
+
+        assert should_use_local_echo(PipeShellProcess(Path.cwd())) is True
+        assert should_use_local_echo(PtyShellProcess(Path.cwd())) is False
 
 
 class TestTerminalCompletion:
@@ -298,3 +312,31 @@ class TestTerminalCompletion:
 
         assert result["append"].endswith("ram Files" + os.sep)
         assert result["line"].endswith('"Program Files' + os.sep)
+
+
+class TestTerminalCwdTracking:
+    """cd コマンドに伴うカレントディレクトリ追跡を検証する"""
+
+    def test_resolve_next_terminal_cwd_handles_parent_directory(self, temp_dir):
+        """cd .. で親ディレクトリへ更新する"""
+        from app.routers.terminal import resolve_next_terminal_cwd
+
+        child = temp_dir / "child"
+        child.mkdir()
+
+        assert resolve_next_terminal_cwd(child, "cd ..").samefile(temp_dir)
+
+    def test_resolve_next_terminal_cwd_handles_relative_directory(self, temp_dir):
+        """相対パス指定の cd を現在ディレクトリ基準で解決する"""
+        from app.routers.terminal import resolve_next_terminal_cwd
+
+        child = temp_dir / "child"
+        child.mkdir()
+
+        assert resolve_next_terminal_cwd(temp_dir, "cd child").samefile(child)
+
+    def test_resolve_next_terminal_cwd_ignores_missing_directory(self, temp_dir):
+        """存在しない移動先は現在ディレクトリのままにする"""
+        from app.routers.terminal import resolve_next_terminal_cwd
+
+        assert resolve_next_terminal_cwd(temp_dir, "cd missing") == temp_dir

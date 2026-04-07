@@ -40,7 +40,7 @@ def get_shell_command() -> list[str]:
     """実行する対話型シェルコマンドを返す"""
     if platform.system() == "Windows":
         if get_windows_shell() == "cmd":
-            return [os.environ.get("COMSPEC", "cmd.exe"), "/Q", "/U"]
+            return [os.environ.get("COMSPEC", "cmd.exe"), "/Q"]
         powershell = shutil.which("pwsh") or shutil.which("powershell") or "powershell.exe"
         return [
             powershell,
@@ -150,6 +150,62 @@ def build_completion_result(cwd: Path, line: str) -> dict[str, str]:
         "append": append,
         "line": f"{prefix}{completed_token}",
     }
+
+
+def update_input_buffer(current_line: str, data: str) -> str:
+    """入力されたキー列から現在行バッファを更新する"""
+    if data == "\r":
+        return ""
+    if data == "\u007f":
+        return current_line[:-1]
+    if data == "\t":
+        return current_line
+    if data.startswith("\u001b"):
+        return current_line
+    return current_line + data
+
+
+def resolve_next_terminal_cwd(current_cwd: Path, line: str) -> Path:
+    """入力行が cd 系コマンドなら次のカレントディレクトリを推定する"""
+    stripped = line.strip()
+    if not stripped:
+        return current_cwd
+
+    lowered = stripped.lower()
+    prefixes = ("cd ", "chdir ", "pushd ")
+    if lowered in {"cd", "chdir"}:
+        return current_cwd
+    if not lowered.startswith(prefixes):
+        return current_cwd
+
+    parts = stripped.split(maxsplit=1)
+    if len(parts) < 2:
+        return current_cwd
+
+    argument = parts[1].strip()
+    if not argument:
+        return current_cwd
+
+    if argument.lower().startswith("/d "):
+        argument = argument[3:].strip()
+
+    argument = argument.strip("'\"")
+    if not argument:
+        return current_cwd
+
+    candidate = Path(argument).expanduser()
+    if not candidate.is_absolute():
+        candidate = current_cwd / candidate
+
+    try:
+        resolved = candidate.resolve(strict=False)
+    except Exception:
+        resolved = candidate
+
+    if resolved.exists() and resolved.is_dir():
+        return resolved
+
+    return current_cwd
 
 class ShellProcess:
     """シェルプロセスとの入出力を抽象化する"""
@@ -309,7 +365,7 @@ class PipeShellProcess(ShellProcess):
         self.process: subprocess.Popen | None = None
         if os.name == "nt" and get_windows_shell() == "cmd":
             self.encoding = locale.getpreferredencoding(False) or "utf-8"
-            self.output_encoding = "utf-16le"
+            self.output_encoding = self.encoding
         else:
             self.encoding = "utf-8" if os.name == "nt" else (locale.getpreferredencoding(False) or "utf-8")
             self.output_encoding = self.encoding
@@ -377,20 +433,37 @@ def create_shell_process(cwd: Path) -> ShellProcess:
             print("Warning: pywinpty not found. Falling back to PipeShellProcess.")
     return PipeShellProcess(cwd)
 
+
+def should_use_local_echo(shell: ShellProcess) -> bool:
+    """クライアント側で入力文字をローカル描画すべきか判定する"""
+    return isinstance(shell, PipeShellProcess)
+
 @router.websocket("/terminal/ws")
 async def terminal_websocket(websocket: WebSocket, cwd: str | None = None):
     """WebSocket経由で対話型ターミナルを提供する"""
     await websocket.accept()
 
     resolved_cwd = resolve_terminal_cwd(cwd)
+    current_cwd = resolved_cwd
+    input_buffer = ""
     shell = create_shell_process(resolved_cwd)
     try:
         await shell.start()
+        await websocket.send_json({
+            "type": "ready",
+            "localEcho": should_use_local_echo(shell),
+            "cwd": str(current_cwd),
+        })
     except Exception as e:
         if platform.system() == "Windows" and not isinstance(shell, PipeShellProcess):
             shell = PipeShellProcess(resolved_cwd)
             try:
                 await shell.start()
+                await websocket.send_json({
+                    "type": "ready",
+                    "localEcho": should_use_local_echo(shell),
+                    "cwd": str(current_cwd),
+                })
             except Exception as fallback_error:
                 try:
                     await websocket.send_json({"type": "output", "data": f"\r\nError starting shell: {str(fallback_error)}\r\n"})
@@ -429,6 +502,7 @@ async def terminal_websocket(websocket: WebSocket, cwd: str | None = None):
                 pass
 
     async def receive_input():
+        nonlocal current_cwd, input_buffer
         try:
             while True:
                 message = await websocket.receive_text()
@@ -445,8 +519,19 @@ async def terminal_websocket(websocket: WebSocket, cwd: str | None = None):
                     if data is None:
                         data = ""
                     await shell.write_input(data)
+                    if data == "\r":
+                        next_cwd = resolve_next_terminal_cwd(current_cwd, input_buffer)
+                        input_buffer = ""
+                        if next_cwd != current_cwd:
+                            current_cwd = next_cwd
+                            await websocket.send_json({
+                                "type": "cwd",
+                                "cwd": str(current_cwd),
+                            })
+                    else:
+                        input_buffer = update_input_buffer(input_buffer, data)
                 elif m_type == "complete":
-                    result = build_completion_result(resolved_cwd, str(payload.get("line", "")))
+                    result = build_completion_result(current_cwd, str(payload.get("line", "")))
                     await websocket.send_json({
                         "type": "completion",
                         "append": result["append"],
