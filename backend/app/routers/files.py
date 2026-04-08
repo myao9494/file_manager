@@ -37,6 +37,10 @@ from app.task_manager import task_manager, TaskInfo
 
 router = APIRouter()
 
+WINDOWS_DELETE_RETRY_COUNT = 10
+WINDOWS_DELETE_RETRY_BASE_SECONDS = 0.2
+WINDOWS_DELETE_RETRY_MAX_SECONDS = 1.0
+
 
 class FileItem(BaseModel):
     """ファイル/フォルダアイテムのスキーマ"""
@@ -576,7 +580,7 @@ def _handle_rmtree_remove_readonly(func, path_str, exc_info):
 
 def _delete_with_retry(path: Path, is_network: bool) -> None:
     """Windowsで一時的なファイルロックが残るケースを吸収する"""
-    retry_count = 5 if settings.is_windows else 1
+    retry_count = WINDOWS_DELETE_RETRY_COUNT if settings.is_windows else 1
     last_error: Exception | None = None
 
     for attempt in range(retry_count):
@@ -594,7 +598,11 @@ def _delete_with_retry(path: Path, is_network: bool) -> None:
             last_error = exc
             if not settings.is_windows or attempt == retry_count - 1:
                 raise
-            time.sleep(0.2 * (attempt + 1))
+            sleep_seconds = min(
+                WINDOWS_DELETE_RETRY_BASE_SECONDS * (attempt + 1),
+                WINDOWS_DELETE_RETRY_MAX_SECONDS,
+            )
+            time.sleep(sleep_seconds)
 
     if last_error is not None:
         raise last_error

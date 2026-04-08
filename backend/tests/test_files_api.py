@@ -237,6 +237,33 @@ class TestDeleteItem:
         assert response.json()["status"] == "success"
         assert call_count["count"] == 3
 
+    def test_delete_item_waits_longer_for_windows_excel_style_lock(self, client, temp_dir, monkeypatch):
+        """Windowsでロック解除が遅いファイルでも追加リトライで削除できる"""
+        from app import config
+        from app.routers import files
+
+        target_file = temp_dir / "book.xlsx"
+        target_file.write_text("excel content")
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(config.settings, "is_windows", True)
+
+        call_count = {"count": 0}
+
+        def fake_move_to_trash(path_str: str) -> None:
+            assert Path(path_str).resolve() == target_file.resolve()
+            call_count["count"] += 1
+            if call_count["count"] < 7:
+                raise PermissionError("[WinError 32] The process cannot access the file")
+
+        monkeypatch.setattr(files, "_move_to_trash", fake_move_to_trash)
+        monkeypatch.setattr(files.time, "sleep", lambda _: None)
+
+        response = client.request("DELETE", "/api/delete", json={"path": "book.xlsx"})
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        assert call_count["count"] == 7
+
     def test_delete_item_returns_500_when_windows_lock_persists(self, client, temp_dir, monkeypatch):
         """Windowsでロックが継続する場合は削除失敗を返す"""
         from app import config
