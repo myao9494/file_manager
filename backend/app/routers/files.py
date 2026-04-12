@@ -37,6 +37,10 @@ from app.task_manager import task_manager, TaskInfo
 
 router = APIRouter()
 
+WINDOWS_DELETE_RETRY_COUNT = 10
+WINDOWS_DELETE_RETRY_BASE_SECONDS = 0.2
+WINDOWS_DELETE_RETRY_MAX_SECONDS = 1.0
+
 
 class FileItem(BaseModel):
     """ファイル/フォルダアイテムのスキーマ"""
@@ -52,6 +56,7 @@ class DirectoryResponse(BaseModel):
     """ディレクトリ一覧のレスポンススキーマ"""
 
     type: str = "directory"
+    path: str
     items: List[FileItem]
 
 
@@ -231,8 +236,13 @@ def normalize_path(path: str) -> Path:
 
     try:
         # 相対パスの場合、制限されたベースディレクトリ内であることを確認
-        # File Manager用途のため、制限を解除する
         resolved = (settings.base_dir / normalized).resolve()
+        
+        # パストラバーサル対策: ベースディレクトリ外へのアクセスを制限
+        # ただし、絶対パスが明示的に指定された場合はそちらを優先する（File Manager用途）
+        if not str(resolved).startswith(str(settings.base_dir.resolve())):
+             raise HTTPException(status_code=403, detail="アクセスが拒否されました")
+             
         return resolved
     except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=f"無効なパスです: {str(e)}")
@@ -253,6 +263,10 @@ async def get_files(path: str = "") -> DirectoryResponse:
 
     if not target_path.exists():
         raise HTTPException(status_code=404, detail="パスが見つかりません")
+
+    # ファイルパスが指定された場合、その親フォルダを表示する
+    if target_path.is_file():
+        target_path = target_path.parent
 
     if not target_path.is_dir():
         raise HTTPException(status_code=400, detail="指定されたパスはディレクトリではありません")
@@ -293,7 +307,11 @@ async def get_files(path: str = "") -> DirectoryResponse:
         except (PermissionError, OSError):
             continue
 
-    return DirectoryResponse(type="directory", items=items)
+    return DirectoryResponse(
+        type="directory",
+        path=target_path.as_posix(),
+        items=items
+    )
 
 
 def should_ignore(path: Path, ignore_patterns: List[str]) -> bool:
@@ -576,7 +594,7 @@ def _handle_rmtree_remove_readonly(func, path_str, exc_info):
 
 def _delete_with_retry(path: Path, is_network: bool) -> None:
     """Windowsで一時的なファイルロックが残るケースを吸収する"""
-    retry_count = 5 if settings.is_windows else 1
+    retry_count = WINDOWS_DELETE_RETRY_COUNT if settings.is_windows else 1
     last_error: Exception | None = None
 
     for attempt in range(retry_count):
@@ -594,7 +612,11 @@ def _delete_with_retry(path: Path, is_network: bool) -> None:
             last_error = exc
             if not settings.is_windows or attempt == retry_count - 1:
                 raise
-            time.sleep(0.2 * (attempt + 1))
+            sleep_seconds = min(
+                WINDOWS_DELETE_RETRY_BASE_SECONDS * (attempt + 1),
+                WINDOWS_DELETE_RETRY_MAX_SECONDS,
+            )
+            time.sleep(sleep_seconds)
 
     if last_error is not None:
         raise last_error
