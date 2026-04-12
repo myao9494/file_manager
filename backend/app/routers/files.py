@@ -3374,7 +3374,7 @@ async def get_file_content(path: str = Query(..., description="ファイルの�
 async def fullpath(path: str = Query(..., description="開くファイルのフルパス")):
     """
     フルパスでファイルを開く（file_viewer互換）
-    例: http://localhost:5001/api/fullpath?path=/path/to/file.pdf
+    例: http://localhost:8001/api/fullpath?path=/path/to/file.pdf
     """
     if not path:
         raise HTTPException(status_code=400, detail="パスが指定されていません")

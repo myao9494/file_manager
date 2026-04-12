@@ -32,7 +32,7 @@ import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useC
 import { copyFilesToClipboard } from "../api/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
-import { getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, getPdfViewUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
+import { getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
@@ -791,6 +791,16 @@ export function FileList({
       console.error("Failed to open explorer:", e);
       showError(`フォルダを開けませんでした: ${e.message}`);
     }
+  };
+
+  // 全文検索を開く
+  const handleOpenFullTextSearch = () => {
+    if (!currentPath) {
+      showError("開く対象がありません");
+      return;
+    }
+
+    window.open(getFullTextSearchUrl(currentPath), "_blank", "noopener,noreferrer");
   };
 
   // Jupyterを開く
@@ -2456,6 +2466,11 @@ export function FileList({
         <button onClick={handleOpenExplorer} title="フォルダを開く">
           <FolderOpen size={14} />
         </button>
+        {(panelId === "left" || panelId === "center") && (
+          <button onClick={handleOpenFullTextSearch} title="全文検索を開く">
+            <Search size={14} />
+          </button>
+        )}
         <button onClick={handleOpenJupyter} title="Jupyterで開く">
           <img src="/icons/catppuccin/jupyter.svg" alt="Jupyter" width={14} height={14} />
         </button>

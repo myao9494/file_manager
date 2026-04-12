@@ -422,6 +422,15 @@ export function getDownloadUrl(path: string): string {
 }
 
 /**
+ * 全文検索URLを取得
+ */
+export function getFullTextSearchUrl(path: string): string {
+  const url = new URL("http://127.0.0.1:8081/");
+  url.searchParams.set("full_path", path);
+  return url.toString();
+}
+
+/**
  * PDF表示用URLを取得
  * ダブルクリック時に同期的に新規タブを開くために利用する
  */

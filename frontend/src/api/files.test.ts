@@ -1,9 +1,9 @@
 /**
  * ファイルAPIクライアントのURL生成テスト
- * ダウンロードURLとPDF表示URLのエンコードを確認する
+ * ダウンロードURL・全文検索URL・PDF表示URLのエンコードを確認する
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getDownloadUrl, getPdfViewUrl } from "./files";
+import { getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl } from "./files";
 
 describe("file api url builders", () => {
   afterEach(() => {
@@ -19,6 +19,12 @@ describe("file api url builders", () => {
 
     expect(getDownloadUrl("/Users/mine/My File.pdf")).toBe(
       "http://localhost:5173/api/download?path=%2FUsers%2Fmine%2FMy+File.pdf"
+    );
+  });
+
+  it("builds full text search url with encoded path", () => {
+    expect(getFullTextSearchUrl("/Users/mine/Documents/確定申告 2025")).toBe(
+      "http://127.0.0.1:8081/?full_path=%2FUsers%2Fmine%2FDocuments%2F%E7%A2%BA%E5%AE%9A%E7%94%B3%E5%91%8A+2025"
     );
   });
 
