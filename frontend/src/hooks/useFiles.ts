@@ -25,6 +25,11 @@ import {
   rebuildIndex as rebuildExternalIndex,
   type IndexSearchParams,
 } from "../api/indexService";
+import {
+  getFulltextIndexServiceStatus,
+  searchFulltextIndexService,
+  type FulltextIndexServiceStatus,
+} from "../api/fulltextIndexService";
 import type { SearchParams } from "../types/file";
 
 /**
@@ -219,6 +224,35 @@ export function useExternalIndexSearch(params: IndexSearchParams | null, enabled
   return useQuery({
     queryKey: ["externalIndexSearch", params],
     queryFn: () => (params ? searchIndexService(params) : Promise.resolve({ totalResults: 0, results: [] })),
+    enabled: enabled && params !== null && params.query.trim() !== "",
+    staleTime: 30000,
+    retry: false,
+  });
+}
+
+/**
+ * 全文検索サービスのステータス取得フック
+ */
+export function useFulltextIndexStatus() {
+  return useQuery<FulltextIndexServiceStatus>({
+    queryKey: ["fulltextIndexStatus"],
+    queryFn: getFulltextIndexServiceStatus,
+    staleTime: 5000,
+    refetchInterval: 10000,
+    retry: false,
+  });
+}
+
+/**
+ * 全文検索サービスで検索するフック
+ */
+export function useFulltextIndexSearch(
+  params: (IndexSearchParams & { depth?: number }) | null,
+  enabled: boolean = true
+) {
+  return useQuery({
+    queryKey: ["fulltextIndexSearch", params],
+    queryFn: () => (params ? searchFulltextIndexService(params) : Promise.resolve({ totalResults: 0, results: [] })),
     enabled: enabled && params !== null && params.query.trim() !== "",
     staleTime: 30000,
     retry: false,

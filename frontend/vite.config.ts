@@ -14,7 +14,7 @@ export default defineConfig({
     // /apiへのリクエストをバックエンドに転送
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8010',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
         ws: true,
       },

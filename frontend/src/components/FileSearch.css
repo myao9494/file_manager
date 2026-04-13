@@ -317,6 +317,51 @@
   white-space: nowrap;
 }
 
+.search-hover-preview {
+  position: fixed;
+  z-index: 1000;
+  width: min(340px, calc(100vw - 24px));
+  overflow: auto;
+  pointer-events: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  background: rgba(17, 24, 39, 0.96);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.search-hover-preview-below {
+  transform: translateY(0);
+}
+
+.search-hover-preview-above {
+  transform: translateY(-100%);
+}
+
+.search-hover-preview-path {
+  margin-bottom: 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.72);
+  word-break: break-all;
+}
+
+.search-hover-preview-snippet {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #e5eefb;
+  white-space: normal;
+}
+
+.search-hover-preview-snippet mark {
+  background: rgba(250, 204, 21, 0.22);
+  color: #facc15;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
 /* フォルダ・ファイルアイコンの色指定を削除（FileIcon側で管理されるため） */
 
 /* インデックス状態 */

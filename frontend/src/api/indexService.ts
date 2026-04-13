@@ -93,6 +93,7 @@ export interface IndexSearchResult {
   type: string;
   size: number;
   date_modified: number;
+  snippet?: string;
 }
 
 export interface IndexSearchResponse {

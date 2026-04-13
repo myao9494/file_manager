@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # サーバー設定
     host: str = "127.0.0.1"
     port: int = 8010
+    fulltext_service_url: str = "http://127.0.0.1:8079"
+    fulltext_refresh_window_minutes: int = 60
 
     # OS判定
     is_windows: bool = platform.system() == "Windows"

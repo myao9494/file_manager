@@ -5,6 +5,7 @@
  * 外部インデックスサービス対応（Everything互換）
  */
 import { useState, useMemo, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import {
   Search,
   File,
@@ -28,9 +29,12 @@ import {
   useSearchFiles,
   useExternalIndexStatus,
   useExternalIndexSearch,
+  useFulltextIndexStatus,
+  useFulltextIndexSearch,
   useDeleteItemsBatch,
 } from "../hooks/useFiles";
 import { getIndexServiceUrl } from "../api/indexService";
+import { getFulltextIndexGuiUrl } from "../api/fulltextIndexService";
 import { openSmart } from "../api/files";
 import { getDefaultBasePath } from "../config";
 import type { FileItem, SearchParams } from "../types/file";
@@ -97,6 +101,12 @@ export function FileSearch({
     y: number;
     item: { name: string; path: string; type: "file" | "directory" };
   } | null>(null);
+  const [hoverPreview, setHoverPreview] = useState<{
+    x: number;
+    y: number;
+    placement: "above" | "below";
+    item: FileItem;
+  } | null>(null);
 
   // Markdownエディタモーダルの状態
   const [mdEditorOpen, setMdEditorOpen] = useState(false);
@@ -138,6 +148,7 @@ export function FileSearch({
 
   // 外部サービス状態
   const { data: externalStatus, error: externalError, isLoading: externalLoading } = useExternalIndexStatus();
+  const { data: fulltextStatus, error: fulltextError, isLoading: fulltextLoading } = useFulltextIndexStatus();
 
   // 初回ロード時に外部インデックスが利用可能ならデフォルトをONにする
   const hasInitializedSearchMode = useRef(false);
@@ -152,7 +163,9 @@ export function FileSearch({
   }, [externalStatus, externalLoading]);
 
   // 外部サービス使用判定
-  const useExternalService = searchMode === "index-left" || searchMode === "index-right" || searchMode === "index-all";
+  const useEverythingService = searchMode === "index-all";
+  const useFulltextService = searchMode === "index-left" || searchMode === "index-right";
+  const useIndexedService = useEverythingService || useFulltextService;
 
   // 検索クエリのデバウンス
   useEffect(() => {
@@ -178,7 +191,7 @@ export function FileSearch({
 
   // 検索パラメータ（内部API用）
   const searchParams: SearchParams | null = useMemo(() => {
-    if (searchMode === "off" || !debouncedQuery.trim() || useExternalService || !searchPath) return null;
+    if (searchMode === "off" || !debouncedQuery.trim() || useIndexedService || !searchPath) return null;
     return {
       path: searchPath,
       query: debouncedQuery,
@@ -189,29 +202,50 @@ export function FileSearch({
       fileType: typeFilter,
       searchAllIndexes: false,
     };
-  }, [searchPath, debouncedQuery, depth, useExternalService, typeFilter]);
+  }, [searchPath, debouncedQuery, depth, useIndexedService, typeFilter]);
 
-  // 外部サービス検索パラメータ
+  // Everything 互換サービス検索パラメータ
   const externalSearchParams = useMemo(() => {
-    if (searchMode === "off" || !debouncedQuery.trim() || !useExternalService) return null;
+    if (searchMode === "off" || !debouncedQuery.trim() || !useEverythingService) return null;
     return {
       query: debouncedQuery,
-      path: searchMode === "index-all" ? undefined : searchPath,  // index-allは全体検索
+      path: undefined,
       count: 1000,
       fileType: typeFilter,
     };
-  }, [debouncedQuery, useExternalService, searchMode, searchPath, typeFilter]);
+  }, [debouncedQuery, useEverythingService, typeFilter]);
+
+  // 全文検索サービス検索パラメータ
+  const fulltextSearchParams = useMemo(() => {
+    if (searchMode === "off" || !debouncedQuery.trim() || !useFulltextService || !searchPath) return null;
+    return {
+      query: debouncedQuery,
+      path: searchPath,
+      depth,
+      count: 1000,
+      fileType: typeFilter,
+    };
+  }, [debouncedQuery, useFulltextService, searchPath, depth, typeFilter]);
 
   // 検索実行（内部API）
-  const { data, isLoading, error } = useSearchFiles(searchParams, !useExternalService);
+  const { data, isLoading, error } = useSearchFiles(searchParams, !useIndexedService);
 
-  // 検索実行（外部API）
-  const { data: externalData, isLoading: externalSearchLoading, error: externalSearchError } = useExternalIndexSearch(externalSearchParams, useExternalService);
+  // 検索実行（Everything互換API）
+  const { data: externalData, isLoading: externalSearchLoading, error: externalSearchError } = useExternalIndexSearch(
+    externalSearchParams,
+    useEverythingService
+  );
+
+  // 検索実行（全文検索API）
+  const { data: fulltextData, isLoading: fulltextSearchLoading, error: fulltextSearchError } = useFulltextIndexSearch(
+    fulltextSearchParams,
+    useFulltextService
+  );
 
   // 検索結果を統合
   const searchData = useMemo(() => {
-    if (useExternalService && externalData) {
-      // 外部APIの結果を内部形式に変換
+    if (useEverythingService && externalData) {
+      // Everything互換APIの結果を内部形式に変換
       return {
         query: debouncedQuery,
         path: searchPath,
@@ -223,15 +257,41 @@ export function FileSearch({
           path: r.path,
           size: r.size,
           modified: r.date_modified ? new Date(r.date_modified * 1000).toISOString() : undefined,
+          snippet: r.snippet,
+        })),
+      };
+    }
+    if (useFulltextService && fulltextData) {
+      // 全文検索APIの結果を内部形式に変換
+      return {
+        query: debouncedQuery,
+        path: searchPath,
+        depth,
+        total: fulltextData.totalResults,
+        items: fulltextData.results.map(r => ({
+          name: r.name,
+          type: r.type as "file" | "directory",
+          path: r.path,
+          size: r.size,
+          modified: r.date_modified ? new Date(r.date_modified * 1000).toISOString() : undefined,
+          snippet: r.snippet,
         })),
       };
     }
     return data;
-  }, [useExternalService, externalData, data, debouncedQuery, searchPath, depth]);
+  }, [useEverythingService, externalData, useFulltextService, fulltextData, data, debouncedQuery, searchPath, depth]);
 
   // 統合されたローディング状態
-  const isSearchLoading = useExternalService ? externalSearchLoading : isLoading;
-  const searchError = useExternalService ? externalSearchError : error;
+  const isSearchLoading = useEverythingService
+    ? externalSearchLoading
+    : useFulltextService
+      ? fulltextSearchLoading
+      : isLoading;
+  const searchError = useEverythingService
+    ? externalSearchError
+    : useFulltextService
+      ? fulltextSearchError
+      : error;
 
   // isFocusedがtrueになった時、または検索モード変更時にcontainerRefにDOMフォーカスを当てる
   // 注：isSearchLoadingを依存配列から削除。検索完了時にフォーカスを奪わないため（連続検索を可能にする）
@@ -272,6 +332,27 @@ export function FileSearch({
   const formatDate = (isoDate?: string) => {
     if (!isoDate) return "-";
     return new Date(isoDate).toLocaleDateString("ja-JP");
+  };
+
+  const getRowTitle = (item: FileItem) => item.snippet ? undefined : item.path;
+
+  const handleRowHover = (event: ReactMouseEvent<HTMLTableRowElement>, item: FileItem) => {
+    if (!item.snippet) {
+      setHoverPreview(null);
+      return;
+    }
+    const preferredHeight = 260;
+    const placement = event.clientY + preferredHeight > window.innerHeight - 16 ? "above" : "below";
+    setHoverPreview({
+      x: event.clientX,
+      y: event.clientY,
+      placement,
+      item,
+    });
+  };
+
+  const handleRowLeave = () => {
+    setHoverPreview(null);
   };
 
   // パスをクリップボードにコピー（showSuccessはuseToast呼び出し後に定義されるため、関数内で直接呼び出さない）
@@ -835,28 +916,63 @@ export function FileSearch({
         </button>
 
         {/* ステータス表示 */}
-        {useExternalService ? (
+        {useIndexedService ? (
           <span className="index-info external-status">
-            {externalLoading ? (
+            {useEverythingService ? (
+              externalLoading ? (
+                <>
+                  <Loader size={12} className="spin" />
+                  接続中...
+                </>
+              ) : externalError ? (
+                <>
+                  <XCircle size={12} className="error-icon" />
+                  接続エラー
+                </>
+              ) : externalStatus ? (
+                externalStatus.ready ? (
+                  <>
+                    <CheckCircle size={12} className="success-icon" />
+                    {externalStatus.total_indexed.toLocaleString()} ファイル
+                  </>
+                ) : externalStatus.paths.some(p => p.status === "scanning") ? (
+                  <>
+                    <Loader size={12} className="spin" />
+                    準備中...
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={12} className="warning-icon" />
+                    準備中
+                  </>
+                )
+              ) : (
+                <>
+                  <AlertCircle size={12} className="warning-icon" />
+                  未接続
+                </>
+              )
+            ) : fulltextLoading ? (
               <>
                 <Loader size={12} className="spin" />
                 接続中...
               </>
-            ) : externalError ? (
+            ) : fulltextError ? (
               <>
                 <XCircle size={12} className="error-icon" />
                 接続エラー
               </>
-            ) : externalStatus ? (
-              externalStatus.ready ? (
+            ) : fulltextStatus ? (
+              fulltextStatus.ready ? (
                 <>
-                  <CheckCircle size={12} className="success-icon" />
-                  {externalStatus.total_indexed.toLocaleString()} ファイル
-                </>
-              ) : externalStatus.paths.some(p => p.status === "scanning") ? (
-                <>
-                  <Loader size={12} className="spin" />
-                  準備中...
+                  {fulltextStatus.is_running ? (
+                    <Loader size={12} className="spin" />
+                  ) : (
+                    <CheckCircle size={12} className="success-icon" />
+                  )}
+                  {fulltextStatus.is_running
+                    ? "準備中..."
+                    : `${fulltextStatus.total_indexed.toLocaleString()} ファイル`}
                 </>
               ) : (
                 <>
@@ -871,11 +987,11 @@ export function FileSearch({
               </>
             )}
             <a
-              href={getIndexServiceUrl()}
+              href={useEverythingService ? getIndexServiceUrl() : getFulltextIndexGuiUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className="service-url"
-              title="インデックスサービスを開く"
+              title={useEverythingService ? "インデックスサービスを開く" : "全文検索サービスを開く"}
             >
               <ExternalLink size={10} />
             </a>
@@ -884,10 +1000,16 @@ export function FileSearch({
       </div>
 
       {/* 外部サービス接続エラー時の警告 */}
-      {useExternalService && externalError && (
+      {useEverythingService && externalError && (
         <div className="external-error-banner">
           <AlertCircle size={14} />
           <span>インデックスサービスに接続できません: {getIndexServiceUrl()}</span>
+        </div>
+      )}
+      {useFulltextService && fulltextError && (
+        <div className="external-error-banner">
+          <AlertCircle size={14} />
+          <span>全文検索サービスに接続できません: {getFulltextIndexGuiUrl()}</span>
         </div>
       )}
 
@@ -934,8 +1056,13 @@ export function FileSearch({
             </button>
           </div>
           <div className="external-link-container" style={{ marginLeft: '12px', fontSize: '12px' }}>
-            <a href="http://localhost:8080" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>
-              index検索のGUIへのリンク
+            <a
+              href={useFulltextService ? getFulltextIndexGuiUrl() : "http://localhost:8080"}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#3b82f6', textDecoration: 'underline' }}
+            >
+              {useFulltextService ? "全文検索のGUIへのリンク" : "index検索のGUIへのリンク"}
             </a>
           </div>
         </div>
@@ -1012,7 +1139,7 @@ export function FileSearch({
             {sortedResults.total} 件の結果
             {typeFilter !== "all" && ` (全${searchData.total}件中)`}
           </span>
-          {depth > 0 && !useExternalService && <span>（{depth}階層まで）</span>}
+          {depth > 0 && !useEverythingService && <span>（{depth}階層まで）</span>}
         </div>
       )}
 
@@ -1057,8 +1184,11 @@ export function FileSearch({
                   key={item.path}
                   className={`${selectedItems.has(item.path) ? "selected" : ""} ${focusedSection === 'results' && focusedIndex === index ? "keyboard-focused" : ""}`}
                   onContextMenu={(e) => handleContextMenu(e, item)}
-                  title={item.path}
+                  title={getRowTitle(item)}
                   style={{ cursor: 'pointer' }}
+                  onMouseEnter={(e) => handleRowHover(e, item)}
+                  onMouseMove={(e) => handleRowHover(e, item)}
+                  onMouseLeave={handleRowLeave}
                   onClick={() => {
                     handlePaneClick();
                     setFocusedSection('results');
@@ -1120,7 +1250,10 @@ export function FileSearch({
                   className={`${selectedItems.has(item.path) ? "selected" : ""} ${focusedSection === 'results' && focusedIndex === sortedResults.folders.length + index ? "keyboard-focused" : ""}`}
                   onContextMenu={(e) => handleContextMenu(e, item)}
                   onDoubleClick={() => handleFileClick(item)}
-                  title={item.path}
+                  title={getRowTitle(item)}
+                  onMouseEnter={(e) => handleRowHover(e, item)}
+                  onMouseMove={(e) => handleRowHover(e, item)}
+                  onMouseLeave={handleRowLeave}
                   onClick={() => {
                     handlePaneClick();
                     setFocusedSection('results');
@@ -1180,6 +1313,22 @@ export function FileSearch({
           </table>
         )}
       </div>
+      {hoverPreview && (
+        <div
+          className={`search-hover-preview search-hover-preview-${hoverPreview.placement}`}
+          style={{
+            left: Math.min(hoverPreview.x + 18, window.innerWidth - 360),
+            top: hoverPreview.placement === "below" ? hoverPreview.y + 18 : hoverPreview.y - 18,
+            maxHeight: Math.min(280, window.innerHeight - 24),
+          }}
+        >
+          <div className="search-hover-preview-path">{hoverPreview.item.path}</div>
+          <div
+            className="search-hover-preview-snippet"
+            dangerouslySetInnerHTML={{ __html: hoverPreview.item.snippet ?? "" }}
+          />
+        </div>
+      )}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}

@@ -7,6 +7,7 @@ export interface FileItem {
   path: string;
   size?: number;
   modified?: string;
+  snippet?: string;
 }
 
 /**
