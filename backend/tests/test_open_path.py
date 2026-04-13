@@ -45,6 +45,104 @@ class TestOpenPath:
         assert "window.close()" in response.text
 
 
+class TestFullPath:
+    """GET /api/fullpath エンドポイントのテスト"""
+
+    def test_fullpath_obsidian_file_returns_html_instead_of_json(self, client, temp_dir, monkeypatch):
+        """Obsidian対象ファイルでは専用アプリを起動しつつ、JSONではなくタブを閉じるHTMLを返す"""
+        from app import config
+        from app.routers import files
+
+        obsidian_dir = temp_dir / "obsidian-vault" / "2026" / "03" / "14"
+        obsidian_dir.mkdir(parents=True)
+        note_path = obsidian_dir / "note.md"
+        note_path.write_text("# note\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(note_path)},
+            headers={"accept": "text/html"},
+        )
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "window.close()" in response.text
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0] == "open"
+        assert popen_calls[0][1].startswith("obsidian://open?vault=obsidian-vault&file=")
+
+    def test_fullpath_pdf_redirects_to_viewer(self, client, temp_dir, monkeypatch):
+        """PDFではブラウザ表示用URLへリダイレクトする"""
+        from app import config
+
+        pdf_path = temp_dir / "document.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4\n%test\n")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(pdf_path)},
+            headers={"accept": "text/html"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 307
+        assert response.headers["location"].startswith("/api/view-pdf?path=")
+
+    def test_fullpath_plain_markdown_opens_default_app_and_returns_html(self, client, temp_dir, monkeypatch):
+        """通常MarkdownではJSONを返さず、デフォルトアプリ起動後にタブを閉じるHTMLを返す"""
+        from app import config
+        from app.routers import files
+
+        note_path = temp_dir / "note.md"
+        note_path.write_text("# note\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(note_path)},
+            headers={"accept": "text/html"},
+        )
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "window.close()" in response.text
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0] == "open"
+        assert Path(popen_calls[0][1]).resolve() == note_path.resolve()
+
+    def test_fullpath_api_clients_still_receive_json(self, client, temp_dir, monkeypatch):
+        """APIクライアントでは従来どおりJSONレスポンスを返す"""
+        from app import config
+
+        note_path = temp_dir / "note.md"
+        note_path.write_text("# note\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(note_path)},
+            headers={"accept": "application/json"},
+        )
+
+        assert response.status_code == 200
+        assert "application/json" in response.headers["content-type"]
+        assert response.json()["action"] == "open_modal"
+
+
 class TestOpenExplorer:
     """Explorer起動時のWindows固有挙動を確認するテスト"""
 
