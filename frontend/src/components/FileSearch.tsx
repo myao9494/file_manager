@@ -79,6 +79,12 @@ export function FileSearch({
   const [depth, setDepth] = useState(1); // デフォルト1階層
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [debouncedFileNamePattern, setDebouncedFileNamePattern] = useState(""); // ファイル名フィルタ（デバウンス後）
+  const [committedFulltextSearch, setCommittedFulltextSearch] = useState<{
+    query: string;
+    path: string;
+    depth: number;
+    fileType: TypeFilter;
+  } | null>(null);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [sortKey, setSortKey] = useState<"name" | "size" | "date">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
@@ -167,6 +173,12 @@ export function FileSearch({
   const useFulltextService = searchMode === "index-left" || searchMode === "index-right";
   const useIndexedService = useEverythingService || useFulltextService;
 
+  useEffect(() => {
+    if (useFulltextService) {
+      setCommittedFulltextSearch(null);
+    }
+  }, [useFulltextService, query, searchPath, depth, typeFilter]);
+
   // 検索クエリのデバウンス
   useEffect(() => {
     // IME入力中は処理しない
@@ -217,15 +229,15 @@ export function FileSearch({
 
   // 全文検索サービス検索パラメータ
   const fulltextSearchParams = useMemo(() => {
-    if (searchMode === "off" || !debouncedQuery.trim() || !useFulltextService || !searchPath) return null;
+    if (searchMode === "off" || !useFulltextService || !committedFulltextSearch) return null;
     return {
-      query: debouncedQuery,
-      path: searchPath,
-      depth,
+      query: committedFulltextSearch.query,
+      path: committedFulltextSearch.path,
+      depth: committedFulltextSearch.depth,
       count: 1000,
-      fileType: typeFilter,
+      fileType: committedFulltextSearch.fileType,
     };
-  }, [debouncedQuery, useFulltextService, searchPath, depth, typeFilter]);
+  }, [useFulltextService, committedFulltextSearch, searchMode]);
 
   // 検索実行（内部API）
   const { data, isLoading, error } = useSearchFiles(searchParams, !useIndexedService);
@@ -844,7 +856,18 @@ export function FileSearch({
 
   // 検索入力でのキーハンドリング
   const handleSearchInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+      if (useFulltextService && query.trim() && searchPath) {
+        e.preventDefault();
+        setCommittedFulltextSearch({
+          query: query.trim(),
+          path: searchPath,
+          depth,
+          fileType: typeFilter,
+        });
+        return;
+      }
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       // 検索結果がある場合のみresultsセクションへ移動
       if (allResults.length > 0) {
@@ -1088,7 +1111,7 @@ export function FileSearch({
               // queryの状態も確実に更新
               setQuery(e.currentTarget.value);
             }}
-            placeholder="キーワードを入力（例：確定申告）"
+            placeholder={useFulltextService ? "キーワードを入力して Enter で全文検索" : "キーワードを入力（例：確定申告）"}
             className="search-input"
           />
           {query && (
@@ -1152,6 +1175,12 @@ export function FileSearch({
         {!isSearchLoading && !searchError && !searchData && !query && (
           <div className="placeholder">
             検索キーワードを入力してください
+          </div>
+        )}
+
+        {!isSearchLoading && !searchError && !searchData && !!query && useFulltextService && (
+          <div className="placeholder">
+            Enterキーで全文検索を実行します
           </div>
         )}
 

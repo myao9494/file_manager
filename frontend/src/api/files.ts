@@ -426,7 +426,8 @@ export function getDownloadUrl(path: string): string {
  */
 export function getFullTextSearchUrl(path: string): string {
   const url = new URL("http://127.0.0.1:8079/");
-  url.searchParams.set("full_path", path);
+  const normalizedPath = path.replace(/^\/([A-Za-z]:\/)/, "$1");
+  url.searchParams.set("full_path", normalizedPath);
   return url.toString();
 }
 

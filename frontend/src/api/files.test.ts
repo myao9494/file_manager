@@ -28,6 +28,12 @@ describe("file api url builders", () => {
     );
   });
 
+  it("builds full text search url without a leading slash for Windows drive paths", () => {
+    expect(getFullTextSearchUrl("/C:/Users/mine/Documents/report.docx")).toBe(
+      "http://127.0.0.1:8079/?full_path=C%3A%2FUsers%2Fmine%2FDocuments%2Freport.docx"
+    );
+  });
+
   it("builds pdf view url with encoded path", () => {
     vi.stubGlobal("window", {
       location: {
