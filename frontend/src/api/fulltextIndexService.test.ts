@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   getFulltextIndexServiceStatus,
+  searchIndexedFolder,
   searchFulltextIndexService,
 } from "./fulltextIndexService";
 
@@ -57,6 +58,45 @@ describe("fulltextIndexService", () => {
       total_indexed: 0,
       is_running: false,
       last_error: null,
+    });
+  });
+
+  it("posts an indexed folder search request to the GUI service", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ total: 1, items: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key: string) => {
+        if (key === "file_manager_fulltext_index_gui_url") {
+          return "http://127.0.0.1:8079";
+        }
+        return null;
+      }),
+      setItem: vi.fn(),
+    });
+
+    await searchIndexedFolder({
+      q: "見積",
+      folderPath: String.raw`\\vss45\一行課\資料`,
+      limit: 20,
+      offset: 5,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8079/api/search/indexed");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      q: "見積",
+      folder_path: String.raw`\\vss45\一行課\資料`,
+      limit: 20,
+      offset: 5,
     });
   });
 });

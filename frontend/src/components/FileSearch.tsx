@@ -35,7 +35,7 @@ import {
 } from "../hooks/useFiles";
 import { getIndexServiceUrl } from "../api/indexService";
 import { getFulltextIndexGuiUrl } from "../api/fulltextIndexService";
-import { openSmart } from "../api/files";
+import { getPdfViewUrl, openSmart } from "../api/files";
 import { getDefaultBasePath } from "../config";
 import type { FileItem, SearchParams } from "../types/file";
 import "./FileSearch.css";
@@ -513,6 +513,13 @@ export function FileSearch({
   // ファイルクリックハンドラ（ファイルを開く処理）
   const handleFileClick = async (item: { name: string, path: string }) => {
     try {
+      // PDFはawait後のwindow.openだとポップアップブロックされやすいため、
+      // ユーザー操作の同期コンテキストで直接開く
+      if (item.name.toLowerCase().endsWith(".pdf")) {
+        window.open(getPdfViewUrl(item.path), "_blank", "noopener,noreferrer");
+        return;
+      }
+
       const result = await openSmart(item.path);
 
       if (result.action === "open_modal") {
@@ -1278,7 +1285,6 @@ export function FileSearch({
                   key={item.path}
                   className={`${selectedItems.has(item.path) ? "selected" : ""} ${focusedSection === 'results' && focusedIndex === sortedResults.folders.length + index ? "keyboard-focused" : ""}`}
                   onContextMenu={(e) => handleContextMenu(e, item)}
-                  onDoubleClick={() => handleFileClick(item)}
                   title={getRowTitle(item)}
                   onMouseEnter={(e) => handleRowHover(e, item)}
                   onMouseMove={(e) => handleRowHover(e, item)}
@@ -1287,6 +1293,7 @@ export function FileSearch({
                     handlePaneClick();
                     setFocusedSection('results');
                     setFocusedIndex(sortedResults.folders.length + index);
+                    handleFileClick(item);
                   }}
                 >
                   <td onClick={(e) => e.stopPropagation()}>
@@ -1307,7 +1314,7 @@ export function FileSearch({
                       }}
                     />
                   </td>
-                  <td className="name-cell" onClick={() => copyPath(item.path)}>
+                  <td className="name-cell">
                     <button
                       className="row-copy-btn"
                       onClick={(e) => {

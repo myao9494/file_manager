@@ -19,6 +19,30 @@ export interface FulltextIndexServiceStatus {
   last_error: string | null;
 }
 
+export interface IndexedFolderSearchParams {
+  q: string;
+  folderPath: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface IndexedFolderSearchItem {
+  file_id: number;
+  target_path: string;
+  file_name: string;
+  full_path: string;
+  file_ext: string;
+  created_at: string;
+  mtime: string;
+  click_count: number;
+  snippet?: string;
+}
+
+export interface IndexedFolderSearchResponse {
+  total: number;
+  items: IndexedFolderSearchItem[];
+}
+
 export function getFulltextIndexServiceUrl(): string {
   return localStorage.getItem(FULLTEXT_INDEX_SERVICE_URL_KEY) || DEFAULT_FULLTEXT_INDEX_SERVICE_URL;
 }
@@ -82,6 +106,39 @@ export async function searchFulltextIndexService(params: IndexSearchParams & { d
 
   if (!response.ok) {
     throw new Error("全文検索に失敗しました");
+  }
+
+  return response.json();
+}
+
+export async function searchIndexedFolder(params: IndexedFolderSearchParams): Promise<IndexedFolderSearchResponse> {
+  const guiBaseUrl = getFulltextIndexGuiUrl();
+  const url = new URL("/api/search/indexed", guiBaseUrl);
+
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      q: params.q,
+      folder_path: params.folderPath,
+      limit: params.limit ?? 20,
+      offset: params.offset ?? 0,
+    }),
+  });
+
+  if (!response.ok) {
+    let message = "indexed検索に失敗しました";
+
+    try {
+      const error = await response.json();
+      message = error.detail || message;
+    } catch {
+      // ignore json parse error and use fallback message
+    }
+
+    throw new Error(message);
   }
 
   return response.json();

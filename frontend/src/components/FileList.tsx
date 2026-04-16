@@ -41,11 +41,13 @@ import { FilterBar } from "./FilterBar";
 import { FileIcon } from "./FileIcon";
 import { InputModal } from "./InputModal";
 import { ConfirmationModal } from "./ConfirmationModal";
+import { IndexedFolderSearchModal } from "./IndexedFolderSearchModal";
 import { getNetworkDrivePath, getDefaultBasePath } from "../config";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import { useFolderHistory } from "../contexts/FolderHistoryContext";
 import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
 import { isProgramCodeFile } from "../utils/codeFileActions";
+import type { IndexedFolderSearchItem } from "../api/fulltextIndexService";
 import "./FileList.css";
 
 const MarkdownEditorModal = lazy(() =>
@@ -144,6 +146,7 @@ export function FileList({
   const [mdEditorFilePath, setMdEditorFilePath] = useState<string | null>(null);
   const [mdEditorSaving, setMdEditorSaving] = useState(false);
   const [mdEditorInitialContent, setMdEditorInitialContent] = useState("");
+  const [isIndexedSearchOpen, setIsIndexedSearchOpen] = useState(false);
 
   // フォルダ作成モーダルの状態
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
@@ -360,9 +363,28 @@ export function FileList({
       // フォーカスがない場合は何もしない (Refで最新状態を確認)
       if (!isFocusedRef.current) return;
 
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable)
+      ) {
+        return;
+      }
+
       // 型アサーション
       const keyEvent = e as unknown as KeyboardEvent;
       const isCmdOrCtrl = keyEvent.ctrlKey || keyEvent.metaKey;
+
+      if (
+        isCmdOrCtrl &&
+        keyEvent.key.toLowerCase() === 'p' &&
+        (panelId === 'left' || panelId === 'center')
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsIndexedSearchOpen(true);
+        return;
+      }
 
       if (isCmdOrCtrl && keyEvent.key.toLowerCase() === 'h') {
         e.preventDefault();
@@ -996,6 +1018,14 @@ export function FileList({
     setMdEditorOpen(false);
     setMdEditorFileName("");
     setMdEditorFilePath(null);
+  };
+
+  const handleCloseIndexedSearch = () => {
+    setIsIndexedSearchOpen(false);
+    onRequestFocus?.();
+    setTimeout(() => {
+      containerRef.current?.focus();
+    }, 50);
   };
 
   // Obsidianで開く
@@ -1706,23 +1736,21 @@ export function FileList({
     }
   };
 
-  // ファイルクリックハンドラ（ファイルを開く処理）
-  // バックエンドの/api/open/smartでファイル種類判定・処理を行う
-  const handleFileClick = async (item: FileItem) => {
+  const handleOpenPath = async (path: string, fileName: string) => {
     try {
       // PDFはawait後のwindow.openだとポップアップブロックされやすいため、
       // ユーザー操作の同期コンテキストで直接開く
-      if (item.name.toLowerCase().endsWith(".pdf")) {
-        window.open(getPdfViewUrl(item.path), "_blank", "noopener,noreferrer");
+      if (fileName.toLowerCase().endsWith(".pdf")) {
+        window.open(getPdfViewUrl(path), "_blank", "noopener,noreferrer");
         return;
       }
 
-      const result = await openSmart(item.path);
+      const result = await openSmart(path);
 
       if (result.action === "open_modal") {
         // Markdownエディタモーダルで開く
-        setMdEditorFileName(item.name);
-        setMdEditorFilePath(item.path);
+        setMdEditorFileName(fileName);
+        setMdEditorFilePath(path);
         setMdEditorInitialContent(result.content || "");
         setMdEditorOpen(true);
       } else if (result.action === "open_url" && result.url) {
@@ -1734,6 +1762,16 @@ export function FileList({
     } catch (e: any) {
       showError(e.message || "ファイルを開けませんでした");
     }
+  };
+
+  // ファイルクリックハンドラ（ファイルを開く処理）
+  // バックエンドの/api/open/smartでファイル種類判定・処理を行う
+  const handleFileClick = async (item: FileItem) => {
+    await handleOpenPath(item.path, item.name);
+  };
+
+  const handleIndexedSearchSelect = async (item: IndexedFolderSearchItem) => {
+    await handleOpenPath(item.full_path, item.file_name);
   };
 
   // キーボードショートカット
@@ -2425,6 +2463,12 @@ export function FileList({
           }}
         />
       )}
+      <IndexedFolderSearchModal
+        isOpen={isIndexedSearchOpen}
+        folderPath={currentPath}
+        onClose={handleCloseIndexedSearch}
+        onSelectItem={handleIndexedSearchSelect}
+      />
       {/* アイコンツールバー */}
       <div
         className={`icon-toolbar ${focusedSection === 'toolbar' ? 'section-focused' : ''}`}
