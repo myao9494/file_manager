@@ -50,6 +50,46 @@ describe("fulltextIndexService", () => {
     expect(requestUrl.searchParams.get("file_type")).toBe("file");
   });
 
+  it("normalizes object-like fulltext search fields into strings", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        totalResults: 1,
+        results: [
+          {
+            name: { value: "sushi.md" },
+            path: { full_path: String.raw`C:\docs\sushi.md` },
+            type: "file",
+            size: null,
+            date_modified: null,
+            snippet: { text: "今日は<mark>寿司</mark>です" },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      searchFulltextIndexService({
+        query: "寿司",
+        path: String.raw`C:\docs`,
+        depth: 2,
+      })
+    ).resolves.toEqual({
+      totalResults: 1,
+      results: [
+        {
+          name: "sushi.md",
+          path: String.raw`C:\docs\sushi.md`,
+          type: "file",
+          size: 0,
+          date_modified: 0,
+          snippet: "今日は<mark>寿司</mark>です",
+        },
+      ],
+    });
+  });
+
   it("returns a safe fallback when the status endpoint is unreachable", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
 
@@ -97,6 +137,51 @@ describe("fulltextIndexService", () => {
       folder_path: String.raw`\\vss45\一行課\資料`,
       limit: 20,
       offset: 5,
+    });
+  });
+
+  it("normalizes object-like indexed folder search fields into strings", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        total: 1,
+        items: [
+          {
+            file_id: "10",
+            target_path: { path: String.raw`\\vss45\一行課\資料` },
+            file_name: { text: "見積書.md" },
+            full_path: { value: String.raw`\\vss45\一行課\資料\見積書.md` },
+            file_ext: { value: ".md" },
+            created_at: { value: "2026-04-18T00:00:00+09:00" },
+            mtime: { value: "2026-04-18T00:00:00+09:00" },
+            click_count: "2",
+            snippet: { snippet: "見積の<mark>結果</mark>" },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      searchIndexedFolder({
+        q: "結果",
+        folderPath: String.raw`\\vss45\一行課\資料`,
+      })
+    ).resolves.toEqual({
+      total: 1,
+      items: [
+        {
+          file_id: 10,
+          target_path: String.raw`\\vss45\一行課\資料`,
+          file_name: "見積書.md",
+          full_path: String.raw`\\vss45\一行課\資料\見積書.md`,
+          file_ext: ".md",
+          created_at: "2026-04-18T00:00:00+09:00",
+          mtime: "2026-04-18T00:00:00+09:00",
+          click_count: 2,
+          snippet: "見積の<mark>結果</mark>",
+        },
+      ],
     });
   });
 });

@@ -11,6 +11,7 @@ import {
   type FulltextIndexServiceStatus,
   type IndexedFolderSearchItem,
 } from "../api/fulltextIndexService";
+import { normalizeExtensionFilterInput, parseExtensionFilterInput } from "../utils/extensionFilter";
 import { parseHighlightSnippet } from "../utils/highlightSnippet";
 import { Modal } from "./Modal";
 import "./IndexedFolderSearchModal.css";
@@ -40,7 +41,9 @@ export function IndexedFolderSearchModal({
 }: IndexedFolderSearchModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const requestIdRef = useRef(0);
+  const resultRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [query, setQuery] = useState("");
+  const [extensionFilterInput, setExtensionFilterInput] = useState("");
   const [items, setItems] = useState<IndexedFolderSearchItem[]>([]);
   const [total, setTotal] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -64,6 +67,7 @@ export function IndexedFolderSearchModal({
     }
 
     setQuery("");
+    setExtensionFilterInput("");
     setItems([]);
     setTotal(0);
     setSelectedIndex(0);
@@ -101,7 +105,7 @@ export function IndexedFolderSearchModal({
         const response = await searchIndexedFolder({
           q: trimmedQuery,
           folderPath,
-          limit: 20,
+          limit: 200,
           offset: 0,
         });
 
@@ -131,12 +135,34 @@ export function IndexedFolderSearchModal({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [folderPath, isOpen, query]);
+  }, [extensionFilterInput, folderPath, isOpen, query]);
 
-  const selectedItem = useMemo(
-    () => items[selectedIndex] ?? null,
-    [items, selectedIndex]
+  useEffect(() => {
+    const selectedResult = resultRefs.current[selectedIndex];
+    selectedResult?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [selectedIndex]);
+
+  const normalizedExtensionFilter = useMemo(
+    () => normalizeExtensionFilterInput(extensionFilterInput),
+    [extensionFilterInput]
   );
+  const filteredItems = useMemo(() => {
+    const extensions = parseExtensionFilterInput(extensionFilterInput);
+
+    if (extensions.length === 0) {
+      return items;
+    }
+
+    const extensionSet = new Set(extensions);
+    return items.filter((item) => extensionSet.has(item.file_ext.toLowerCase()));
+  }, [extensionFilterInput, items]);
+  const selectedItem = useMemo(
+    () => filteredItems[selectedIndex] ?? null,
+    [filteredItems, selectedIndex]
+  );
+  const filteredTotal = filteredItems.length;
   const guiUrl = useMemo(() => getFulltextIndexGuiUrl(), []);
   const needsIndexGuidance = useMemo(() => {
     if (!serviceStatus) {
@@ -146,6 +172,7 @@ export function IndexedFolderSearchModal({
     return !serviceStatus.ready || serviceStatus.total_indexed === 0;
   }, [serviceStatus]);
   const showZeroResultGuidance = query.trim() && !isLoading && items.length === 0 && !error;
+  const showFilteredEmptyState = query.trim() && !isLoading && items.length > 0 && filteredItems.length === 0 && !error;
 
   const handleOpenItem = async (item: IndexedFolderSearchItem | null) => {
     if (!item) {
@@ -165,17 +192,17 @@ export function IndexedFolderSearchModal({
       e.nativeEvent.isComposing ||
       (e.nativeEvent as KeyboardEvent).keyCode === 229;
 
-    if (e.key === "ArrowDown") {
+      if (e.key === "ArrowDown") {
       e.preventDefault();
-      if (items.length > 0) {
-        setSelectedIndex((prev) => Math.min(prev + 1, items.length - 1));
+      if (filteredItems.length > 0) {
+        setSelectedIndex((prev) => Math.min(prev + 1, filteredItems.length - 1));
       }
       return;
     }
 
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      if (items.length > 0) {
+      if (filteredItems.length > 0) {
         setSelectedIndex((prev) => Math.max(prev - 1, 0));
       }
       return;
@@ -190,6 +217,14 @@ export function IndexedFolderSearchModal({
       await handleOpenItem(selectedItem);
     }
   };
+
+  const handleExtensionFilterBlur = () => {
+    setExtensionFilterInput((current) => normalizeExtensionFilterInput(current));
+  };
+
+  useEffect(() => {
+    setSelectedIndex((current) => Math.min(current, Math.max(filteredItems.length - 1, 0)));
+  }, [filteredItems.length]);
 
   return (
     <Modal
@@ -229,9 +264,29 @@ export function IndexedFolderSearchModal({
           {isLoading && <Loader2 size={16} className="indexed-folder-search-spinner" />}
         </div>
 
+        <div className="indexed-folder-search-filter-row">
+          <label className="indexed-folder-search-filter-label" htmlFor="indexed-folder-search-extension-filter">
+            拡張子
+          </label>
+          <input
+            id="indexed-folder-search-extension-filter"
+            type="text"
+            value={extensionFilterInput}
+            onChange={(e) => setExtensionFilterInput(e.target.value)}
+            onBlur={handleExtensionFilterBlur}
+            onKeyDown={handleKeyDown}
+            className="indexed-folder-search-filter-input"
+            placeholder="md pdf txt"
+            spellCheck={false}
+          />
+          <span className="indexed-folder-search-filter-note">
+            スペース区切り。{normalizedExtensionFilter || "未指定"}
+          </span>
+        </div>
+
         <div className="indexed-folder-search-meta">
           <span className="indexed-folder-search-folder">{folderPath || ""}</span>
-          <span>{query.trim() ? `${total} 件` : "キーワード待ち"}</span>
+          <span>{query.trim() ? (normalizedExtensionFilter ? `${filteredTotal} / ${total} 件` : `${total} 件`) : "キーワード待ち"}</span>
         </div>
 
         {error && <div className="indexed-folder-search-error">{error}</div>}
@@ -260,15 +315,24 @@ export function IndexedFolderSearchModal({
             <div className="indexed-folder-search-empty">結果がありません</div>
           )}
 
-          {items.map((item, index) => {
+          {showFilteredEmptyState && (
+            <div className="indexed-folder-search-empty">この拡張子に一致する結果がありません</div>
+          )}
+
+          {filteredItems.map((item, index) => {
             const snippetParts = parseHighlightSnippet(item.snippet || "");
 
             return (
               <button
                 key={`${item.file_id}-${item.full_path}`}
                 type="button"
+                ref={(element) => {
+                  resultRefs.current[index] = element;
+                }}
                 className={`indexed-folder-search-result ${index === selectedIndex ? "selected" : ""}`}
+                aria-pressed={index === selectedIndex}
                 onMouseEnter={() => setSelectedIndex(index)}
+                onFocus={() => setSelectedIndex(index)}
                 onClick={() => void handleOpenItem(item)}
               >
                 <div className="indexed-folder-search-result-header">

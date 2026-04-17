@@ -43,6 +43,88 @@ export interface IndexedFolderSearchResponse {
   items: IndexedFolderSearchItem[];
 }
 
+/**
+ * Windows 環境では外部サービスの一部フィールドがオブジェクト化されることがあるため、
+ * UI へ渡す前に表示用のプリミティブへ正規化する。
+ */
+function normalizePrimitiveText(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["full_path", "path", "file_name", "text", "snippet", "value", "display"]) {
+      const candidate = record[key];
+      if (candidate !== undefined) {
+        return normalizePrimitiveText(candidate);
+      }
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "";
+    }
+  }
+  return "";
+}
+
+function normalizeOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function normalizeSearchResponse(payload: unknown): IndexSearchResponse {
+  const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const rawResults = Array.isArray(record.results) ? record.results : [];
+
+  return {
+    totalResults: normalizeOptionalNumber(record.totalResults) ?? 0,
+    results: rawResults.map((item) => {
+      const result = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      return {
+        name: normalizePrimitiveText(result.name),
+        path: normalizePrimitiveText(result.path),
+        type: normalizePrimitiveText(result.type) || "file",
+        size: normalizeOptionalNumber(result.size) ?? 0,
+        date_modified: normalizeOptionalNumber(result.date_modified) ?? 0,
+        snippet: normalizePrimitiveText(result.snippet) || undefined,
+      };
+    }),
+  };
+}
+
+function normalizeIndexedFolderResponse(payload: unknown): IndexedFolderSearchResponse {
+  const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const rawItems = Array.isArray(record.items) ? record.items : [];
+
+  return {
+    total: normalizeOptionalNumber(record.total) ?? 0,
+    items: rawItems.map((item) => {
+      const result = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      return {
+        file_id: normalizeOptionalNumber(result.file_id) ?? 0,
+        target_path: normalizePrimitiveText(result.target_path),
+        file_name: normalizePrimitiveText(result.file_name),
+        full_path: normalizePrimitiveText(result.full_path),
+        file_ext: normalizePrimitiveText(result.file_ext),
+        created_at: normalizePrimitiveText(result.created_at),
+        mtime: normalizePrimitiveText(result.mtime),
+        click_count: normalizeOptionalNumber(result.click_count) ?? 0,
+        snippet: normalizePrimitiveText(result.snippet) || undefined,
+      };
+    }),
+  };
+}
+
 export function getFulltextIndexServiceUrl(): string {
   return localStorage.getItem(FULLTEXT_INDEX_SERVICE_URL_KEY) || DEFAULT_FULLTEXT_INDEX_SERVICE_URL;
 }
@@ -108,7 +190,7 @@ export async function searchFulltextIndexService(params: IndexSearchParams & { d
     throw new Error("全文検索に失敗しました");
   }
 
-  return response.json();
+  return normalizeSearchResponse(await response.json());
 }
 
 export async function searchIndexedFolder(params: IndexedFolderSearchParams): Promise<IndexedFolderSearchResponse> {
@@ -141,5 +223,5 @@ export async function searchIndexedFolder(params: IndexedFolderSearchParams): Pr
     throw new Error(message);
   }
 
-  return response.json();
+  return normalizeIndexedFolderResponse(await response.json());
 }
