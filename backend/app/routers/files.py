@@ -618,6 +618,7 @@ class DeleteRequest(BaseModel):
     path: str
     async_mode: bool = False  # 非同期モード
     debug_mode: bool = False  # デバッグモード
+    force_kill_pids: Optional[List[int]] = None  # 強制終了するプロセスのPIDリスト
 
 
 def _is_network_drive(path: Path) -> bool:
@@ -634,14 +635,147 @@ def _is_network_drive(path: Path) -> bool:
 
 
 def _move_to_trash(path_str: str) -> None:
-    """send2trash 呼び出しを差し替えやすくする薄いラッパー"""
-    from send2trash import send2trash
+    """WindowsではWin32 APIを使い、それ以外はsend2trashを使用するラッパー"""
+    from app.config import settings
 
-    send2trash(path_str)
+    if settings.is_windows:
+        import ctypes
+        from ctypes import wintypes
+        from pathlib import Path
+
+        class SHFILEOPSTRUCTW(ctypes.Structure):
+            _fields_ = [
+                ("hwnd", wintypes.HWND),
+                ("wFunc", wintypes.UINT),
+                ("pFrom", wintypes.LPCWSTR),
+                ("pTo", wintypes.LPCWSTR),
+                ("fFlags", wintypes.WORD),
+                ("fAnyOperationsAborted", wintypes.BOOL),
+                ("hNameMappings", wintypes.LPVOID),
+                ("lpszProgressTitle", wintypes.LPCWSTR),
+            ]
+
+        FO_DELETE = 3
+        FOF_ALLOWUNDO = 0x0040       # ゴミ箱に移動
+        FOF_NOCONFIRMATION = 0x0010  # 確認ダイアログ非表示
+        FOF_NOERRORUI = 0x0400       # エラーUI非表示
+        FOF_SILENT = 0x0004          # 進捗UI非表示
+
+        current_path = str(Path(path_str).resolve())
+        double_null_path = current_path + "\0\0"
+
+        op = SHFILEOPSTRUCTW()
+        op.hwnd = None
+        op.wFunc = FO_DELETE
+        op.pFrom = double_null_path
+        op.pTo = None
+        op.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT
+        op.fAnyOperationsAborted = False
+        op.hNameMappings = None
+        op.lpszProgressTitle = None
+
+        result = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))
+        if result != 0:
+            raise OSError(f"SHFileOperationW failed with error code {result}")
+        if op.fAnyOperationsAborted:
+            raise OSError("File deletion was aborted by user or system")
+    else:
+        from send2trash import send2trash
+        send2trash(path_str)
+
+
+def _get_locking_processes(path_str: str) -> list[dict]:
+    """Restart Manager API を使用して、ファイルをロックしているプロセスのリストを取得する(Windows専用)"""
+    from app.config import settings
+    if not settings.is_windows:
+        return []
+    
+    import ctypes
+    from ctypes import wintypes
+    
+    try:
+        rstrtmgr = ctypes.windll.rstrtmgr
+    except AttributeError:
+        return []
+
+    class RM_UNIQUE_PROCESS(ctypes.Structure):
+        _fields_ = [
+            ("dwProcessId", wintypes.DWORD),
+            ("ProcessStartTime", wintypes.FILETIME),
+        ]
+
+    class RM_PROCESS_INFO(ctypes.Structure):
+        _fields_ = [
+            ("Process", RM_UNIQUE_PROCESS),
+            ("strAppName", wintypes.WCHAR * 256),
+            ("strServiceShortName", wintypes.WCHAR * 63),
+            ("ApplicationType", wintypes.DWORD),
+            ("AppStatus", wintypes.ULONG),
+            ("TSSessionId", wintypes.DWORD),
+            ("bRestartable", wintypes.BOOL),
+        ]
+
+    dwSessionHandle = wintypes.DWORD()
+    szSessionKey = (wintypes.WCHAR * 256)()
+    res = rstrtmgr.RmStartSession(ctypes.byref(dwSessionHandle), 0, szSessionKey)
+    if res != 0:
+        return []
+        
+    locking_processes = []
+    try:
+        paths = (wintypes.LPCWSTR * 1)(path_str)
+        res = rstrtmgr.RmRegisterResources(dwSessionHandle, 1, paths, 0, None, 0, None)
+        if res == 0:
+            pnProcInfoNeeded = wintypes.DWORD(0)
+            pnProcInfo = wintypes.DWORD(0)
+            lpdwRebootReasons = wintypes.DWORD(0)
+            
+            res = rstrtmgr.RmGetList(
+                dwSessionHandle, 
+                ctypes.byref(pnProcInfoNeeded),
+                ctypes.byref(pnProcInfo), 
+                None, 
+                ctypes.byref(lpdwRebootReasons)
+            )
+            
+            if res == 234: # ERROR_MORE_DATA
+                pnProcInfo = pnProcInfoNeeded
+                rgpi = (RM_PROCESS_INFO * pnProcInfoNeeded.value)()
+                res = rstrtmgr.RmGetList(
+                    dwSessionHandle, 
+                    ctypes.byref(pnProcInfoNeeded),
+                    ctypes.byref(pnProcInfo), 
+                    rgpi, 
+                    ctypes.byref(lpdwRebootReasons)
+                )
+                if res == 0:
+                    for i in range(pnProcInfo.value):
+                        locking_processes.append({
+                            "pid": rgpi[i].Process.dwProcessId,
+                            "name": rgpi[i].strAppName
+                        })
+    finally:
+        rstrtmgr.RmEndSession(dwSessionHandle)
+        
+    return locking_processes
+
+
+def _kill_processes(pids: list[int]) -> None:
+    """指定されたPIDのプロセスを終了させる"""
+    import os
+    import signal
+    from app.config import settings
+    for pid in pids:
+        try:
+            if settings.is_windows:
+                os.kill(pid, signal.SIGTERM)
+            else:
+                os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
 
 
 def _clear_windows_readonly(path: Path) -> None:
-    """Windowsで削除前に読み取り専用属性を解除する"""
     if not settings.is_windows:
         return
 
@@ -692,12 +826,12 @@ def _delete_with_retry(path: Path, is_network: bool) -> None:
         raise last_error
 
 
-def _safe_delete(path: Path, debug_mode: bool = False) -> tuple[bool, str]:
+def _safe_delete(path: Path, debug_mode: bool = False, force_kill_pids: Optional[List[int]] = None) -> tuple[bool, str, list[dict]]:
     """
     安全にファイル/フォルダを削除する（一括削除版）
 
     Returns:
-        (成功フラグ, メッセージ) のタプル
+        (成功フラグ, メッセージ, [ロックしているプロセス情報のリスト]) のタプル
     """
     def log(msg: str):
         if debug_mode:
@@ -716,16 +850,23 @@ def _safe_delete(path: Path, debug_mode: bool = False) -> tuple[bool, str]:
                     str(path),
                     onerror=_handle_rmtree_remove_readonly if settings.is_windows else None
                 )
-            return True, "削除しました（ネットワークドライブ）"
+            return True, "削除しました（ネットワークドライブ）", []
         else:
             # ローカルドライブの場合はゴミ箱に移動
             log(f"ローカルドライブ、ゴミ箱に移動: {path}")
+            if force_kill_pids:
+                log(f"強制終了を実行: {force_kill_pids}")
+                _kill_processes(force_kill_pids)
+                time.sleep(0.5)  # プロセス終了を少し待つ
             _delete_with_retry(path, is_network=False)
-            return True, "ゴミ箱に移動しました"
+            return True, "ゴミ箱に移動しました", []
 
     except Exception as e:
         log(f"削除エラー: {e}")
-        return False, str(e)
+        locked_by = []
+        if settings.is_windows and isinstance(e, (PermissionError, OSError)):
+            locked_by = _get_locking_processes(str(path))
+        return False, str(e), locked_by
 
 
 def collect_all_files(path: Path) -> List[Path]:
@@ -917,10 +1058,16 @@ async def delete_item(request: DeleteRequest):
         return {"status": "async", "task_id": task_id, "message": "削除処理を開始しました"}
 
     # 同期モード
-    success, message = _safe_delete(target_path, request.debug_mode)
+    success, message, locked_by = _safe_delete(target_path, request.debug_mode, request.force_kill_pids)
     if success:
         return {"status": "success", "message": message}
     else:
+        if locked_by:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=409, 
+                content={"detail": f"削除に失敗しました: {message}", "locked_by": locked_by}
+            )
         raise HTTPException(status_code=500, detail=f"削除に失敗しました: {message}")
 
 
@@ -1059,6 +1206,12 @@ async def unzip_file(request: UnzipRequest):
     try:
         extract_path.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(target_path, 'r') as zip_ref:
+            # Zip Slip攻撃対策: 展開先がextract_path内であることを検証
+            resolved_extract = extract_path.resolve()
+            for member in zip_ref.namelist():
+                member_path = (extract_path / member).resolve()
+                if not str(member_path).startswith(str(resolved_extract)):
+                    raise HTTPException(status_code=400, detail=f"不正なZIPファイルです（パストラバーサル検出）: {member}")
             zip_ref.extractall(extract_path)
         
         return {
@@ -1066,9 +1219,10 @@ async def unzip_file(request: UnzipRequest):
             "message": f"{extract_path.name} に解凍しました", 
             "extracted_path": extract_path.as_posix()
         }
+    except HTTPException:
+        raise
     except Exception as e:
         if extract_path.exists():
-            import shutil
             shutil.rmtree(extract_path, ignore_errors=True)
         raise HTTPException(status_code=500, detail=f"解凍中にエラーが発生しました: {str(e)}")
 
@@ -1078,6 +1232,7 @@ class BatchDeleteRequest(BaseModel):
     paths: List[str]
     async_mode: bool = False
     debug_mode: bool = False
+    force_kill_pids: Optional[List[int]] = None  # 強制終了するプロセスのPIDリスト
 
 
 def _execute_batch_delete_async(
@@ -1317,7 +1472,7 @@ async def delete_items_batch(request: BatchDeleteRequest):
             results.append(result)
             continue
 
-        delete_success, delete_message = _safe_delete(target_path, False)
+        delete_success, delete_message, locked_by = _safe_delete(target_path, False, request.force_kill_pids)
 
         if delete_success:
             result["status"] = "success"
@@ -1326,6 +1481,8 @@ async def delete_items_batch(request: BatchDeleteRequest):
         else:
             result["status"] = "error"
             result["message"] = delete_message
+            if locked_by:
+                result["locked_by"] = locked_by
             fail_count += 1
 
         results.append(result)
@@ -1540,6 +1697,7 @@ async def rename_item(request: RenameRequest):
         return {"status": "success", "message": f"リネームしました: {old_path} → {new_path}"}
     except PermissionError:
         raise HTTPException(status_code=403, detail="リネーム権限がありません")
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"リネームに失敗しました: {str(e)}")
 
 
@@ -1616,7 +1774,7 @@ def _fast_copy_macos(src: Path, dest: Path) -> bool:
     """
     # macOSのclonefileシステムコールを呼び出す
     # clonefile(const char *src, const char *dst, int flags)
-    libc = ctypes.CDLL("/usr/lib/libc.dylib")
+    libc = ctypes.CDLL("/usr/lib/libc.dylib", use_errno=True)
 
     # CLONE_NOFOLLOW = 0x0001  # シンボリックリンクをフォローしない
     # CLONE_NOOWNERCOPY = 0x0002  # 所有者情報をコピーしない
@@ -2031,7 +2189,7 @@ def safe_move(
                     dest.unlink()
                 else:
                     shutil.rmtree(str(dest))
-        except:
+        except Exception:
             pass
         return False, f"移動エラー: {str(e)}"
 

@@ -1384,6 +1384,19 @@ export function FileSearch({
                 await deleteItemsBatch.mutateAsync({ paths: [item.path] });
                 showSuccess("削除しました");
               } catch (e: any) {
+                if (e.lockedBy && Array.isArray(e.lockedBy) && e.lockedBy.length > 0) {
+                  const processInfo = e.lockedBy.map((p: any) => `・${p.name} (PID: ${p.pid})`).join("\n");
+                  const pids = e.lockedBy.map((p: any) => p.pid);
+                  if (window.confirm(`ファイルが以下のプロセスによって使用されています。\n\n${processInfo}\n\nプロセスを強制終了(Kill)して削除を再試行しますか？`)) {
+                    try {
+                      await deleteItemsBatch.mutateAsync({ paths: [item.path], forceKillPids: pids });
+                      showSuccess("プロセスを終了し、削除しました");
+                    } catch (retryE: any) {
+                      showError(`削除の再試行に失敗しました: ${retryE.message}`);
+                    }
+                    return;
+                  }
+                }
                 console.error(e);
                 showError(`削除に失敗しました: ${e.message}`);
               }

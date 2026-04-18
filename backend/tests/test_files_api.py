@@ -282,3 +282,85 @@ class TestDeleteItem:
 
         assert response.status_code == 500
         assert "still locked" in response.json()["detail"]
+
+    def test_move_to_trash_uses_win32_api_on_windows(self, temp_dir, monkeypatch):
+        """Windows環境では send2trash ではなく SHFileOperationW を呼び出す"""
+        from app.routers import files
+        from app import config
+        import ctypes
+        
+        monkeypatch.setattr(config.settings, "is_windows", True)
+        
+        # macOS など win32 がない環境でのエラーを防ぎつつ、Mock する
+        class DummyShell32:
+            def SHFileOperationW(self, op_struct):
+                return 0 # 成功
+                
+        class DummyWinDLL:
+            shell32 = DummyShell32()
+            
+        monkeypatch.setattr(ctypes, "windll", DummyWinDLL(), raising=False)
+        
+        target_path = str(temp_dir / "test_del.txt")
+        
+        # エラーが起きずに成功すればMock経由で抜けたことがわかる
+        files._move_to_trash(target_path)
+
+    def test_move_to_trash_uses_send2trash_on_mac(self, temp_dir, monkeypatch):
+        """Windows以外の環境では send2trash を呼び出す"""
+        from app.routers import files
+        from app import config
+        
+        monkeypatch.setattr(config.settings, "is_windows", False)
+        
+        called = False
+        def mock_send2trash(path):
+            nonlocal called
+            called = True
+            
+        # send2trashモジュールをモック (テスト環境での不要な依存を防ぐ)
+        import sys
+        import types
+        dummy_send2trash_module = types.ModuleType("send2trash")
+        dummy_send2trash_module.send2trash = mock_send2trash
+        monkeypatch.setitem(sys.modules, "send2trash", dummy_send2trash_module)
+        
+        target_path = str(temp_dir / "test_del.txt")
+        files._move_to_trash(target_path)
+        
+        assert called is True
+
+    def test_delete_item_returns_409_when_process_is_locked(self, client, temp_dir, monkeypatch):
+        """Windows環境でファイルがロックされており、プロセス特定ができた場合は409を返す"""
+        from app.routers import files
+        from app import config
+        
+        target_file = temp_dir / "locked_file.txt"
+        target_file.touch()
+        
+        monkeypatch.setattr(config.settings, "is_windows", True)
+        
+        # 削除時に PermissionError を発生させるモック
+        def mock_move_to_trash(path):
+            raise PermissionError("[WinError 32] The process cannot access the file because it is being used by another process")
+            
+        monkeypatch.setattr(files, "_move_to_trash", mock_move_to_trash)
+        
+        # get_locking_processes をモックしてロックしているプロセスを返す
+        def mock_get_locking_processes(path):
+            return [{"pid": 1234, "name": "EXCEL.EXE"}]
+            
+        monkeypatch.setattr(files, "_get_locking_processes", mock_get_locking_processes)
+
+        # 削除API呼び出し (async_mode=False)
+        response = client.request(
+            "DELETE",
+            "/api/delete",
+            json={"path": str(target_file), "async_mode": False}
+        )
+        
+        assert response.status_code == 409
+        data = response.json()
+        assert "locked_by" in data
+        assert data["locked_by"][0]["pid"] == 1234
+        assert data["locked_by"][0]["name"] == "EXCEL.EXE"

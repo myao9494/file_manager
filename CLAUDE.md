@@ -343,6 +343,8 @@ npm test
  5. **OS連携 (Windows)**:
     - **クリップボード連携**: アプリ内のコピー (Ctrl+C) をOSクリップボード (Explorer) に同期。
     - **外部アプリ**: VSCode, Explorer, Antigravity, Jupyter, Excalidraw, Obsidian, ゴミ箱, Test Folder
+    - **ファイル削除**: Windows API (SHFileOperationW) を使用し、Explorerと同一の挙動 (確実なゴミ箱への移動、システムロックの対応) を実現。
+    - **削除失敗時の自動回復機能**: ファイルが他のプロセス（Excelなど）によりロックされて削除できない場合、`Rstrtmgr.dll` (Restart Manager API) を使用してロックしているプロセス(PIDおよびプロセス名)を自動検知します。ユーザーの同意ダイアログをフロントエンドで表示し、承認を得たうえでプロセスを強制終了 (TerminateProcess / SIGTERM) させてから削除をリトライする機能を有しています。
 
 ## ドキュメント更新
 

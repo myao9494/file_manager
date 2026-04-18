@@ -55,7 +55,8 @@ export async function getFiles(path: string = ""): Promise<DirectoryResponse> {
 export async function deleteItem(
   path: string,
   asyncMode: boolean = false,
-  debugMode: boolean = false
+  debugMode: boolean = false,
+  forceKillPids?: number[]
 ): Promise<{
   status: string;
   message?: string;
@@ -67,12 +68,18 @@ export async function deleteItem(
     body: JSON.stringify({
       path,
       async_mode: asyncMode,
-      debug_mode: debugMode
+      debug_mode: debugMode,
+      force_kill_pids: forceKillPids
     }),
   });
 
   if (!response.ok) {
     const error = await response.json();
+    if (response.status === 409 && error.locked_by) {
+      const err = new Error(error.detail || "ファイルがロックされています");
+      (err as any).lockedBy = error.locked_by;
+      throw err;
+    }
     throw new Error(error.detail || "削除に失敗しました");
   }
   return await response.json();
@@ -115,7 +122,8 @@ export async function countFiles(
 export async function deleteItemsBatch(
   paths: string[],
   asyncMode: boolean = false,
-  debugMode: boolean = false
+  debugMode: boolean = false,
+  forceKillPids?: number[]
 ): Promise<{
   status: string;
   success_count?: number;
@@ -130,12 +138,18 @@ export async function deleteItemsBatch(
     body: JSON.stringify({
       paths,
       async_mode: asyncMode,
-      debug_mode: debugMode
+      debug_mode: debugMode,
+      force_kill_pids: forceKillPids
     }),
   });
 
   if (!response.ok) {
     const error = await response.json();
+    if (response.status === 409 && error.locked_by) {
+      const err = new Error(error.detail || "ファイルがロックされています");
+      (err as any).lockedBy = error.locked_by;
+      throw err;
+    }
     throw new Error(error.detail || "削除に失敗しました");
   }
   return await response.json();

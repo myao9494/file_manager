@@ -50,11 +50,12 @@ export function useDeleteItem() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ path, asyncMode, debugMode }: {
+    mutationFn: ({ path, asyncMode, debugMode, forceKillPids }: {
       path: string;
       asyncMode?: boolean;
       debugMode?: boolean;
-    }) => deleteItem(path, asyncMode, debugMode),
+      forceKillPids?: number[];
+    }) => deleteItem(path, asyncMode, debugMode, forceKillPids),
     onSuccess: (_data, variables) => {
       // 非同期モードでない場合のみ即座にリフレッシュ
       if (!variables.asyncMode) {
@@ -71,11 +72,12 @@ export function useDeleteItemsBatch() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ paths, asyncMode, debugMode }: {
+    mutationFn: ({ paths, asyncMode, debugMode, forceKillPids }: {
       paths: string[];
       asyncMode?: boolean;
       debugMode?: boolean;
-    }) => deleteItemsBatch(paths, asyncMode, debugMode),
+      forceKillPids?: number[];
+    }) => deleteItemsBatch(paths, asyncMode, debugMode, forceKillPids),
     onSuccess: (_data, variables) => {
       // 非同期モードでない場合のみ即座にリフレッシュ
       if (!variables.asyncMode) {

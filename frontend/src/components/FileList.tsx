@@ -509,9 +509,7 @@ export function FileList({
     const paths = Array.from(itemsToDelete);
 
     try {
-      // ファイル数をカウント（ネスト3階層まで）はNASで遅いため廃止
       // 選択されたアイテムの中にディレクトリが含まれているかチェック
-      // allSortedItemsから情報を取得する必要がある
       const hasDirectory = paths.some(path => {
         const item = allSortedItems.find(i => i.path === path);
         return item && item.type === 'directory';
@@ -520,13 +518,15 @@ export function FileList({
       // 非同期モード判定: 3ファイル以上 または ディレクトリを含む
       const useAsyncMode = paths.length >= 3 || hasDirectory;
 
-      if (useAsyncMode) {
-        // 非同期モード: プログレスモーダルを表示
-        deleteItemsBatch.mutateAsync({
+      try {
+        const result = await deleteItemsBatch.mutateAsync({
           paths,
-          asyncMode: true,
+          asyncMode: useAsyncMode,
           debugMode
-        }).then((result) => {
+        });
+
+        if (useAsyncMode) {
+          // 非同期モード: プログレスモーダルを表示
           if (result.status === 'async' && result.task_id) {
             setProgressOperationType('delete');
             setProgressTaskId(result.task_id);
@@ -541,17 +541,8 @@ export function FileList({
               containerRef.current?.focus();
             }, 50);
           }
-        }).catch((err) => {
-          console.error("Batch delete failed:", err);
-          showError(`削除処理中にエラーが発生しました: ${err.message}`);
-        });
-      } else {
-        // 同期モード（1-2ファイル）
-        deleteItemsBatch.mutateAsync({
-          paths,
-          asyncMode: false,
-          debugMode
-        }).then((result) => {
+        } else {
+          // 同期モード
           if (result.status === 'completed' && result.success_count !== undefined) {
             if (result.success_count > 0) {
               const count = result.success_count;
@@ -581,14 +572,44 @@ export function FileList({
             // ファイル一覧を更新
             queryClient.invalidateQueries({ queryKey: ["files"] });
           }
-        }).catch((err) => {
-          console.error("Delete failed:", err);
-          showError(`削除に失敗しました: ${err.message}`);
-        });
+        }
+      } catch (err: any) {
+        // ロック検知時のプロセス終了ダイアログ
+        if (err.lockedBy && Array.isArray(err.lockedBy) && err.lockedBy.length > 0) {
+          const processInfo = err.lockedBy.map((p: any) => `・${p.name} (PID: ${p.pid})`).join("\n");
+          const pids = err.lockedBy.map((p: any) => p.pid);
+          if (window.confirm(`ファイルが以下のプロセスによって使用されているため、削除できません。\n\n${processInfo}\n\nプロセスを強制終了(Kill)して削除を再試行しますか？\n(※未保存のデータが失われる可能性があります)`)) {
+            try {
+              const retryResult = await deleteItemsBatch.mutateAsync({
+                paths,
+                asyncMode: useAsyncMode,
+                debugMode,
+                forceKillPids: pids
+              });
+              
+              showSuccess("プロセスを強制終了し、削除を再試行しました。");
+              if (!useAsyncMode && retryResult.status === 'completed') {
+                queryClient.invalidateQueries({ queryKey: ["files"] });
+              }
+              setSelectedItems(new Set());
+              setItemsToDelete(new Set());
+              setIsDeleteModalOpen(false);
+              onRequestFocus?.();
+              setTimeout(() => { containerRef.current?.focus(); }, 50);
+            } catch (retryErr: any) {
+              console.error("Retry delete failed:", retryErr);
+              showError(`プロセスの強制終了または削除に失敗しました: ${retryErr.message}`);
+            }
+            return;
+          }
+        }
+        
+        console.error("Delete failed:", err);
+        showError(`削除に失敗しました: ${err.message}`);
       }
     } catch (err: any) {
-      console.error("Failed to count files:", err);
-      showError(`ファイル数カウントに失敗しました: ${err.message}`);
+      console.error("Failed to execute delete process:", err);
+      showError(`処理中にエラーが発生しました: ${err.message}`);
     }
   };
 
