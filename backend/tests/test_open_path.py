@@ -143,6 +143,62 @@ class TestFullPath:
         assert response.json()["action"] == "open_modal"
 
 
+class TestOpenObsidian:
+    """Obsidian起動時のWindows固有挙動を確認するテスト"""
+
+    def test_open_smart_tries_to_bring_obsidian_to_front_on_windows(self, client, temp_dir, monkeypatch):
+        """WindowsではObsidian URI起動後に前面化処理を試みる"""
+        from app import config
+        from app.routers import files
+
+        note_dir = temp_dir / "obsidian-vault" / "2026" / "03" / "14"
+        note_dir.mkdir(parents=True)
+        note_path = note_dir / "note.md"
+        note_path.write_text("# note\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Windows")
+
+        startfile_calls = []
+        focus_calls = []
+
+        monkeypatch.setattr(files.os, "startfile", lambda target: startfile_calls.append(target), raising=False)
+        monkeypatch.setattr(files, "_bring_obsidian_to_front", lambda: focus_calls.append(True))
+
+        response = client.post("/api/open/smart", json={"path": str(note_path)})
+
+        assert response.status_code == 200
+        assert len(startfile_calls) == 1
+        assert startfile_calls[0].startswith("obsidian://open?vault=obsidian-vault&file=")
+        assert focus_calls == [True]
+
+    def test_open_obsidian_tries_to_bring_obsidian_to_front_on_windows(self, client, temp_dir, monkeypatch):
+        """専用APIでもWindowsではObsidian URI起動後に前面化処理を試みる"""
+        from app import config
+        from app.routers import files
+
+        note_dir = temp_dir / "obsidian-vault" / "2026" / "03" / "14"
+        note_dir.mkdir(parents=True)
+        note_path = note_dir / "note.md"
+        note_path.write_text("# note\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Windows")
+
+        startfile_calls = []
+        focus_calls = []
+
+        monkeypatch.setattr(files.os, "startfile", lambda target: startfile_calls.append(target), raising=False)
+        monkeypatch.setattr(files, "_bring_obsidian_to_front", lambda: focus_calls.append(True))
+
+        response = client.post("/api/open/obsidian", json={"path": str(note_path)})
+
+        assert response.status_code == 200
+        assert len(startfile_calls) == 1
+        assert startfile_calls[0].startswith("obsidian://open?vault=obsidian-vault&file=")
+        assert focus_calls == [True]
+
+
 class TestOpenExplorer:
     """Explorer起動時のWindows固有挙動を確認するテスト"""
 

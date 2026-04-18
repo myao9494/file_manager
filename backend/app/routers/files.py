@@ -160,6 +160,75 @@ def _bring_explorer_to_front(process_id: int, target_path: Path) -> None:
     threading.Thread(target=worker, daemon=True).start()
 
 
+def _bring_obsidian_to_front() -> None:
+    """
+    WindowsでObsidianウィンドウを前面に出すことを試みる。
+
+    obsidian:// 起動では既存のObsidianウィンドウが別デスクトップに残ることがあるため、
+    起動直後にタイトルからObsidianウィンドウを探して前面化を数回リトライする。
+    """
+    if platform.system() != "Windows":
+        return
+
+    def worker() -> None:
+        try:
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+        except Exception:
+            return
+
+        shell_window = user32.GetShellWindow()
+        current_thread_id = kernel32.GetCurrentThreadId()
+        title_keywords = ("obsidian",)
+
+        def try_focus_window(hwnd: int) -> bool:
+            if not hwnd or hwnd == shell_window:
+                return False
+            if not user32.IsWindowVisible(hwnd):
+                return False
+
+            title_buffer = ctypes.create_unicode_buffer(512)
+            user32.GetWindowTextW(hwnd, title_buffer, len(title_buffer))
+            window_title = title_buffer.value.lower()
+            if not window_title or not any(keyword in window_title for keyword in title_keywords):
+                return False
+
+            window_thread_id = user32.GetWindowThreadProcessId(hwnd, None)
+            attached = False
+            if window_thread_id and window_thread_id != current_thread_id:
+                attached = bool(user32.AttachThreadInput(current_thread_id, window_thread_id, True))
+
+            try:
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                user32.BringWindowToTop(hwnd)
+                return bool(user32.SetForegroundWindow(hwnd))
+            finally:
+                if attached:
+                    user32.AttachThreadInput(current_thread_id, window_thread_id, False)
+
+        for _ in range(15):
+            focused = False
+
+            @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+            def enum_windows_proc(hwnd, _lparam):
+                nonlocal focused
+                if focused:
+                    return False
+                focused = try_focus_window(hwnd)
+                return not focused
+
+            try:
+                user32.EnumWindows(enum_windows_proc, 0)
+            except Exception:
+                return
+
+            if focused:
+                return
+            time.sleep(0.2)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
 # ---------------------------------------------------------
 # NASパス変換設定
 # ---------------------------------------------------------
@@ -3224,6 +3293,8 @@ async def open_smart(request: OpenRequest):
                     subprocess.Popen(['open', target_url])
                 elif platform.system() == 'Windows':
                     os.startfile(target_url)
+                    if target_url.startswith("obsidian://"):
+                        _bring_obsidian_to_front()
                 else:
                     subprocess.Popen(['xdg-open', target_url])
             
@@ -3391,6 +3462,7 @@ async def open_in_obsidian(request: OpenRequest):
             subprocess.Popen(['open', obsidian_uri])
         elif platform.system() == 'Windows':
             os.startfile(obsidian_uri)
+            _bring_obsidian_to_front()
         else:
             raise HTTPException(status_code=501, detail="サポートされていないOSです")
         
