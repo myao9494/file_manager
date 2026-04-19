@@ -157,11 +157,10 @@ export function MarkdownEditorModal({
         }
     }, []);
 
-    // Cmd/Ctrl + Shift + [ ] または Cmd/Ctrl + [ ] による見出しレベルの変更判定
+    // Cmd/Ctrl + Shift + [ ] による見出しレベルの変更判定
     const isHeadingShortcut = useCallback((event: KeyboardEvent | React.KeyboardEvent<HTMLTextAreaElement>, direction: "up" | "down") => {
         const nativeEvent = "nativeEvent" in event ? event.nativeEvent : event;
-        // Shiftキーは必須としない（Mac版ChromeでCmd+Shift+[がシステム予約されていてフックできない問題の回避策としてCmd+[も許可）
-        if ((!nativeEvent.metaKey && !nativeEvent.ctrlKey) || nativeEvent.altKey) {
+        if ((!nativeEvent.metaKey && !nativeEvent.ctrlKey) || !nativeEvent.shiftKey || nativeEvent.altKey) {
             return false;
         }
 
@@ -219,24 +218,13 @@ export function MarkdownEditorModal({
 
         // windowのキャプチャフェーズのみで処理する（textareaへの重複登録はしない）
         const handleDocumentKeyDown = (event: KeyboardEvent) => {
-            // エディタモーダル内でのCmd+Shift+[ ]によるタブ切り替えなどのブラウザ挙動を
-            // モーダルが開いている間は優先的に無効化する
-            if (isHeadingShortcut(event, "up") || isHeadingShortcut(event, "down")) {
-                stopNativeShortcut(event);
-            }
-
             const textarea = textareaRef.current;
             if (!textarea) {
                 return;
             }
 
-            // モーダル内の要素にフォーカスがあるか確認
             const activeElement = document.activeElement;
-            const isInEditor = activeElement === textarea
-                || textarea.closest(".markdown-editor-shell")?.contains(activeElement as Node);
-            
-            // ショートカットの実行はエディタ内にフォーカスがある時のみ
-            if (!isInEditor) {
+            if (activeElement !== textarea) {
                 return;
             }
 
@@ -276,15 +264,16 @@ export function MarkdownEditorModal({
                 return;
             }
 
-            // ここで再度判定して処理を実行。上部で既にstopNativeShortcutは行っている
             if (isHeadingShortcut(event, "up")) {
-                if (event.repeat) return; // 長押しでの連続発火（一気に######になる現象）を防ぐ
+                if (event.repeat) return;
+                stopNativeShortcut(event);
                 applySelectionTransform((text, start, end) => adjustHeadingLevel(text, start, end, 1));
                 return;
             }
 
             if (isHeadingShortcut(event, "down")) {
-                if (event.repeat) return; // 長押しでの連続発火を防ぐ
+                if (event.repeat) return;
+                stopNativeShortcut(event);
                 applySelectionTransform((text, start, end) => adjustHeadingLevel(text, start, end, -1));
                 return;
             }

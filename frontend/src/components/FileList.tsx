@@ -115,7 +115,7 @@ export function FileList({
   const [extFilter, setExtFilter] = useState<string>(() => {
     // 左ペインと真ん中ペインのデフォルトは「常用」
     if (panelId === "left" || panelId === "center") {
-      return "md+svg+csv+pdf+ipynb+py+excalidraw+excalidraw.md+excalidraw.svg+excalidraw.png+docx+xlsx+xlsm+pptx+msg+jpg+jpeg+png+gif+bmp+tiff";
+      return "md+svg+csv+pdf+ipynb+py+bat+sh+excalidraw+excalidraw.md+excalidraw.svg+excalidraw.png+docx+xlsx+xlsm+pptx+msg+jpg+jpeg+png+gif+bmp+tiff";
     }
     return "all";
   });
