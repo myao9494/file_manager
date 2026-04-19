@@ -345,6 +345,9 @@ npm test
     - **外部アプリ**: VSCode, Explorer, Antigravity, Jupyter, Excalidraw, Obsidian, ゴミ箱, Test Folder
     - **ファイル削除**: Windows API (SHFileOperationW) を使用し、Explorerと同一の挙動 (確実なゴミ箱への移動、システムロックの対応) を実現。
     - **削除失敗時の自動回復機能**: ファイルが他のプロセス（Excelなど）によりロックされて削除できない場合、`Rstrtmgr.dll` (Restart Manager API) を使用してロックしているプロセス(PIDおよびプロセス名)を自動検知します。ユーザーの同意ダイアログをフロントエンドで表示し、承認を得たうえでプロセスを強制終了 (TerminateProcess / SIGTERM) させてから削除をリトライする機能を有しています。
+ 6. **フォルダ履歴検索**:
+    - `Ctrl + R` で起動し、過去に移動したフォルダ履歴をインクリメンタル検索可能なモーダルを追加。
+    - 独立したUIコンポーネント (`FolderHistoryModal`) を使用し、フルテキスト検索と類似のUXを実現。
 
 ## ドキュメント更新
 

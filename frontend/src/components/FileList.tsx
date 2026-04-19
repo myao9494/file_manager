@@ -3,7 +3,7 @@
  * リストビューでファイル/フォルダを表示
  * ドラッグ&ドロップ対応、検索機能、ツールバー
  */
-import { useState, useRef, useMemo, useEffect, lazy, Suspense, type KeyboardEvent } from "react";
+import { useState, useRef, useMemo, useEffect, lazy, Suspense, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   // Folder,
   // File,
@@ -42,11 +42,13 @@ import { FileIcon } from "./FileIcon";
 import { InputModal } from "./InputModal";
 import { ConfirmationModal } from "./ConfirmationModal";
 import { IndexedFolderSearchModal } from "./IndexedFolderSearchModal";
+import { FolderHistoryModal } from "./FolderHistoryModal";
 import { getNetworkDrivePath, getDefaultBasePath } from "../config";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import { useFolderHistory } from "../contexts/FolderHistoryContext";
 import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
 import { isProgramCodeFile } from "../utils/codeFileActions";
+import { isEditableEventTarget, matchesCmdOrCtrlShortcut } from "../utils/globalShortcuts";
 import type { IndexedFolderSearchItem } from "../api/fulltextIndexService";
 import "./FileList.css";
 
@@ -147,6 +149,7 @@ export function FileList({
   const [mdEditorSaving, setMdEditorSaving] = useState(false);
   const [mdEditorInitialContent, setMdEditorInitialContent] = useState("");
   const [isIndexedSearchOpen, setIsIndexedSearchOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   // フォルダ作成モーダルの状態
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
@@ -359,34 +362,29 @@ export function FileList({
 
   // グローバルショートカット (Ctrl+H: ホームへ)
   useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent | Event) => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // フォーカスがない場合は何もしない (Refで最新状態を確認)
       if (!isFocusedRef.current) return;
 
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        (e.target instanceof HTMLElement && e.target.isContentEditable)
-      ) {
+      if (isEditableEventTarget(e.target)) {
         return;
       }
 
-      // 型アサーション
-      const keyEvent = e as unknown as KeyboardEvent;
-      const isCmdOrCtrl = keyEvent.ctrlKey || keyEvent.metaKey;
-
-      if (
-        isCmdOrCtrl &&
-        keyEvent.key.toLowerCase() === 'p' &&
-        (panelId === 'left' || panelId === 'center')
-      ) {
+      if (matchesCmdOrCtrlShortcut(e, "p") && (panelId === "left" || panelId === "center")) {
         e.preventDefault();
         e.stopPropagation();
         setIsIndexedSearchOpen(true);
         return;
       }
 
-      if (isCmdOrCtrl && keyEvent.key.toLowerCase() === 'h') {
+      if (matchesCmdOrCtrlShortcut(e, "r") && (panelId === "left" || panelId === "center")) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsHistoryModalOpen(true);
+        return;
+      }
+
+      if (matchesCmdOrCtrlShortcut(e, "h")) {
         e.preventDefault();
         e.stopPropagation();
 
@@ -395,11 +393,11 @@ export function FileList({
       }
     };
 
-    window.addEventListener('keydown', handleGlobalKeyDown);
+    window.addEventListener("keydown", handleGlobalKeyDown, true);
     return () => {
-      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
-  }, [navigateToFolder]);
+  }, [navigateToFolder, panelId]);
 
   // 戻る
   const goBack = () => {
@@ -1120,7 +1118,7 @@ export function FileList({
     });
   }, [allHistory, historyFilter, searchHistoryContext]);
 
-  const handleHistoryKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const handleHistoryKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       e.stopPropagation();
@@ -2489,6 +2487,12 @@ export function FileList({
         folderPath={currentPath}
         onClose={handleCloseIndexedSearch}
         onSelectItem={handleIndexedSearchSelect}
+      />
+      <FolderHistoryModal
+        isOpen={isHistoryModalOpen}
+        history={allHistory.map((item) => item.path)}
+        onClose={() => setIsHistoryModalOpen(false)}
+        onSelectPath={(p) => navigateToFolder(p)}
       />
       {/* アイコンツールバー */}
       <div

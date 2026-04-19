@@ -1,0 +1,149 @@
+/**
+ * フォルダ履歴検索モーダルのスタイル
+ * 入力欄と候補一覧のコントラストを確保し、ダークテーマでも視認しやすくする
+ */
+.folder-history-modal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-color, #111827);
+}
+
+.folder-history-modal-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #d0d7de);
+  border-radius: 10px;
+  background: var(--pane-bg, #ffffff);
+}
+
+.folder-history-modal-icon {
+  color: var(--text-secondary, #6b7280);
+  flex-shrink: 0;
+}
+
+.folder-history-modal-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 15px;
+  color: var(--text-color, #111827);
+}
+
+.folder-history-modal-input::placeholder {
+  color: color-mix(in srgb, var(--text-color, #111827) 45%, transparent);
+}
+
+.folder-history-modal-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.folder-history-modal-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.folder-history-modal-empty {
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-color, #111827);
+  font-size: 13px;
+  text-align: center;
+}
+
+.folder-history-modal-result {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color, #d0d7de);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pane-bg, #ffffff) 94%, transparent);
+  color: var(--text-color, #111827);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.folder-history-modal-result:hover {
+  background: color-mix(in srgb, var(--pane-bg, #ffffff) 86%, #2563eb 14%);
+}
+
+.folder-history-modal-result:focus-visible {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.folder-history-modal-result.selected {
+  border-color: #2563eb;
+  background: color-mix(in srgb, var(--pane-bg, #ffffff) 78%, #2563eb 22%);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+}
+
+.folder-history-modal-result-path {
+  font-size: 14px;
+  line-height: 1.55;
+  word-break: break-all;
+  color: var(--text-color, #111827);
+}
+
+[data-theme="dark"] .folder-history-modal {
+  color: rgba(241, 245, 249, 0.96);
+}
+
+[data-theme="dark"] .folder-history-modal-input-row {
+  background: rgba(15, 23, 42, 0.84);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] .folder-history-modal-icon,
+[data-theme="dark"] .folder-history-modal-meta {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+[data-theme="dark"] .folder-history-modal-input,
+[data-theme="dark"] .folder-history-modal-result-path,
+[data-theme="dark"] .folder-history-modal-empty {
+  color: rgba(241, 245, 249, 0.96);
+}
+
+[data-theme="dark"] .folder-history-modal-input::placeholder {
+  color: rgba(226, 232, 240, 0.48);
+}
+
+[data-theme="dark"] .folder-history-modal-empty {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+[data-theme="dark"] .folder-history-modal-result {
+  background: rgba(15, 23, 42, 0.78);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+[data-theme="dark"] .folder-history-modal-result:hover {
+  background: rgba(30, 41, 59, 0.96);
+}
+
+[data-theme="dark"] .folder-history-modal-result.selected {
+  background: rgba(30, 64, 175, 0.24);
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.26);
+}
