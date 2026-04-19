@@ -15,7 +15,11 @@ import "./ServerTerminal.css";
 interface ServerTerminalProps {
   leftCwd: string;
   centerCwd: string;
+  requestedCwd?: string | null;
+  focusRequestSeq?: number;
+  isFocused?: boolean;
   onRequestFocus?: () => void;
+  onEscape?: () => void;
 }
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
@@ -77,7 +81,15 @@ function buildTerminalWebSocketUrl(cwd: string): string {
   return apiUrl.toString();
 }
 
-export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTerminalProps) {
+export function ServerTerminal({
+  leftCwd,
+  centerCwd,
+  requestedCwd = null,
+  focusRequestSeq = 0,
+  isFocused = false,
+  onRequestFocus,
+  onEscape,
+}: ServerTerminalProps) {
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -90,14 +102,46 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
   const pendingEnterRef = useRef(false);
   const commandHistoryRef = useRef<string[]>([]);
   const historyIndexRef = useRef<number | null>(null);
+  const onEscapeRef = useRef(onEscape);
+  const isFocusedRef = useRef(isFocused);
+  const onRequestFocusRef = useRef(onRequestFocus);
+  const handledFocusRequestSeqRef = useRef(0);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [sessionCwd, setSessionCwd] = useState(centerCwd);
   const [displayCwd, setDisplayCwd] = useState(centerCwd);
+
+  const blurTerminalFocus = () => {
+    const helperTextarea = terminalRef.current?.querySelector(".xterm-helper-textarea");
+    if (helperTextarea instanceof HTMLTextAreaElement) {
+      helperTextarea.blur();
+    }
+  };
+
+  useEffect(() => {
+    onEscapeRef.current = onEscape;
+  }, [onEscape]);
+
+  useEffect(() => {
+    isFocusedRef.current = isFocused;
+  }, [isFocused]);
+
+  useEffect(() => {
+    onRequestFocusRef.current = onRequestFocus;
+  }, [onRequestFocus]);
 
   const focusTerminal = () => {
     onRequestFocus?.();
     xtermRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (!isFocused) {
+      blurTerminalFocus();
+      return;
+    }
+
+    xtermRef.current?.focus();
+  }, [isFocused]);
 
   const replaceCurrentInputLine = (nextLine: string, nextCursorIndex = nextLine.length) => {
     const xterm = xtermRef.current;
@@ -142,6 +186,22 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
   }, [centerCwd]);
 
   useEffect(() => {
+    if (focusRequestSeq === 0 || handledFocusRequestSeqRef.current === focusRequestSeq) {
+      return;
+    }
+
+    handledFocusRequestSeqRef.current = focusRequestSeq;
+    onRequestFocusRef.current?.();
+
+    if (requestedCwd && requestedCwd !== sessionCwd) {
+      setSessionCwd(requestedCwd);
+      return;
+    }
+
+    xtermRef.current?.focus();
+  }, [focusRequestSeq, requestedCwd, sessionCwd]);
+
+  useEffect(() => {
     if (!terminalRef.current) {
       return;
     }
@@ -165,6 +225,19 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
     xterm.attachCustomKeyEventHandler((event) => {
+      if (
+        event.key === "Escape" &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !event.shiftKey
+      ) {
+        event.preventDefault();
+        blurTerminalFocus();
+        onEscapeRef.current?.();
+        return false;
+      }
+
       if (shouldPreventTerminalTabFocus(event)) {
         event.preventDefault();
       }
@@ -172,7 +245,9 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
     });
     xterm.open(terminalRef.current);
     fitAddon.fit();
-    xterm.focus();
+    if (isFocusedRef.current) {
+      xterm.focus();
+    }
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
@@ -364,7 +439,9 @@ export function ServerTerminal({ leftCwd, centerCwd, onRequestFocus }: ServerTer
       socket.addEventListener("open", () => {
         setStatus("connected");
         fitAddon.fit();
-        xterm.focus();
+        if (isFocusedRef.current) {
+          xterm.focus();
+        }
         if (socket) {
           socket.send(JSON.stringify({
             type: "resize",

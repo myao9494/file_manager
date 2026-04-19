@@ -169,17 +169,30 @@ body {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  gap: 4px;
+  padding: 4px;
 }
 
 .search-pane-search {
   flex: 2;
   min-height: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 .search-pane-terminal {
   flex: 1;
   min-height: 260px;
-  border-top: 1px solid var(--border-color);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.search-pane-search.focused,
+.search-pane-terminal.focused {
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.3);
 }
 
 .pane-divider {

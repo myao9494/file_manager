@@ -8,7 +8,7 @@
  *
  * デフォルトパスはバックエンドの環境変数（FILE_MANAGER_BASE_DIR）から取得
  */
-import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, lazy, Suspense, useRef } from "react";
 import { Menu, Trash2, Sun, Moon, FlaskConical, Home } from "lucide-react";
 import { FileList } from "./components/FileList";
 import { FileSearch } from "./components/FileSearch";
@@ -21,6 +21,7 @@ import { OperationHistoryProvider, useOperationHistoryContext } from "./contexts
 import { FolderHistoryProvider } from "./contexts/FolderHistoryContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ZoomProvider, useZoomContext } from "./contexts/ZoomContext";
+import { isEditableEventTarget } from "./utils/globalShortcuts";
 import "./App.css";
 
 const ApiTestPage = lazy(() =>
@@ -36,7 +37,12 @@ const STORAGE_KEYS = {
 };
 
 // フォーカス可能なペインの型
-type FocusedPane = "left" | "center" | "right";
+type FocusedPane = "left" | "center" | "right" | "terminal" | null;
+
+interface TerminalFocusRequest {
+  cwd: string | null;
+  seq: number;
+}
 
 function AppContent() {
   const { showError, showSuccess } = useToast();
@@ -63,6 +69,11 @@ function AppContent() {
   // フォーカス中のペイン（各ペインは独自のフォーカス行を持つ）
   // 子コンポーネント（FileList/FileSearch）がisFocusedに基づいてDOMフォーカスを管理する
   const [focusedPane, setFocusedPane] = useState<FocusedPane>("left");
+  const lastInactivePaneRef = useRef<Exclude<FocusedPane, null>>("left");
+  const [terminalFocusRequest, setTerminalFocusRequest] = useState<TerminalFocusRequest>({
+    cwd: null,
+    seq: 0,
+  });
 
   // テーマを適用
   useEffect(() => {
@@ -92,78 +103,6 @@ function AppContent() {
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
-
-  // グローバルキーボードイベント（左右矢印でペイン切替、Ctrl+Z/Shift+Zで Undo/Redo）
-  useEffect(() => {
-    const handleGlobalKeyDown = async (e: KeyboardEvent) => {
-      // 入力フィールドにフォーカスがある場合は無視
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      // Ctrl/Cmdキーが押されている場合
-      if (e.ctrlKey || e.metaKey) {
-        const key = e.key.toLowerCase();
-
-        // Redo: Ctrl+Shift+Z / Cmd+Shift+Z (Undoより先にチェック)
-        if (key === 'z' && e.shiftKey) {
-          e.preventDefault();
-          if (canRedo) {
-            const result = await redo();
-            if (result.success) {
-              showSuccess(result.message);
-            } else {
-              showError(result.message);
-            }
-          } else {
-            showError("やり直す操作がありません");
-          }
-          return;
-        }
-
-        // Undo: Ctrl+Z / Cmd+Z
-        if (key === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          if (canUndo) {
-            const result = await undo();
-            if (result.success) {
-              showSuccess(result.message);
-            } else {
-              showError(result.message);
-            }
-          } else {
-            showError("元に戻す操作がありません");
-          }
-          return;
-        }
-
-        // ブラウザの戻る・進む動作を防ぐ
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-          e.preventDefault();
-        }
-        return;
-      }
-
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        setFocusedPane((prev) => {
-          if (prev === 'right') return 'center';
-          if (prev === 'center') return 'left';
-          return prev;
-        });
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        setFocusedPane((prev) => {
-          if (prev === 'left') return 'center';
-          if (prev === 'center') return 'right';
-          return prev;
-        });
-      }
-    };
-
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [canUndo, canRedo, undo, redo, showError, showSuccess]);
 
   // localStorageの初期化
   const handleResetSettings = () => {
@@ -249,6 +188,165 @@ function AppContent() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CENTER_PATH, centerPath);
   }, [centerPath]);
+
+  const clearActiveDomFocus = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, []);
+
+  const deactivatePane = useCallback((pane: Exclude<FocusedPane, null>) => {
+    lastInactivePaneRef.current = pane;
+    clearActiveDomFocus();
+    setFocusedPane(null);
+  }, [clearActiveDomFocus]);
+
+  const isXtermHiddenTextarea = (target: EventTarget | null): boolean => {
+    return target instanceof HTMLTextAreaElement && target.classList.contains("xterm-helper-textarea");
+  };
+
+  // グローバルキーボードイベント（左右矢印でペイン切替、Ctrl+Z/Shift+Zで Undo/Redo）
+  useEffect(() => {
+    const handleGlobalKeyDown = async (e: KeyboardEvent) => {
+      if (
+        (focusedPane === "left" || focusedPane === "center" || focusedPane === "terminal") &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          deactivatePane(focusedPane);
+          return;
+        }
+      }
+
+      const isTerminalResidualFocus = isXtermHiddenTextarea(e.target) && focusedPane !== "terminal";
+
+      // 入力中は単キーショートカットを無効化
+      if (isEditableEventTarget(e.target) && !isTerminalResidualFocus) {
+        return;
+      }
+
+      // Ctrl/Cmdキーが押されている場合
+      if (e.ctrlKey || e.metaKey) {
+        const key = e.key.toLowerCase();
+
+        // Redo: Ctrl+Shift+Z / Cmd+Shift+Z (Undoより先にチェック)
+        if (key === 'z' && e.shiftKey) {
+          e.preventDefault();
+          if (canRedo) {
+            const result = await redo();
+            if (result.success) {
+              showSuccess(result.message);
+            } else {
+              showError(result.message);
+            }
+          } else {
+            showError("やり直す操作がありません");
+          }
+          return;
+        }
+
+        // Undo: Ctrl+Z / Cmd+Z
+        if (key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          if (canUndo) {
+            const result = await undo();
+            if (result.success) {
+              showSuccess(result.message);
+            } else {
+              showError(result.message);
+            }
+          } else {
+            showError("元に戻す操作がありません");
+          }
+          return;
+        }
+
+        // ブラウザの戻る・進む動作を防ぐ
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (!e.shiftKey && !e.altKey) {
+        const key = e.key.toLowerCase();
+
+        if (key === "s") {
+          e.preventDefault();
+          if (isTerminalResidualFocus) clearActiveDomFocus();
+          lastInactivePaneRef.current = "left";
+          setFocusedPane("left");
+          return;
+        }
+
+        if (key === "d") {
+          e.preventDefault();
+          if (isTerminalResidualFocus) clearActiveDomFocus();
+          lastInactivePaneRef.current = "center";
+          setFocusedPane("center");
+          return;
+        }
+
+        if (key === "f") {
+          e.preventDefault();
+          if (isTerminalResidualFocus) clearActiveDomFocus();
+          lastInactivePaneRef.current = "right";
+          setFocusedPane("right");
+          return;
+        }
+
+        if (key === "c") {
+          e.preventDefault();
+          if (isTerminalResidualFocus) clearActiveDomFocus();
+          const cwd = focusedPane === "left" ? leftPath : focusedPane === "center" ? centerPath : null;
+          lastInactivePaneRef.current = "terminal";
+          setFocusedPane("terminal");
+          setTerminalFocusRequest((current) => ({
+            cwd,
+            seq: current.seq + 1,
+          }));
+          return;
+        }
+      }
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setFocusedPane((prev) => {
+          if (prev === null) {
+            if (lastInactivePaneRef.current === "terminal") return "right";
+            if (lastInactivePaneRef.current === "right") return "center";
+            if (lastInactivePaneRef.current === "center") return "left";
+            return "left";
+          }
+          if (prev === 'terminal') return 'right';
+          if (prev === 'right') return 'center';
+          if (prev === 'center') return 'left';
+          return prev;
+        });
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setFocusedPane((prev) => {
+          if (prev === null) {
+            if (lastInactivePaneRef.current === "left") return "center";
+            if (lastInactivePaneRef.current === "center") return "right";
+            if (lastInactivePaneRef.current === "right") return "terminal";
+            return "right";
+          }
+          if (prev === 'right') return 'terminal';
+          if (prev === 'left') return 'center';
+          if (prev === 'center') return 'right';
+          return prev;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
+  }, [canUndo, canRedo, undo, redo, showError, showSuccess, focusedPane, leftPath, centerPath, clearActiveDomFocus]);
 
   const handleSelectFolder = useCallback((path: string) => {
     setLeftPath(path);
@@ -344,7 +442,10 @@ function AppContent() {
         <main className="app-main triple-pane" style={{ zoom: zoomLevel } as any}>
           <div
             className={`pane left-pane ${focusedPane === 'left' ? 'focused' : ''}`}
-            onClick={() => setFocusedPane('left')}
+            onClick={() => {
+              lastInactivePaneRef.current = "left";
+              setFocusedPane('left');
+            }}
           >
             <ErrorBoundary>
               <FileList
@@ -353,14 +454,20 @@ function AppContent() {
                 path={leftPath}
                 onPathChange={setLeftPath}
                 isFocused={focusedPane === 'left'}
-                onRequestFocus={() => setFocusedPane('left')}
+                onRequestFocus={() => {
+                  lastInactivePaneRef.current = "left";
+                  setFocusedPane('left');
+                }}
               />
             </ErrorBoundary>
           </div>
           <div className="pane-divider" />
           <div
             className={`pane center-pane ${focusedPane === 'center' ? 'focused' : ''}`}
-            onClick={() => setFocusedPane('center')}
+            onClick={() => {
+              lastInactivePaneRef.current = "center";
+              setFocusedPane('center');
+            }}
           >
             <ErrorBoundary>
               <FileList
@@ -369,18 +476,31 @@ function AppContent() {
                 path={centerPath}
                 onPathChange={setCenterPath}
                 isFocused={focusedPane === 'center'}
-                onRequestFocus={() => setFocusedPane('center')}
+                onRequestFocus={() => {
+                  lastInactivePaneRef.current = "center";
+                  setFocusedPane('center');
+                }}
               />
             </ErrorBoundary>
           </div>
           <div className="pane-divider" />
           <div
             className={`pane search-pane ${focusedPane === 'right' ? 'focused' : ''}`}
-            onClick={() => setFocusedPane('right')}
+            onClick={() => {
+              lastInactivePaneRef.current = "right";
+              setFocusedPane('right');
+            }}
           >
             <ErrorBoundary>
               <div className="search-pane-layout">
-                <div className="search-pane-search">
+                <div
+                  className={`search-pane-search ${focusedPane === 'right' ? 'focused' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    lastInactivePaneRef.current = "right";
+                    setFocusedPane('right');
+                  }}
+                >
                   <FileSearch
                     initialPath={defaultPath}
                     leftPanePath={leftPath}
@@ -388,14 +508,31 @@ function AppContent() {
                     onSelectFolder={handleSelectFolder}
                     onSelectRightFolder={handleSelectRightFolder}
                     isFocused={focusedPane === 'right'}
-                    onRequestFocus={() => setFocusedPane('right')}
+                    onRequestFocus={() => {
+                      lastInactivePaneRef.current = "right";
+                      setFocusedPane('right');
+                    }}
                   />
                 </div>
-                <div className="search-pane-terminal">
+                <div
+                  className={`search-pane-terminal ${focusedPane === 'terminal' ? 'focused' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    lastInactivePaneRef.current = "terminal";
+                    setFocusedPane('terminal');
+                  }}
+                >
                   <ServerTerminal
                     leftCwd={leftPath}
                     centerCwd={centerPath}
-                    onRequestFocus={() => setFocusedPane('right')}
+                    requestedCwd={terminalFocusRequest.cwd}
+                    focusRequestSeq={terminalFocusRequest.seq}
+                    isFocused={focusedPane === 'terminal'}
+                    onRequestFocus={() => {
+                      lastInactivePaneRef.current = "terminal";
+                      setFocusedPane('terminal');
+                    }}
+                    onEscape={() => deactivatePane("terminal")}
                   />
                 </div>
               </div>
