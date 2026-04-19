@@ -120,6 +120,9 @@ http://localhost:5173/?path=\\server\share\folder
 - 一括コピー / 一括移動 / 一括削除
 - Safe Move（コピー → 検証 → 削除）
 - Markdown エディタモーダル
+  - Obsidianライクなプレビュー表示と `Cmd/Ctrl+L` によるチェックリスト切り替え
+- テキスト / コード用ファイルエディタモーダル
+  - VS Code 風の配色、行番号表示、シンタックスハイライト付きで `.txt` や `.py` / `.ts` / `.json` などを編集
 - Obsidian / VSCode / Jupyter / Excalidraw / Finder or Explorer 連携
 - Obsidian 今日のフォルダを開く機能
 - 検索ペイン

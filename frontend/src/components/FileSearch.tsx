@@ -35,16 +35,22 @@ import {
 } from "../hooks/useFiles";
 import { getIndexServiceUrl } from "../api/indexService";
 import { getFulltextIndexGuiUrl } from "../api/fulltextIndexService";
-import { getPdfViewUrl, openSmart } from "../api/files";
+import { getPdfViewUrl, openInObsidian, openInVSCode, openSmart } from "../api/files";
 import { getDefaultBasePath } from "../config";
 import type { FileItem, SearchParams } from "../types/file";
 import "./FileSearch.css";
 import { updateFile } from "../api/files";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
+import type { EditorLanguage } from "../utils/codeEditorHighlight";
+import { isWebFileEditorTarget } from "../utils/codeEditorHighlight";
+import type { MarkdownOpenMode, TextFileOpenMode } from "../utils/editorPreferences";
 
 const MarkdownEditorModal = lazy(() =>
   import("./MarkdownEditorModal").then((module) => ({ default: module.MarkdownEditorModal }))
+);
+const FileEditorModal = lazy(() =>
+  import("./FileEditorModal").then((module) => ({ default: module.FileEditorModal }))
 );
 
 
@@ -56,6 +62,8 @@ interface FileSearchProps {
   onSelectRightFolder?: (path: string) => void;
   isFocused?: boolean;
   onRequestFocus?: () => void;
+  textFileOpenMode?: TextFileOpenMode;
+  markdownOpenMode?: MarkdownOpenMode;
 }
 
 type TypeFilter = "all" | "file" | "directory";
@@ -68,7 +76,9 @@ export function FileSearch({
   onSelectFolder,
   onSelectRightFolder,
   isFocused = false,
-  onRequestFocus
+  onRequestFocus,
+  textFileOpenMode = "web",
+  markdownOpenMode = "web",
 }: FileSearchProps) {
   // initialPathが未指定の場合はバックエンドから取得した値を使用
   const effectiveInitialPath = initialPath ?? getDefaultBasePath();
@@ -120,6 +130,12 @@ export function FileSearch({
   const [mdEditorFilePath, setMdEditorFilePath] = useState<string | null>(null);
   const [mdEditorSaving, setMdEditorSaving] = useState(false);
   const [mdEditorInitialContent, setMdEditorInitialContent] = useState("");
+  const [fileEditorOpen, setFileEditorOpen] = useState(false);
+  const [fileEditorFileName, setFileEditorFileName] = useState("");
+  const [fileEditorFilePath, setFileEditorFilePath] = useState<string | null>(null);
+  const [fileEditorSaving, setFileEditorSaving] = useState(false);
+  const [fileEditorInitialContent, setFileEditorInitialContent] = useState("");
+  const [fileEditorLanguage, setFileEditorLanguage] = useState<EditorLanguage>("plaintext");
 
   const { addOperation } = useOperationHistoryContext();
 
@@ -513,21 +529,48 @@ export function FileSearch({
   // ファイルクリックハンドラ（ファイルを開く処理）
   const handleFileClick = async (item: { name: string, path: string }) => {
     try {
+      const lowerFileName = item.name.toLowerCase();
+
       // PDFはawait後のwindow.openだとポップアップブロックされやすいため、
       // ユーザー操作の同期コンテキストで直接開く
-      if (item.name.toLowerCase().endsWith(".pdf")) {
+      if (lowerFileName.endsWith(".pdf")) {
         window.open(getPdfViewUrl(item.path), "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      if (lowerFileName.endsWith(".md")) {
+        if (markdownOpenMode === "obsidian") {
+          await openInObsidian(item.path);
+          showSuccess("Obsidianを開きました");
+          return;
+        }
+
+        if (markdownOpenMode === "vscode") {
+          await openInVSCode(item.path);
+          showSuccess("VS Codeで開きました");
+          return;
+        }
+      } else if (textFileOpenMode === "vscode" && isWebFileEditorTarget(item.name)) {
+        await openInVSCode(item.path);
+        showSuccess("VS Codeで開きました");
         return;
       }
 
       const result = await openSmart(item.path);
 
       if (result.action === "open_modal") {
-        // Markdownエディタモーダルで開く
-        setMdEditorFileName(item.name);
-        setMdEditorFilePath(item.path);
-        setMdEditorInitialContent(result.content || "");
-        setMdEditorOpen(true);
+        if (result.editor_mode === "markdown") {
+          setMdEditorFileName(item.name);
+          setMdEditorFilePath(item.path);
+          setMdEditorInitialContent(result.content || "");
+          setMdEditorOpen(true);
+        } else {
+          setFileEditorFileName(item.name);
+          setFileEditorFilePath(item.path);
+          setFileEditorInitialContent(result.content || "");
+          setFileEditorLanguage(result.language ?? "plaintext");
+          setFileEditorOpen(true);
+        }
       } else if (result.action === "open_url" && result.url) {
         window.open(result.url, "_blank", "noopener,noreferrer");
       } else {
@@ -576,6 +619,40 @@ export function FileSearch({
     setMdEditorOpen(false);
     setMdEditorFileName("");
     setMdEditorFilePath(null);
+    containerRef.current?.focus();
+  };
+
+  const handleSaveFileEditor = async (content: string) => {
+    if (!fileEditorFilePath) return;
+
+    setFileEditorSaving(true);
+    try {
+      await updateFile(fileEditorFilePath, content);
+      showSuccess(`更新しました: ${fileEditorFileName}`);
+
+      addOperation({
+        type: "UPDATE_FILE",
+        canUndo: false,
+        timestamp: Date.now(),
+        data: {},
+      });
+
+      setFileEditorOpen(false);
+      onRequestFocus?.();
+      setTimeout(() => {
+        containerRef.current?.focus();
+      }, 50);
+    } catch (e: any) {
+      showError(`保存に失敗しました: ${e.message}`);
+    } finally {
+      setFileEditorSaving(false);
+    }
+  };
+
+  const handleCloseFileEditor = () => {
+    setFileEditorOpen(false);
+    setFileEditorFileName("");
+    setFileEditorFilePath(null);
     containerRef.current?.focus();
   };
 
@@ -1415,6 +1492,20 @@ export function FileSearch({
             fileName={mdEditorFileName}
             isSaving={mdEditorSaving}
             initialContent={mdEditorInitialContent}
+          />
+        </Suspense>
+      )}
+
+      {fileEditorOpen && (
+        <Suspense fallback={null}>
+          <FileEditorModal
+            isOpen={fileEditorOpen}
+            onClose={handleCloseFileEditor}
+            onSave={handleSaveFileEditor}
+            fileName={fileEditorFileName}
+            isSaving={fileEditorSaving}
+            initialContent={fileEditorInitialContent}
+            initialLanguage={fileEditorLanguage}
           />
         </Suspense>
       )}

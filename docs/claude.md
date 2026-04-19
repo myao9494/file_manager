@@ -56,3 +56,16 @@
     - `GET /api/open-path?path=...` を叩くことで、指定したフォルダを本アプリのフロントエンドで開くことができる。
     - 以前は `localhost:5173` に固定されていたが、現在は相対パス (`/?path=...`) を使用するように改善され、ポート番号に関わらず動作する（例: `http://localhost:8001/api/open-path?path=...`）。
     - ファイルパスが指定された場合は、OSのデフォルトアプリでファイルを開き、ブラウザの非表示タブを自動で閉じる。
+
+### 内蔵エディタ
+- **テキスト/コードファイル (FileEditorModal)**:
+    - VS Code風の行番号付きエディタ。シンタックスハイライトを自前実装。
+    - 対応言語: JavaScript, TypeScript, Python, JSON, Shell, CSS, HTML, YAML, TOML, SQL, dotenv 等。
+    - `Cmd/Ctrl+S` で保存、`Escape` で閉じる。
+- **Markdownファイル (MarkdownEditorModal)**:
+    - Obsidian風エディタ。Edit / Split / Preview の3モード切替。
+    - ショートカットキー: `Cmd/Ctrl+B` 太字, `Cmd/Ctrl+I` 斜体, `Cmd/Ctrl+Shift+[ ]` 見出しレベル操作, `Cmd/Ctrl+L` チェックリスト, `Tab` インデント。
+    - プレビューではタスクリストのチェック操作、コールアウト、WikiLink等をサポート。
+- **エディタ選択設定**:
+    - ハンバーガーメニューからテキストファイル/Markdownのオープン先を選択可能（Web App / VS Code / Obsidian）。
+    - 設定は localStorage に保存される。

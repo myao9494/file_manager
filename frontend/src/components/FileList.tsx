@@ -50,10 +50,16 @@ import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
 import { isProgramCodeFile } from "../utils/codeFileActions";
 import { isEditableEventTarget, matchesCmdOrCtrlShortcut } from "../utils/globalShortcuts";
 import type { IndexedFolderSearchItem } from "../api/fulltextIndexService";
+import type { EditorLanguage } from "../utils/codeEditorHighlight";
+import { isWebFileEditorTarget } from "../utils/codeEditorHighlight";
+import type { MarkdownOpenMode, TextFileOpenMode } from "../utils/editorPreferences";
 import "./FileList.css";
 
 const MarkdownEditorModal = lazy(() =>
   import("./MarkdownEditorModal").then((module) => ({ default: module.MarkdownEditorModal }))
+);
+const FileEditorModal = lazy(() =>
+  import("./FileEditorModal").then((module) => ({ default: module.FileEditorModal }))
 );
 
 interface FileListProps {
@@ -63,6 +69,8 @@ interface FileListProps {
   onPathChange?: (path: string) => void;
   isFocused?: boolean;
   onRequestFocus?: () => void;
+  textFileOpenMode?: TextFileOpenMode;
+  markdownOpenMode?: MarkdownOpenMode;
 }
 
 // ナビゲーション履歴エントリの型（カーソル・選択状態を含む）
@@ -87,7 +95,9 @@ export function FileList({
   path,
   onPathChange,
   isFocused = false,
-  onRequestFocus
+  onRequestFocus,
+  textFileOpenMode = "web",
+  markdownOpenMode = "web",
 }: FileListProps) {
   // initialPathが未指定の場合はバックエンドから取得した値を使用
   const effectiveInitialPath = initialPath ?? getDefaultBasePath();
@@ -148,6 +158,12 @@ export function FileList({
   const [mdEditorFilePath, setMdEditorFilePath] = useState<string | null>(null);
   const [mdEditorSaving, setMdEditorSaving] = useState(false);
   const [mdEditorInitialContent, setMdEditorInitialContent] = useState("");
+  const [fileEditorOpen, setFileEditorOpen] = useState(false);
+  const [fileEditorFileName, setFileEditorFileName] = useState("");
+  const [fileEditorFilePath, setFileEditorFilePath] = useState<string | null>(null);
+  const [fileEditorSaving, setFileEditorSaving] = useState(false);
+  const [fileEditorInitialContent, setFileEditorInitialContent] = useState("");
+  const [fileEditorLanguage, setFileEditorLanguage] = useState<EditorLanguage>("plaintext");
   const [isIndexedSearchOpen, setIsIndexedSearchOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
@@ -1039,6 +1055,40 @@ export function FileList({
     setMdEditorFilePath(null);
   };
 
+  const handleSaveFileEditor = async (content: string) => {
+    if (!fileEditorFilePath) return;
+
+    setFileEditorSaving(true);
+    try {
+      await updateFile(fileEditorFilePath, content);
+      showSuccess(`更新しました: ${fileEditorFileName}`);
+
+      addOperation({
+        type: "UPDATE_FILE",
+        canUndo: false,
+        timestamp: Date.now(),
+        data: {},
+      });
+
+      refetch();
+      setFileEditorOpen(false);
+      onRequestFocus?.();
+      setTimeout(() => {
+        containerRef.current?.focus();
+      }, 50);
+    } catch (e: any) {
+      showError(`保存に失敗しました: ${e.message}`);
+    } finally {
+      setFileEditorSaving(false);
+    }
+  };
+
+  const handleCloseFileEditor = () => {
+    setFileEditorOpen(false);
+    setFileEditorFileName("");
+    setFileEditorFilePath(null);
+  };
+
   const handleCloseIndexedSearch = () => {
     setIsIndexedSearchOpen(false);
     onRequestFocus?.();
@@ -1757,21 +1807,48 @@ export function FileList({
 
   const handleOpenPath = async (path: string, fileName: string) => {
     try {
+      const lowerFileName = fileName.toLowerCase();
+
       // PDFはawait後のwindow.openだとポップアップブロックされやすいため、
       // ユーザー操作の同期コンテキストで直接開く
-      if (fileName.toLowerCase().endsWith(".pdf")) {
+      if (lowerFileName.endsWith(".pdf")) {
         window.open(getPdfViewUrl(path), "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      if (lowerFileName.endsWith(".md")) {
+        if (markdownOpenMode === "obsidian") {
+          await openInObsidian(path);
+          showSuccess("Obsidianを開きました");
+          return;
+        }
+
+        if (markdownOpenMode === "vscode") {
+          await openInVSCode(path);
+          showSuccess("VS Codeで開きました");
+          return;
+        }
+      } else if (textFileOpenMode === "vscode" && isWebFileEditorTarget(fileName)) {
+        await openInVSCode(path);
+        showSuccess("VS Codeで開きました");
         return;
       }
 
       const result = await openSmart(path);
 
       if (result.action === "open_modal") {
-        // Markdownエディタモーダルで開く
-        setMdEditorFileName(fileName);
-        setMdEditorFilePath(path);
-        setMdEditorInitialContent(result.content || "");
-        setMdEditorOpen(true);
+        if (result.editor_mode === "markdown") {
+          setMdEditorFileName(fileName);
+          setMdEditorFilePath(path);
+          setMdEditorInitialContent(result.content || "");
+          setMdEditorOpen(true);
+        } else {
+          setFileEditorFileName(fileName);
+          setFileEditorFilePath(path);
+          setFileEditorInitialContent(result.content || "");
+          setFileEditorLanguage(result.language ?? "plaintext");
+          setFileEditorOpen(true);
+        }
       } else if (result.action === "open_url" && result.url) {
         window.open(result.url, "_blank", "noopener,noreferrer");
       } else {
@@ -3041,6 +3118,20 @@ export function FileList({
             fileName={mdEditorFileName}
             isSaving={mdEditorSaving}
             initialContent={mdEditorInitialContent}
+          />
+        </Suspense>
+      )}
+
+      {fileEditorOpen && (
+        <Suspense fallback={null}>
+          <FileEditorModal
+            isOpen={fileEditorOpen}
+            onClose={handleCloseFileEditor}
+            onSave={handleSaveFileEditor}
+            fileName={fileEditorFileName}
+            isSaving={fileEditorSaving}
+            initialContent={fileEditorInitialContent}
+            initialLanguage={fileEditorLanguage}
           />
         </Suspense>
       )}

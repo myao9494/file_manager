@@ -172,6 +172,46 @@ class TestOpenObsidian:
         assert startfile_calls[0].startswith("obsidian://open?vault=obsidian-vault&file=")
         assert focus_calls == [True]
 
+
+class TestSmartOpenEditorFiles:
+    """スマートオープン時の内蔵エディタ対象ファイル判定テスト"""
+
+    def test_open_smart_returns_modal_for_plain_text_file(self, client, temp_dir, monkeypatch):
+        """txtファイルは内蔵テキストエディタ用レスポンスを返す"""
+        from app import config
+
+        note_path = temp_dir / "notes.txt"
+        note_path.write_text("hello text\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        response = client.post("/api/open/smart", json={"path": str(note_path)})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "open_modal"
+        assert data["content"] == "hello text\n"
+        assert data["editor_mode"] == "code"
+        assert data["language"] == "plaintext"
+
+    def test_open_smart_returns_modal_for_program_code_file(self, client, temp_dir, monkeypatch):
+        """コードファイルはシンタックスハイライト用の言語情報付きで返す"""
+        from app import config
+
+        script_path = temp_dir / "app.py"
+        script_path.write_text("print('hello')\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        response = client.post("/api/open/smart", json={"path": str(script_path)})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "open_modal"
+        assert data["content"] == "print('hello')\n"
+        assert data["editor_mode"] == "code"
+        assert data["language"] == "python"
+
     def test_open_obsidian_tries_to_bring_obsidian_to_front_on_windows(self, client, temp_dir, monkeypatch):
         """専用APIでもWindowsではObsidian URI起動後に前面化処理を試みる"""
         from app import config

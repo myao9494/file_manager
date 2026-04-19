@@ -22,6 +22,14 @@ import { FolderHistoryProvider } from "./contexts/FolderHistoryContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ZoomProvider, useZoomContext } from "./contexts/ZoomContext";
 import { isEditableEventTarget } from "./utils/globalShortcuts";
+import {
+  getStoredMarkdownOpenMode,
+  getStoredTextFileOpenMode,
+  setStoredMarkdownOpenMode,
+  setStoredTextFileOpenMode,
+  type MarkdownOpenMode,
+  type TextFileOpenMode,
+} from "./utils/editorPreferences";
 import "./App.css";
 
 const ApiTestPage = lazy(() =>
@@ -60,6 +68,12 @@ function AppContent() {
   const [debugMode, setDebugMode] = useState(() => {
     return localStorage.getItem(STORAGE_KEYS.DEBUG_MODE) === 'true';
   });
+  const [textFileOpenMode, setTextFileOpenMode] = useState<TextFileOpenMode>(() => {
+    return getStoredTextFileOpenMode();
+  });
+  const [markdownOpenMode, setMarkdownOpenMode] = useState<MarkdownOpenMode>(() => {
+    return getStoredMarkdownOpenMode();
+  });
 
   // 起動時にバックエンドから設定を取得（キャッシュに保存）
   useEffect(() => {
@@ -90,6 +104,14 @@ function AppContent() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.DEBUG_MODE, String(debugMode));
   }, [debugMode]);
+
+  useEffect(() => {
+    setStoredTextFileOpenMode(textFileOpenMode);
+  }, [textFileOpenMode]);
+
+  useEffect(() => {
+    setStoredMarkdownOpenMode(markdownOpenMode);
+  }, [markdownOpenMode]);
 
   // ハッシュルーティング（APIテストページ）
   const [currentPage, setCurrentPage] = useState(() => {
@@ -408,6 +430,74 @@ function AppContent() {
                 <Moon size={16} /> Dark Mode
               </button>
               <div className="menu-divider" />
+              <div className="menu-section">
+                <div className="menu-section-title">Text Files</div>
+                <label className="menu-item checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={textFileOpenMode === "web"}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setTextFileOpenMode("web");
+                      }
+                    }}
+                  />
+                  <span>Web App Editor</span>
+                </label>
+                <label className="menu-item checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={textFileOpenMode === "vscode"}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setTextFileOpenMode("vscode");
+                      }
+                    }}
+                  />
+                  <span>Visual Studio Code</span>
+                </label>
+              </div>
+              <div className="menu-divider" />
+              <div className="menu-section">
+                <div className="menu-section-title">Markdown</div>
+                <label className="menu-item checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={markdownOpenMode === "web"}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMarkdownOpenMode("web");
+                      }
+                    }}
+                  />
+                  <span>Web App Editor</span>
+                </label>
+                <label className="menu-item checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={markdownOpenMode === "obsidian"}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMarkdownOpenMode("obsidian");
+                      }
+                    }}
+                  />
+                  <span>Obsidian</span>
+                </label>
+                <label className="menu-item checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={markdownOpenMode === "vscode"}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMarkdownOpenMode("vscode");
+                      }
+                    }}
+                  />
+                  <span>Visual Studio Code</span>
+                </label>
+              </div>
+              <div className="menu-divider" />
               <label className="menu-item checkbox-item">
                 <input
                   type="checkbox"
@@ -458,6 +548,8 @@ function AppContent() {
                   lastInactivePaneRef.current = "left";
                   setFocusedPane('left');
                 }}
+                textFileOpenMode={textFileOpenMode}
+                markdownOpenMode={markdownOpenMode}
               />
             </ErrorBoundary>
           </div>
@@ -480,6 +572,8 @@ function AppContent() {
                   lastInactivePaneRef.current = "center";
                   setFocusedPane('center');
                 }}
+                textFileOpenMode={textFileOpenMode}
+                markdownOpenMode={markdownOpenMode}
               />
             </ErrorBoundary>
           </div>
@@ -512,6 +606,8 @@ function AppContent() {
                       lastInactivePaneRef.current = "right";
                       setFocusedPane('right');
                     }}
+                    textFileOpenMode={textFileOpenMode}
+                    markdownOpenMode={markdownOpenMode}
                   />
                 </div>
                 <div

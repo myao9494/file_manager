@@ -1,125 +1,484 @@
 /**
  * Markdownエディタモーダルのスタイル
+ * 自前実装のObsidian風エディタとして編集面と閲覧面を一体で整える
  */
 
-/* エディタコンテナ */
-.markdown-editor-container {
+.markdown-editor-shell {
     height: 100%;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    gap: 12px;
+    --editor-bg: #111111;
+    --editor-bg-soft: #151515;
+    --editor-bg-strong: #101010;
+    --editor-panel: #111111;
+    --editor-border: #66ff69;
+    --editor-text: #f5f5f5;
+    --editor-text-muted: #8d8d8d;
+    --editor-heading: #66ff69;
+    --editor-accent: #66ff69;
+    --editor-accent-soft: rgba(102, 255, 105, 0.13);
+    --editor-code: #f5f5f5;
+    --editor-callout: rgba(102, 255, 105, 0.08);
+    --editor-bullet: #ffee00;
+    --editor-bold: #ffff00;
+    --editor-underline: rgba(255, 238, 0, 0.5);
+}
+
+.markdown-editor-topbar,
+.markdown-editor-toolbar,
+.markdown-editor-statusbar {
+    border: 1px solid var(--editor-border);
+    background: linear-gradient(180deg, rgba(102, 255, 105, 0.03), transparent), var(--editor-bg-strong);
+    border-radius: 0;
+}
+
+.markdown-editor-topbar {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
 }
 
-/* MDEditorの高さを親に合わせる */
-.markdown-editor-container .w-md-editor {
-    flex: 1;
-    min-height: 400px;
-    border-radius: 8px;
+.markdown-editor-note-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.markdown-editor-note-badge {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 0;
+    background: linear-gradient(135deg, rgba(102, 255, 105, 0.18), rgba(102, 255, 105, 0.04));
+    color: var(--editor-heading);
+    flex-shrink: 0;
+    box-shadow: 0 0 16px rgba(102, 255, 105, 0.18);
+}
+
+.markdown-editor-note-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--editor-text-muted);
+}
+
+.markdown-editor-note-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--editor-heading);
+    text-shadow: 0 0 8px var(--editor-accent);
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* ダークテーマ対応 */
-.markdown-editor-container .w-md-editor {
-    --color-canvas-default: var(--bg-secondary, #16213e) !important;
-    --color-border-default: rgba(255, 255, 255, 0.1) !important;
-    --color-fg-default: var(--text-color, #e0e0e0) !important;
+.markdown-editor-mode-switcher {
+    display: flex;
+    gap: 8px;
 }
 
-/* ツールバー */
-.markdown-editor-container .w-md-editor-toolbar {
-    background: var(--bg-secondary, #16213e) !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+.markdown-editor-mode-switcher button,
+.markdown-editor-toolbar button {
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--editor-text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 0;
+    padding: 8px 10px;
 }
 
-.markdown-editor-container .w-md-editor-toolbar li button {
-    color: var(--text-secondary, #888) !important;
+.markdown-editor-mode-switcher button.active,
+.markdown-editor-mode-switcher button:hover,
+.markdown-editor-toolbar button:hover {
+    background: var(--editor-accent-soft);
+    color: var(--editor-heading);
+    border-color: var(--editor-accent);
+    text-shadow: 0 0 8px var(--editor-accent);
+    box-shadow: inset 0 -1px 0 var(--editor-accent);
 }
 
-.markdown-editor-container .w-md-editor-toolbar li button:hover {
-    color: var(--text-color, #e0e0e0) !important;
-    background: rgba(255, 255, 255, 0.1) !important;
+.markdown-editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    overflow-x: auto;
 }
 
-/* エディタ領域 */
-.markdown-editor-container .w-md-editor-text-input,
-.markdown-editor-container .w-md-editor-text-pre {
-    color: var(--text-color, #e0e0e0) !important;
+.markdown-editor-toolbar-hint {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--editor-text-muted);
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--editor-border);
+    border-radius: 0;
+    padding: 6px 10px;
 }
 
-/* プレビュー領域 */
-.markdown-editor-container .wmde-markdown {
-    background: transparent !important;
-    color: var(--text-color, #e0e0e0) !important;
+.markdown-editor-workspace {
+    min-height: 0;
+    display: grid;
+    gap: 12px;
 }
 
-.markdown-editor-container .wmde-markdown h1,
-.markdown-editor-container .wmde-markdown h2,
-.markdown-editor-container .wmde-markdown h3,
-.markdown-editor-container .wmde-markdown h4,
-.markdown-editor-container .wmde-markdown h5,
-.markdown-editor-container .wmde-markdown h6 {
-    color: var(--text-color, #e0e0e0) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
+.markdown-editor-workspace.mode-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-.markdown-editor-container .wmde-markdown code {
-    background: rgba(255, 255, 255, 0.1) !important;
-    color: #f8f8f2 !important;
+.markdown-editor-workspace.mode-edit,
+.markdown-editor-workspace.mode-preview {
+    grid-template-columns: minmax(0, 1fr);
 }
 
-.markdown-editor-container .wmde-markdown pre {
-    background: rgba(0, 0, 0, 0.3) !important;
+.markdown-editor-pane {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    border: 1px solid var(--editor-border);
+    border-radius: 0;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(102, 255, 105, 0.02), transparent), var(--editor-panel);
+    box-shadow: none;
+}
+
+.markdown-editor-pane-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--editor-border);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--editor-text-muted);
+    background: rgba(102, 255, 105, 0.03);
+}
+
+.markdown-editor-textarea,
+.markdown-editor-preview {
+    min-height: 0;
+    width: 95%;
+    box-sizing: border-box;
+    padding: 24px 28px;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--editor-text);
+    font-family: "M PLUS 1", "Hiragino Sans", sans-serif;
+    font-size: 14px;
+    line-height: 1.2;
+    margin: 0 auto;
+}
+
+.markdown-editor-textarea {
+    resize: none;
+    white-space: pre-wrap;
+    overflow: auto;
+    caret-color: var(--editor-accent);
+    background-image:
+        linear-gradient(to bottom, rgba(102, 255, 105, 0.015), rgba(102, 255, 105, 0)),
+        linear-gradient(to bottom, transparent calc(1.2em - 1px), rgba(255, 255, 255, 0.03) calc(1.2em - 1px));
+    background-size: 100% 100%, 100% 1.2em;
+}
+
+.markdown-editor-textarea::selection {
+    background: var(--editor-accent-soft);
+}
+
+.markdown-editor-textarea:focus {
+    box-shadow: inset 0 0 0 1px rgba(102, 255, 105, 0.18);
+}
+
+.markdown-editor-preview {
+    overflow: auto;
+}
+
+.markdown-editor-statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 16px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--editor-text-muted);
+}
+
+.markdown-preview-content p,
+.markdown-preview-content ul,
+.markdown-preview-content ol,
+.markdown-preview-content blockquote,
+.markdown-preview-content .markdown-callout {
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+}
+
+.markdown-preview-content h1,
+.markdown-preview-content h2,
+.markdown-preview-content h3,
+.markdown-preview-content h4,
+.markdown-preview-content h5,
+.markdown-preview-content h6 {
+    margin: 0.8em 0 0.5em;
+    color: var(--editor-heading);
+    line-height: 1;
+    font-weight: 750;
+    text-shadow: 0 0 20px var(--editor-accent);
+    border-bottom: 1px solid var(--editor-underline);
+    padding-bottom: 0.2em;
+}
+
+.markdown-preview-content h1 {
+    font-size: 1.25em;
+    letter-spacing: 0;
+}
+
+.markdown-preview-content h2 {
+    font-size: 1.25em;
+    letter-spacing: 0;
+}
+
+.markdown-preview-content h3,
+.markdown-preview-content h4,
+.markdown-preview-content h5,
+.markdown-preview-content h6 {
+    font-size: 1.25em;
+}
+
+.markdown-preview-content p,
+.markdown-preview-content li,
+.markdown-preview-content blockquote {
+    color: var(--editor-text);
+    line-height: 1.2;
+}
+
+.markdown-preview-content a,
+.markdown-preview-content .markdown-wikilink {
+    color: #98b8ff;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: rgba(152, 184, 255, 0.34);
+}
+
+.markdown-preview-content code {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--editor-code);
+    border-radius: 0;
+    padding: 0.15em 0.42em;
+    font-family: "M PLUS 1 Code", "Menlo", "Monaco", monospace;
+    font-size: 0.92em;
+    user-select: all;
+    cursor: pointer;
+}
+
+.markdown-preview-content .markdown-code-block {
+    margin: 1.2em 0;
+    padding: 0;
+    background: #0a0a0a;
+    border: 1px solid rgba(102, 255, 105, 0.2);
+    border-left: 4px solid var(--editor-accent);
     border-radius: 6px;
+    overflow: auto;
+    box-shadow:
+        0 0 0 1px rgba(102, 255, 105, 0.06),
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    position: relative;
 }
 
-/* ライトテーマ対応 */
-[data-theme="light"] .markdown-editor-container {
-    --color-mode: light;
+/* 言語名ラベル（data-language属性から取得、なければ "CODE" と表示） */
+.markdown-preview-content .markdown-code-block::before {
+    content: attr(data-language);
+    display: block;
+    padding: 8px 16px;
+    font-family: "M PLUS 1 Code", "Menlo", "Monaco", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--editor-heading);
+    text-shadow: 0 0 8px var(--editor-accent);
+    background: linear-gradient(180deg, rgba(102, 255, 105, 0.08), rgba(102, 255, 105, 0.02));
+    border-bottom: 1px solid rgba(102, 255, 105, 0.12);
 }
 
-[data-theme="light"] .markdown-editor-container .w-md-editor {
-    --color-canvas-default: #f5f5f5 !important;
-    --color-border-default: rgba(0, 0, 0, 0.1) !important;
-    --color-fg-default: #333 !important;
+/* 言語名がない場合は "CODE" を表示 */
+.markdown-preview-content .markdown-code-block:not([data-language])::before {
+    content: "CODE";
 }
 
-[data-theme="light"] .markdown-editor-container .w-md-editor-toolbar {
-    background: #f5f5f5 !important;
-    border-bottom-color: rgba(0, 0, 0, 0.1) !important;
+.markdown-preview-content .markdown-code-block code {
+    background: transparent;
+    padding: 16px 20px 18px;
+    display: block;
+    color: #c8ffc9;
+    font-family: "M PLUS 1 Code", "Menlo", "Monaco", monospace;
+    font-size: 13.5px;
+    line-height: 1.6;
+    white-space: pre;
+    tab-size: 4;
+    -moz-tab-size: 4;
+    border-radius: 0;
+    user-select: text;
+    cursor: text;
 }
 
-[data-theme="light"] .markdown-editor-container .w-md-editor-toolbar li button {
-    color: #666 !important;
+.markdown-preview-content blockquote {
+    margin-left: 0;
+    padding: 0.9em 1em;
+    border-left: 3px solid var(--editor-accent);
+    background: rgba(102, 255, 105, 0.06);
+    border-radius: 0;
 }
 
-[data-theme="light"] .markdown-editor-container .w-md-editor-toolbar li button:hover {
-    color: #333 !important;
-    background: rgba(0, 0, 0, 0.05) !important;
+.markdown-preview-content .markdown-callout {
+    padding: 14px 16px;
+    border-radius: 0;
+    border: 1px solid rgba(102, 255, 105, 0.18);
+    background: var(--editor-callout);
 }
 
-[data-theme="light"] .markdown-editor-container .w-md-editor-text-input,
-[data-theme="light"] .markdown-editor-container .w-md-editor-text-pre {
-    color: #333 !important;
+.markdown-preview-content .markdown-callout-title {
+    font-weight: 700;
+    color: var(--editor-heading);
+    margin-bottom: 8px;
 }
 
-[data-theme="light"] .markdown-editor-container .wmde-markdown {
-    color: #333 !important;
+.markdown-preview-content ul {
+    padding-left: 1.35em;
 }
 
-[data-theme="light"] .markdown-editor-container .wmde-markdown h1,
-[data-theme="light"] .markdown-editor-container .wmde-markdown h2,
-[data-theme="light"] .markdown-editor-container .wmde-markdown h3,
-[data-theme="light"] .markdown-editor-container .wmde-markdown h4,
-[data-theme="light"] .markdown-editor-container .wmde-markdown h5,
-[data-theme="light"] .markdown-editor-container .wmde-markdown h6 {
-    color: #333 !important;
-    border-color: rgba(0, 0, 0, 0.1) !important;
+.markdown-preview-content ul > li::marker,
+.markdown-preview-content ol > li::marker {
+    color: var(--editor-bullet);
 }
 
-[data-theme="light"] .markdown-editor-container .wmde-markdown code {
-    background: rgba(0, 0, 0, 0.05) !important;
-    color: #d73a49 !important;
+.markdown-preview-content ul.contains-task-list {
+    list-style: none;
+    padding-left: 0;
 }
 
-[data-theme="light"] .markdown-editor-container .wmde-markdown pre {
-    background: #f6f8fa !important;
+.markdown-preview-content .task-list-item {
+    list-style: none;
+}
+
+.markdown-preview-content .task-list-item label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7em;
+    cursor: pointer;
+}
+
+.markdown-preview-content .task-list-item input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    margin-top: 0.4em;
+    accent-color: var(--editor-bullet);
+    border-color: var(--editor-bullet);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.markdown-preview-content mark {
+    color: inherit;
+    background: rgba(255, 214, 102, 0.34);
+    padding: 0.05em 0.18em;
+    border-radius: 4px;
+}
+
+.markdown-preview-content hr {
+    border: none;
+    border-top: 1px solid var(--editor-border);
+    margin: 1.4em 0;
+}
+
+[data-theme="light"] .markdown-editor-shell {
+    --editor-bg: #d5d5d5;
+    --editor-bg-soft: #dedede;
+    --editor-bg-strong: #d0d0d0;
+    --editor-panel: #d5d5d5;
+    --editor-border: #66ff69;
+    --editor-text: #111111;
+    --editor-text-muted: #666666;
+    --editor-heading: #66ff69;
+    --editor-accent: #66ff69;
+    --editor-accent-soft: rgba(102, 255, 105, 0.12);
+    --editor-code: #111111;
+    --editor-callout: rgba(102, 255, 105, 0.08);
+    --editor-bullet: #ffee00;
+    --editor-bold: #000000;
+    --editor-underline: rgba(255, 238, 0, 0.5);
+}
+
+[data-theme="light"] .markdown-editor-pane,
+[data-theme="light"] .markdown-editor-topbar,
+[data-theme="light"] .markdown-editor-toolbar,
+[data-theme="light"] .markdown-editor-statusbar {
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .markdown-editor-textarea {
+    background-image:
+        linear-gradient(to bottom, rgba(102, 255, 105, 0.01), rgba(102, 255, 105, 0)),
+        linear-gradient(to bottom, transparent calc(1.2em - 1px), rgba(15, 23, 42, 0.04) calc(1.2em - 1px));
+}
+
+[data-theme="light"] .markdown-preview-content .markdown-code-block {
+    background: #f0f4ee;
+    border-color: rgba(102, 255, 105, 0.3);
+    box-shadow:
+        0 0 0 1px rgba(102, 255, 105, 0.08),
+        0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .markdown-preview-content .markdown-code-block::before {
+    background: linear-gradient(180deg, rgba(102, 255, 105, 0.1), rgba(102, 255, 105, 0.03));
+    border-bottom-color: rgba(102, 255, 105, 0.15);
+}
+
+[data-theme="light"] .markdown-preview-content .markdown-code-block code {
+    color: #1a3a1d;
+}
+
+.markdown-preview-content strong {
+    background-color: transparent;
+    color: var(--editor-bold);
+    text-shadow: 0 0 10px var(--editor-bold);
+    font-weight: bold;
+    font-size: 1.2em;
+}
+
+@media (max-width: 960px) {
+    .markdown-editor-workspace.mode-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .markdown-editor-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .markdown-editor-toolbar-hint {
+        width: 100%;
+        margin-left: 0;
+        white-space: normal;
+    }
+
+    .markdown-editor-topbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .markdown-editor-mode-switcher {
+        width: 100%;
+    }
+
+    .markdown-editor-mode-switcher button {
+        flex: 1;
+        justify-content: center;
+    }
 }

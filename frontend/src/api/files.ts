@@ -8,6 +8,7 @@
  */
 import type { DirectoryResponse, SearchResponse, SearchParams, PathInfoResponse } from "../types/file";
 import { API_BASE_URL } from "../config";
+import type { EditorLanguage } from "../utils/codeEditorHighlight";
 
 const API_URL = `${API_BASE_URL}/api`;
 
@@ -533,6 +534,8 @@ export interface SmartOpenResult {
   message: string;
   content?: string;  // action=open_modalの場合のファイル内容
   url?: string;  // action=open_urlの場合のURL
+  editor_mode?: "markdown" | "code";
+  language?: EditorLanguage;
 }
 
 /**

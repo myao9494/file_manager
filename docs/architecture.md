@@ -105,6 +105,10 @@ file_manager/
 │   │   │   ├── ContextMenu.tsx  # 右クリックメニュー
 │   │   │   ├── ContextMenu.css
 │   │   │   ├── FileIcon.tsx     # ファイルタイプアイコン
+│   │   │   ├── MarkdownEditorModal.tsx  # Obsidian風MDエディタ
+│   │   │   ├── MarkdownEditorModal.css
+│   │   │   ├── FileEditorModal.tsx      # VS Code風コードエディタ
+│   │   │   ├── FileEditorModal.css
 │   │   │   ├── Toast.tsx        # トースト通知
 │   │   │   └── ErrorBoundary.tsx # エラー境界
 │   │   ├── hooks/
@@ -113,7 +117,13 @@ file_manager/
 │   │   ├── types/
 │   │   │   └── file.ts          # 型定義
 │   │   ├── utils/
-│   │   │   └── iconMapping.ts   # アイコンマッピング
+│   │   │   ├── iconMapping.ts   # アイコンマッピング
+│   │   │   ├── codeEditorHighlight.ts   # シンタックスハイライト
+│   │   │   ├── editorPreferences.ts     # エディタ起動設定の永続化
+│   │   │   ├── markdownEditorFormatting.ts  # MD編集の整形処理
+│   │   │   ├── markdownEditorShortcuts.ts   # チェックリスト切替
+│   │   │   ├── markdownBulletShortcuts.ts   # 箇条書き切替
+│   │   │   └── markdownPreview.ts           # MDプレビュー描画
 │   │   ├── App.tsx              # 3ペインレイアウト（35:35:30）
 │   │   ├── App.css
 │   │   └── main.tsx

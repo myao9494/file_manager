@@ -3289,7 +3289,7 @@ class SmartOpenResponse(BaseModel):
     スマートオープンの結果
     action: 実行されたアクション
     - "opened": 外部アプリで開いた
-    - "open_modal": フロントエンドでモーダルを開く（md編集用）
+    - "open_modal": フロントエンドでモーダルを開く（内蔵エディタ用）
     - "open_url": フロントエンドでURLを開く（PDF等）
     """
     status: str
@@ -3297,6 +3297,63 @@ class SmartOpenResponse(BaseModel):
     message: str
     content: Optional[str] = None  # action=open_modalの場合のファイル内容
     url: Optional[str] = None  # action=open_urlの場合のURL
+    editor_mode: Optional[str] = None  # "markdown" | "code"
+    language: Optional[str] = None  # シンタックスハイライト用の言語ID
+
+
+EMBEDDED_EDITOR_LANGUAGE_MAP = {
+    ".md": "markdown",
+    ".txt": "plaintext",
+    ".log": "plaintext",
+    ".text": "plaintext",
+    ".json": "json",
+    ".jsonc": "json",
+    ".js": "javascript",
+    ".jsx": "jsx",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".py": "python",
+    ".pyw": "python",
+    ".sh": "shell",
+    ".bash": "shell",
+    ".zsh": "shell",
+    ".command": "shell",
+    ".bat": "batch",
+    ".cmd": "batch",
+    ".ps1": "powershell",
+    ".css": "css",
+    ".scss": "css",
+    ".html": "html",
+    ".htm": "html",
+    ".xml": "xml",
+    ".yml": "yaml",
+    ".yaml": "yaml",
+    ".toml": "toml",
+    ".ini": "ini",
+    ".cfg": "ini",
+    ".conf": "ini",
+    ".sql": "sql",
+    ".csv": "plaintext",
+}
+
+EMBEDDED_EDITOR_SPECIAL_FILENAMES = {
+    "dockerfile": "plaintext",
+    "makefile": "plaintext",
+}
+
+
+def _get_embedded_editor_language(path: Path) -> Optional[str]:
+    """内蔵エディタで扱うファイルの言語IDを返す。"""
+    if not path.exists() or not path.is_file():
+        return None
+
+    lower_name = path.name.lower()
+    if lower_name in EMBEDDED_EDITOR_SPECIAL_FILENAMES:
+        return EMBEDDED_EDITOR_SPECIAL_FILENAMES[lower_name]
+    if lower_name.startswith(".env"):
+        return "dotenv"
+
+    return EMBEDDED_EDITOR_LANGUAGE_MAP.get(path.suffix.lower())
 
 
 def resolve_file_app_url(path_obj: Path) -> Optional[str]:
@@ -3467,19 +3524,21 @@ async def open_smart(request: OpenRequest):
             # 既存ロジックではエラーにしていたのでエラーにする
             raise HTTPException(status_code=500, detail=f"起動に失敗しました: {str(e)}")
 
-    # --- Markdown (通常) ---
-    # Obsidian以外のMarkdownはエディタモーダル
-    if path.suffix.lower() == '.md':
-         try:
+    # --- 内蔵エディタ対象ファイル ---
+    embedded_editor_language = _get_embedded_editor_language(path)
+    if embedded_editor_language:
+        try:
             with open(path, 'r', encoding='utf-8') as f:
                 content = f.read()
             return SmartOpenResponse(
                 status="success",
                 action="open_modal",
                 message="エディタで開きます",
-                content=content
+                content=content,
+                editor_mode="markdown" if embedded_editor_language == "markdown" else "code",
+                language=embedded_editor_language,
             )
-         except Exception as e:
+        except Exception as e:
             raise HTTPException(status_code=500, detail=f"ファイル読み込み失敗: {str(e)}")
     
     # --- その他 → OSデフォルトアプリ ---

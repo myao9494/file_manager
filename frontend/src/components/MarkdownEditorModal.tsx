@@ -1,11 +1,34 @@
 /**
  * Markdownエディタモーダル
- * @uiw/react-md-editorを使用したプレビュー付きエディタ
- * 新規作成・編集両対応
+ * Obsidian風の編集体験を意識した自前実装のMarkdownエディタを提供する
  */
-import { useState, useCallback, useEffect } from "react";
-import MDEditor from "@uiw/react-md-editor";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+    Heading1,
+    Heading2,
+    Bold,
+    CheckSquare,
+    Eye,
+    FileText,
+    Italic,
+    Link as LinkIcon,
+    PanelsLeftBottom,
+    PencilLine,
+} from "lucide-react";
 import { Modal } from "./Modal";
+import { matchesCmdOrCtrlShortcut } from "../utils/globalShortcuts";
+import {
+    adjustHeadingLevel,
+    insertMarkdownNewline,
+    indentSelection,
+    outdentSelection,
+    setTaskListItemChecked,
+    wrapSelection,
+    type TextSelectionTransformResult,
+} from "../utils/markdownEditorFormatting";
+import { toggleBulletListSelection } from "../utils/markdownBulletShortcuts";
+import { toggleChecklistSelection } from "../utils/markdownEditorShortcuts";
+import { renderMarkdownToHtml } from "../utils/markdownPreview";
 import "./MarkdownEditorModal.css";
 
 interface MarkdownEditorModalProps {
@@ -23,6 +46,8 @@ interface MarkdownEditorModalProps {
     isSaving?: boolean;
 }
 
+type EditorMode = "split" | "edit" | "preview";
+
 export function MarkdownEditorModal({
     isOpen,
     onClose,
@@ -33,81 +58,282 @@ export function MarkdownEditorModal({
 }: MarkdownEditorModalProps) {
     const [content, setContent] = useState(initialContent);
     const [hasChanges, setHasChanges] = useState(false);
+    const [mode, setMode] = useState<EditorMode>("split");
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const previewRef = useRef<HTMLDivElement | null>(null);
+    const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
+    const deferredContent = useDeferredValue(content);
 
-    // initialContentが変わったとき、またはモーダルが開いたときにcontentをリセット
+    const updateContent = useCallback((nextContent: string) => {
+        setContent(nextContent);
+        setHasChanges(nextContent !== initialContent);
+    }, [initialContent]);
+
     useEffect(() => {
-        if (isOpen) {
-            setContent(initialContent);
-            setHasChanges(false);
-
-            // オートフォーカス
-            // 少し遅延させないとレンダリングが間に合わない場合がある
-            setTimeout(() => {
-                const textarea = document.querySelector('.markdown-editor-container textarea');
-                if (textarea instanceof HTMLTextAreaElement) {
-                    textarea.focus();
-                    // カーソルを末尾に移動（必要であれば）
-                    // textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-                }
-            }, 100);
+        if (!isOpen) {
+            return;
         }
-    }, [isOpen, initialContent]);
 
-    // Escキーでモーダルを閉じる（MDEditor内でも動作するようにキャプチャフェーズで処理）
+        setContent(initialContent);
+        setHasChanges(false);
+        pendingSelectionRef.current = null;
+
+        const timerId = window.setTimeout(() => {
+            textareaRef.current?.focus();
+        }, 60);
+
+        return () => window.clearTimeout(timerId);
+    }, [initialContent, isOpen]);
+
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen || !pendingSelectionRef.current) {
+            return;
+        }
+
+        const selection = pendingSelectionRef.current;
+        const frameId = window.requestAnimationFrame(() => {
+            const textarea = textareaRef.current;
+            if (!textarea) {
+                return;
+            }
+
+            textarea.focus();
+            textarea.setSelectionRange(selection.start, selection.end);
+            pendingSelectionRef.current = null;
+        });
+
+        return () => window.cancelAnimationFrame(frameId);
+    }, [content, isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                // 変更がある場合は確認ダイアログを表示
-                if (hasChanges) {
-                    if (confirm("変更を破棄しますか？")) {
-                        setHasChanges(false);
-                        onClose();
-                    }
-                } else {
+            if (e.key !== "Escape") {
+                return;
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (hasChanges) {
+                if (window.confirm("変更を破棄しますか？")) {
+                    setHasChanges(false);
                     onClose();
                 }
+                return;
             }
+
+            onClose();
         };
 
-        // キャプチャフェーズで処理することでMDEditorより先にイベントを受け取る
         document.addEventListener("keydown", handleKeyDown, true);
         return () => document.removeEventListener("keydown", handleKeyDown, true);
-    }, [isOpen, hasChanges, onClose]);
+    }, [hasChanges, isOpen, onClose]);
 
-    // 内容変更ハンドラ
-    const handleChange = useCallback((value: string | undefined) => {
-        const newValue = value || "";
-        if (newValue !== content) {
-            setContent(newValue);
-            // 初期内容から変わった場合のみhasChanges=trueにする
-            if (newValue !== initialContent) {
-                setHasChanges(true);
-            }
+    const applySelectionTransform = useCallback((
+        transform: (text: string, selectionStart: number, selectionEnd: number) => TextSelectionTransformResult
+    ) => {
+        const textarea = textareaRef.current;
+        if (!textarea) {
+            return;
         }
-    }, [content, initialContent]);
 
-    // 保存ハンドラ
+        const result = transform(content, textarea.selectionStart, textarea.selectionEnd);
+        pendingSelectionRef.current = {
+            start: result.selectionStart,
+            end: result.selectionEnd,
+        };
+        updateContent(result.text);
+    }, [content, updateContent]);
+
+    const stopNativeShortcut = useCallback((event: KeyboardEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === "function") {
+            event.stopImmediatePropagation();
+        }
+    }, []);
+
+    // Cmd/Ctrl+Shift+[ ] による見出しレベルの変更判定
+    // event.code を主軸にすることでキーボードレイアウトによらず確実に動作する
+    const isHeadingShortcut = useCallback((event: KeyboardEvent | React.KeyboardEvent<HTMLTextAreaElement>, direction: "up" | "down") => {
+        const nativeEvent = "nativeEvent" in event ? event.nativeEvent : event;
+        if ((!nativeEvent.metaKey && !nativeEvent.ctrlKey) || !nativeEvent.shiftKey || nativeEvent.altKey) {
+            return false;
+        }
+
+        const code = nativeEvent.code;
+        if (direction === "up") {
+            return code === "BracketRight";
+        }
+
+        return code === "BracketLeft";
+    }, []);
+
+    const isBulletShortcut = useCallback((event: KeyboardEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
+        const nativeEvent = "nativeEvent" in event ? event.nativeEvent : event;
+        if ((!nativeEvent.metaKey && !nativeEvent.ctrlKey) || nativeEvent.altKey) {
+            return false;
+        }
+
+        return nativeEvent.key === ":" || (nativeEvent.shiftKey && (nativeEvent.key === ";" || nativeEvent.code === "Semicolon"));
+    }, []);
+
     const handleSave = useCallback(() => {
         onSave(content);
     }, [content, onSave]);
 
-    // 閉じる前の確認
+    const handlePreviewCheckboxToggle = useCallback((target: HTMLInputElement) => {
+        const lineNumber = Number(target.dataset.taskLine);
+        if (Number.isNaN(lineNumber)) {
+            return;
+        }
+
+        const result = setTaskListItemChecked(content, lineNumber, target.checked);
+        updateContent(result.text);
+    }, [content, updateContent]);
+
     const handleClose = useCallback(() => {
-        if (hasChanges) {
-            if (confirm("変更を破棄しますか？")) {
-                setHasChanges(false);
-                onClose();
-            }
-        } else {
+        if (!hasChanges) {
+            onClose();
+            return;
+        }
+
+        if (window.confirm("変更を破棄しますか？")) {
+            setHasChanges(false);
             onClose();
         }
     }, [hasChanges, onClose]);
 
-    // フッターボタン
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        // windowのキャプチャフェーズのみで処理する（textareaへの重複登録はしない）
+        // モーダル内のtextareaにフォーカスがある場合のみショートカットを発火する
+        const handleDocumentKeyDown = (event: KeyboardEvent) => {
+            const textarea = textareaRef.current;
+            if (!textarea) {
+                return;
+            }
+
+            // モーダル内の要素にフォーカスがあるか確認
+            const activeElement = document.activeElement;
+            const isInEditor = activeElement === textarea
+                || textarea.closest(".markdown-editor-shell")?.contains(activeElement as Node);
+            if (!isInEditor) {
+                return;
+            }
+
+            if (matchesCmdOrCtrlShortcut(event, "l")) {
+                stopNativeShortcut(event);
+                applySelectionTransform(toggleChecklistSelection);
+                return;
+            }
+
+            if (matchesCmdOrCtrlShortcut(event, "b")) {
+                stopNativeShortcut(event);
+                applySelectionTransform((text, start, end) => wrapSelection(text, start, end, "**", "**"));
+                return;
+            }
+
+            if (matchesCmdOrCtrlShortcut(event, "i")) {
+                stopNativeShortcut(event);
+                applySelectionTransform((text, start, end) => wrapSelection(text, start, end, "*", "*"));
+                return;
+            }
+
+            if (matchesCmdOrCtrlShortcut(event, "k")) {
+                stopNativeShortcut(event);
+                applySelectionTransform((text, start, end) => wrapSelection(text, start, end, "[", "](url)", "text"));
+                return;
+            }
+
+            if (matchesCmdOrCtrlShortcut(event, "s")) {
+                stopNativeShortcut(event);
+                handleSave();
+                return;
+            }
+
+            if (isBulletShortcut(event)) {
+                stopNativeShortcut(event);
+                applySelectionTransform(toggleBulletListSelection);
+                return;
+            }
+
+            if (isHeadingShortcut(event, "up")) {
+                stopNativeShortcut(event);
+                applySelectionTransform((text, start, end) => adjustHeadingLevel(text, start, end, 1));
+                return;
+            }
+
+            if (isHeadingShortcut(event, "down")) {
+                stopNativeShortcut(event);
+                applySelectionTransform((text, start, end) => adjustHeadingLevel(text, start, end, -1));
+                return;
+            }
+
+            // Tabキーはtextareaにフォーカスがある時のみ処理
+            if (event.key === "Tab" && activeElement === textarea) {
+                stopNativeShortcut(event);
+                applySelectionTransform((text, start, end) => (
+                    event.shiftKey ? outdentSelection(text, start, end) : indentSelection(text, start, end)
+                ));
+                return;
+            }
+
+            if (event.key === "Enter" && !event.isComposing && activeElement === textarea) {
+                stopNativeShortcut(event);
+                applySelectionTransform(insertMarkdownNewline);
+            }
+        };
+
+        window.addEventListener("keydown", handleDocumentKeyDown, true);
+
+        return () => {
+            window.removeEventListener("keydown", handleDocumentKeyDown, true);
+        };
+    }, [applySelectionTransform, handleSave, isBulletShortcut, isHeadingShortcut, isOpen, stopNativeShortcut]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        const preview = previewRef.current;
+        if (!preview) {
+            return;
+        }
+
+        const handlePreviewChange = (event: Event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLInputElement) || target.type !== "checkbox") {
+                return;
+            }
+
+            handlePreviewCheckboxToggle(target);
+        };
+
+        preview.addEventListener("change", handlePreviewChange, true);
+        return () => preview.removeEventListener("change", handlePreviewChange, true);
+    }, [handlePreviewCheckboxToggle, isOpen]);
+
+    const previewHtml = useMemo(() => {
+        return renderMarkdownToHtml(deferredContent);
+    }, [deferredContent]);
+
+    const wordCount = useMemo(() => {
+        return content.trim() ? content.trim().split(/\s+/).length : 0;
+    }, [content]);
+
+    const lineCount = useMemo(() => {
+        return content === "" ? 1 : content.split("\n").length;
+    }, [content]);
+
     const footer = (
         <>
             <button
@@ -132,18 +358,96 @@ export function MarkdownEditorModal({
             isOpen={isOpen}
             onClose={handleClose}
             title={`Markdown編集: ${fileName}`}
-            width="90vw"
-            height="85vh"
+            width="92vw"
+            height="88vh"
             footer={footer}
         >
-            <div className="markdown-editor-container" data-color-mode="dark">
-                <MDEditor
-                    value={content}
-                    onChange={handleChange}
-                    height="100%"
-                    preview="live"
-                    visibleDragbar={false}
-                />
+            <div className="markdown-editor-shell">
+                <div className="markdown-editor-topbar">
+                    <div className="markdown-editor-note-meta">
+                        <div className="markdown-editor-note-badge">
+                            <FileText size={15} />
+                        </div>
+                        <div>
+                            <div className="markdown-editor-note-label">Obsidian Style Note</div>
+                            <div className="markdown-editor-note-name">{fileName}</div>
+                        </div>
+                    </div>
+
+                    <div className="markdown-editor-mode-switcher" role="tablist" aria-label="editor mode">
+                        <button className={mode === "edit" ? "active" : ""} onClick={() => setMode("edit")} type="button">
+                            <PencilLine size={15} />
+                            Edit
+                        </button>
+                        <button className={mode === "split" ? "active" : ""} onClick={() => setMode("split")} type="button">
+                            <PanelsLeftBottom size={15} />
+                            Split
+                        </button>
+                        <button className={mode === "preview" ? "active" : ""} onClick={() => setMode("preview")} type="button">
+                            <Eye size={15} />
+                            Preview
+                        </button>
+                    </div>
+                </div>
+
+                <div className="markdown-editor-toolbar">
+                    <button type="button" onClick={() => applySelectionTransform((text, start, end) => wrapSelection(text, start, end, "**", "**"))} title="太字 (Cmd/Ctrl+B)">
+                        <Bold size={16} />
+                    </button>
+                    <button type="button" onClick={() => applySelectionTransform((text, start, end) => wrapSelection(text, start, end, "*", "*"))} title="斜体 (Cmd/Ctrl+I)">
+                        <Italic size={16} />
+                    </button>
+                    <button type="button" onClick={() => applySelectionTransform((text, start, end) => adjustHeadingLevel(text, start, end, 1))} title="見出しを上げる (Cmd/Ctrl+Shift+])">
+                        <Heading1 size={16} />
+                    </button>
+                    <button type="button" onClick={() => applySelectionTransform((text, start, end) => adjustHeadingLevel(text, start, end, -1))} title="見出しを下げる (Cmd/Ctrl+Shift+[)">
+                        <Heading2 size={16} />
+                    </button>
+                    <button type="button" onClick={() => applySelectionTransform(toggleBulletListSelection)} title="箇条書き (Cmd/Ctrl+:)">
+                        -
+                    </button>
+                    <button type="button" onClick={() => applySelectionTransform(toggleChecklistSelection)} title="チェックリスト (Cmd/Ctrl+L)">
+                        <CheckSquare size={16} />
+                    </button>
+                    <button type="button" onClick={() => applySelectionTransform((text, start, end) => wrapSelection(text, start, end, "[", "](url)", "text"))} title="リンク (Cmd/Ctrl+K)">
+                        <LinkIcon size={16} />
+                    </button>
+                    <div className="markdown-editor-toolbar-hint">
+                        `Cmd/Ctrl+B` 太字 `Cmd/Ctrl+I` 斜体 `Cmd/Ctrl+L` チェックリスト `Cmd/Ctrl+Shift+[ ]` 見出し `Cmd/Ctrl+:` 箇条書き `Enter` リスト継続
+                    </div>
+                </div>
+
+                <div className={`markdown-editor-workspace mode-${mode}`}>
+                    {mode !== "preview" && (
+                        <section className="markdown-editor-pane markdown-editor-input-pane">
+                            <div className="markdown-editor-pane-header">Editor</div>
+                            <textarea
+                                ref={textareaRef}
+                                className="markdown-editor-textarea"
+                                value={content}
+                                onChange={(e) => updateContent(e.target.value)}
+                                spellCheck={false}
+                            />
+                        </section>
+                    )}
+
+                    {mode !== "edit" && (
+                        <section className="markdown-editor-pane markdown-editor-preview-pane">
+                            <div className="markdown-editor-pane-header">Preview</div>
+                            <div
+                                ref={previewRef}
+                                className="markdown-editor-preview markdown-preview-content"
+                                dangerouslySetInnerHTML={{ __html: previewHtml }}
+                            />
+                        </section>
+                    )}
+                </div>
+
+                <div className="markdown-editor-statusbar">
+                    <span>{lineCount} lines</span>
+                    <span>{wordCount} words</span>
+                    <span>{hasChanges ? "Unsaved changes" : "Saved state"}</span>
+                </div>
             </div>
         </Modal>
     );
