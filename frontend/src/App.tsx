@@ -16,17 +16,13 @@ import { ServerTerminal } from "./components/ServerTerminal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getPathInfo } from "./api/files";
 import { useToast } from "./hooks/useToast";
-import { getConfig, getDefaultBasePath } from "./config";
+import { getConfig, getDefaultBasePath, saveEditorPreferences } from "./config";
 import { OperationHistoryProvider, useOperationHistoryContext } from "./contexts/OperationHistoryContext";
 import { FolderHistoryProvider } from "./contexts/FolderHistoryContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ZoomProvider, useZoomContext } from "./contexts/ZoomContext";
 import { isEditableEventTarget } from "./utils/globalShortcuts";
 import {
-  getStoredMarkdownOpenMode,
-  getStoredTextFileOpenMode,
-  setStoredMarkdownOpenMode,
-  setStoredTextFileOpenMode,
   type MarkdownOpenMode,
   type TextFileOpenMode,
 } from "./utils/editorPreferences";
@@ -68,16 +64,40 @@ function AppContent() {
   const [debugMode, setDebugMode] = useState(() => {
     return localStorage.getItem(STORAGE_KEYS.DEBUG_MODE) === 'true';
   });
-  const [textFileOpenMode, setTextFileOpenMode] = useState<TextFileOpenMode>(() => {
-    return getStoredTextFileOpenMode();
-  });
-  const [markdownOpenMode, setMarkdownOpenMode] = useState<MarkdownOpenMode>(() => {
-    return getStoredMarkdownOpenMode();
-  });
+  const [locationSearch, setLocationSearch] = useState(() => window.location.search);
+  const [textFileOpenMode, setTextFileOpenMode] = useState<TextFileOpenMode>("web");
+  const [markdownOpenMode, setMarkdownOpenMode] = useState<MarkdownOpenMode>("web");
+  const [editorPreferencesLoaded, setEditorPreferencesLoaded] = useState(false);
 
   // 起動時にバックエンドから設定を取得（キャッシュに保存）
   useEffect(() => {
-    getConfig();
+    getConfig()
+      .then((config) => {
+        setTextFileOpenMode(config.textFileOpenMode);
+        setMarkdownOpenMode(config.markdownOpenMode);
+      })
+      .catch((error) => {
+        console.error("設定取得エラー:", error);
+      })
+      .finally(() => {
+        setEditorPreferencesLoaded(true);
+      });
+  }, []);
+
+  useEffect(() => {
+    const syncLocationSearch = () => {
+      setLocationSearch(window.location.search);
+    };
+
+    window.addEventListener("popstate", syncLocationSearch);
+    window.addEventListener("pageshow", syncLocationSearch);
+    window.addEventListener("focus", syncLocationSearch);
+
+    return () => {
+      window.removeEventListener("popstate", syncLocationSearch);
+      window.removeEventListener("pageshow", syncLocationSearch);
+      window.removeEventListener("focus", syncLocationSearch);
+    };
   }, []);
 
   // フォーカス中のペイン（各ペインは独自のフォーカス行を持つ）
@@ -106,12 +126,15 @@ function AppContent() {
   }, [debugMode]);
 
   useEffect(() => {
-    setStoredTextFileOpenMode(textFileOpenMode);
-  }, [textFileOpenMode]);
+    if (!editorPreferencesLoaded) {
+      return;
+    }
 
-  useEffect(() => {
-    setStoredMarkdownOpenMode(markdownOpenMode);
-  }, [markdownOpenMode]);
+    saveEditorPreferences(textFileOpenMode, markdownOpenMode).catch((error) => {
+      console.error("設定保存エラー:", error);
+      showError("エディタ設定の保存に失敗しました");
+    });
+  }, [editorPreferencesLoaded, markdownOpenMode, showError, textFileOpenMode]);
 
   // ハッシュルーティング（APIテストページ）
   const [currentPage, setCurrentPage] = useState(() => {
@@ -135,8 +158,10 @@ function AppContent() {
   };
 
   // URLクエリパラメータからパスを読み取る
-  const searchParams = new URLSearchParams(window.location.search);
+  const searchParams = new URLSearchParams(locationSearch);
   const pathFromUrl = searchParams.get('path');
+  const openFileFromUrl = searchParams.get('open_file');
+  const openModeFromUrl = searchParams.get('open_mode');
 
   // パスが指定されている場合はデコードして使用、なければデフォルト
   const defaultPath = pathFromUrl
@@ -152,6 +177,15 @@ function AppContent() {
     // 3. デフォルト（バックエンドから取得した値）
     return getDefaultBasePath();
   });
+
+  useEffect(() => {
+    if (!pathFromUrl) {
+      return;
+    }
+
+    const decodedPath = decodeURIComponent(pathFromUrl);
+    setLeftPath((prevPath) => (prevPath === decodedPath ? prevPath : decodedPath));
+  }, [pathFromUrl]);
 
   // URLパラメータがファイルの場合、親フォルダにリダイレクト
   // 存在しないパスの場合はエラーメッセージを表示してURLパラメータをクリア
@@ -201,6 +235,18 @@ function AppContent() {
     if (saved) return saved;
     return getDefaultBasePath();
   });
+
+  const handleInitialOpenHandled = useCallback(() => {
+    const nextUrl = new URL(window.location.href);
+    if (!nextUrl.searchParams.has("open_file") && !nextUrl.searchParams.has("open_mode")) {
+      return;
+    }
+
+    nextUrl.searchParams.delete("open_file");
+    nextUrl.searchParams.delete("open_mode");
+    window.history.replaceState({}, "", nextUrl.toString());
+    setLocationSearch(nextUrl.search);
+  }, []);
 
   // パス変更時に localStorage に保存
   useEffect(() => {
@@ -475,26 +521,14 @@ function AppContent() {
                 <label className="menu-item checkbox-item">
                   <input
                     type="checkbox"
-                    checked={markdownOpenMode === "obsidian"}
+                    checked={markdownOpenMode === "external"}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setMarkdownOpenMode("obsidian");
+                        setMarkdownOpenMode("external");
                       }
                     }}
                   />
-                  <span>Obsidian</span>
-                </label>
-                <label className="menu-item checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={markdownOpenMode === "vscode"}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setMarkdownOpenMode("vscode");
-                      }
-                    }}
-                  />
-                  <span>Visual Studio Code</span>
+                  <span>Obsidian or Visual Studio Code</span>
                 </label>
               </div>
               <div className="menu-divider" />
@@ -542,6 +576,9 @@ function AppContent() {
                 panelId="left"
                 initialPath={getDefaultBasePath()}
                 path={leftPath}
+                initialOpenFilePath={openFileFromUrl ? decodeURIComponent(openFileFromUrl) : undefined}
+                initialOpenMode={openModeFromUrl === "web" ? "web" : undefined}
+                onInitialOpenHandled={handleInitialOpenHandled}
                 onPathChange={setLeftPath}
                 isFocused={focusedPane === 'left'}
                 onRequestFocus={() => {

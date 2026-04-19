@@ -32,7 +32,7 @@ import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useC
 import { copyFilesToClipboard } from "../api/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
-import { getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
+import { buildFullPathUrl, getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
@@ -66,6 +66,9 @@ interface FileListProps {
   initialPath?: string;
   panelId?: string;
   path?: string;
+  initialOpenFilePath?: string;
+  initialOpenMode?: "web";
+  onInitialOpenHandled?: () => void;
   onPathChange?: (path: string) => void;
   isFocused?: boolean;
   onRequestFocus?: () => void;
@@ -93,6 +96,9 @@ export function FileList({
   initialPath,
   panelId = "main",
   path,
+  initialOpenFilePath,
+  initialOpenMode,
+  onInitialOpenHandled,
   onPathChange,
   isFocused = false,
   onRequestFocus,
@@ -166,6 +172,7 @@ export function FileList({
   const [fileEditorLanguage, setFileEditorLanguage] = useState<EditorLanguage>("plaintext");
   const [isIndexedSearchOpen, setIsIndexedSearchOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const initialOpenHandledRef = useRef<string | null>(null);
 
   // フォルダ作成モーダルの状態
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
@@ -258,6 +265,23 @@ export function FileList({
       onPathChange?.(currentPath);
     }
   }, [currentPath, panelId]);
+
+  useEffect(() => {
+    if (!initialOpenFilePath || !isPathValidated || !currentPath) {
+      return;
+    }
+    if (initialOpenHandledRef.current === initialOpenFilePath) {
+      return;
+    }
+
+    initialOpenHandledRef.current = initialOpenFilePath;
+    const fileName = initialOpenFilePath.split(/[/\\]/).pop() || initialOpenFilePath;
+    void handleOpenPath(initialOpenFilePath, fileName, {
+      forceWebEditor: initialOpenMode === "web",
+    }).finally(() => {
+      onInitialOpenHandled?.();
+    });
+  }, [currentPath, initialOpenFilePath, initialOpenMode, isPathValidated, onInitialOpenHandled]);
 
   // フォーカスが当たった時にコンテナにフォーカスを移動
   useEffect(() => {
@@ -691,10 +715,12 @@ export function FileList({
   // リンクをコピー
   const copyLinkToClipboard = async (path: string) => {
     if (!path) return;
-    const url = new URL("/api/open-path", window.location.origin);
-    url.searchParams.set("path", path);
+    const url = buildFullPathUrl(path, {
+      textFileOpenMode,
+      markdownOpenMode,
+    });
     try {
-      await navigator.clipboard.writeText(url.toString());
+      await navigator.clipboard.writeText(url);
       showSuccess("リンクをコピーしました");
     } catch {
       showError("コピーに失敗しました");
@@ -704,9 +730,24 @@ export function FileList({
   // リンクを開く（ブラウザで開く）
   const openLink = (path: string) => {
     if (!path) return;
-    const url = new URL("/api/open-path", window.location.origin);
-    url.searchParams.set("path", path);
-    window.open(url.toString(), "_blank");
+    window.open(
+      buildFullPathUrl(path, {
+        textFileOpenMode,
+        markdownOpenMode,
+      }),
+      "_blank"
+    );
+  };
+
+  const openMarkdownInExternalApp = async (path: string) => {
+    if (path.toLowerCase().includes("obsidian")) {
+      await openInObsidian(path);
+      showSuccess("Obsidianを開きました");
+      return;
+    }
+
+    await openInVSCode(path);
+    showSuccess("VS Codeで開きました");
   };
 
   // パス入力の確定
@@ -1805,9 +1846,10 @@ export function FileList({
     }
   };
 
-  const handleOpenPath = async (path: string, fileName: string) => {
+  const handleOpenPath = async (path: string, fileName: string, options?: { forceWebEditor?: boolean }) => {
     try {
       const lowerFileName = fileName.toLowerCase();
+      const forceWebEditor = options?.forceWebEditor === true;
 
       // PDFはawait後のwindow.openだとポップアップブロックされやすいため、
       // ユーザー操作の同期コンテキストで直接開く
@@ -1816,25 +1858,20 @@ export function FileList({
         return;
       }
 
-      if (lowerFileName.endsWith(".md")) {
-        if (markdownOpenMode === "obsidian") {
-          await openInObsidian(path);
-          showSuccess("Obsidianを開きました");
+      if (!forceWebEditor && lowerFileName.endsWith(".md")) {
+        if (markdownOpenMode === "external") {
+          await openMarkdownInExternalApp(path);
           return;
         }
-
-        if (markdownOpenMode === "vscode") {
-          await openInVSCode(path);
-          showSuccess("VS Codeで開きました");
-          return;
-        }
-      } else if (textFileOpenMode === "vscode" && isWebFileEditorTarget(fileName)) {
+      } else if (!forceWebEditor && textFileOpenMode === "vscode" && isWebFileEditorTarget(fileName)) {
         await openInVSCode(path);
         showSuccess("VS Codeで開きました");
         return;
       }
 
-      const result = await openSmart(path);
+      const result = await openSmart(path, {
+        preferEmbedded: forceWebEditor || (lowerFileName.endsWith(".md") && markdownOpenMode === "web"),
+      });
 
       if (result.action === "open_modal") {
         if (result.editor_mode === "markdown") {

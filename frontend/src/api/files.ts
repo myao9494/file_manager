@@ -9,6 +9,7 @@
 import type { DirectoryResponse, SearchResponse, SearchParams, PathInfoResponse } from "../types/file";
 import { API_BASE_URL } from "../config";
 import type { EditorLanguage } from "../utils/codeEditorHighlight";
+import type { MarkdownOpenMode, TextFileOpenMode } from "../utils/editorPreferences";
 
 const API_URL = `${API_BASE_URL}/api`;
 
@@ -521,6 +522,30 @@ export async function openInObsidian(path: string): Promise<void> {
   }
 }
 
+export function buildFullPathUrl(
+  path: string,
+  options?: {
+    textFileOpenMode?: TextFileOpenMode;
+    markdownOpenMode?: MarkdownOpenMode;
+  }
+): string {
+  const url = new URL(`${API_URL}/fullpath`, window.location.origin);
+  url.searchParams.set("path", path);
+
+  if (options?.textFileOpenMode) {
+    url.searchParams.set("text_mode", options.textFileOpenMode);
+  }
+
+  if (options?.markdownOpenMode) {
+    url.searchParams.set(
+      "markdown_mode",
+      options.markdownOpenMode
+    );
+  }
+
+  return url.toString();
+}
+
 // ----------------------------------------------------------------
 // ファイルオープンAPI
 // ----------------------------------------------------------------
@@ -538,15 +563,22 @@ export interface SmartOpenResult {
   language?: EditorLanguage;
 }
 
+interface OpenSmartOptions {
+  preferEmbedded?: boolean;
+}
+
 /**
  * ファイル種類に応じてスマートに開く
  * バックエンドで種類判定を行い、適切な処理を実行
  */
-export async function openSmart(path: string): Promise<SmartOpenResult> {
+export async function openSmart(path: string, options?: OpenSmartOptions): Promise<SmartOpenResult> {
   const response = await fetch(`${API_URL}/open/smart`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path }),
+    body: JSON.stringify({
+      path,
+      prefer_embedded: options?.preferEmbedded ?? false,
+    }),
   });
 
   if (!response.ok) {

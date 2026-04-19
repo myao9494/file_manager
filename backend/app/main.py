@@ -13,8 +13,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
 
-from app.config import settings
+from app.config import get_editor_preferences, save_editor_preferences, settings
 from app.routers import files, everything, history, clipboard, terminal, fulltext
 from fastapi.exceptions import RequestValidationError
 from fastapi import Request
@@ -64,6 +65,12 @@ app.include_router(clipboard.router, prefix="/api", tags=["clipboard"])
 app.include_router(terminal.router, prefix="/api", tags=["terminal"])
 
 
+class EditorPreferencesRequest(BaseModel):
+    """エディタ設定更新リクエスト"""
+
+    textFileOpenMode: str
+    markdownOpenMode: str
+
 
 @app.get("/api/config")
 async def get_config():
@@ -75,7 +82,17 @@ async def get_config():
     return {
         "defaultBasePath": settings.start_dir.as_posix(),
         "isWindows": settings.is_windows,
+        **get_editor_preferences(),
     }
+
+
+@app.post("/api/config/preferences")
+async def update_editor_preferences(request: EditorPreferencesRequest):
+    """エディタ設定を設定ファイルへ保存する"""
+    return save_editor_preferences(
+        text_file_open_mode=request.textFileOpenMode,  # type: ignore[arg-type]
+        markdown_open_mode=request.markdownOpenMode,  # type: ignore[arg-type]
+    )
 
 
 # --- PWA: フロントエンド配信 ---

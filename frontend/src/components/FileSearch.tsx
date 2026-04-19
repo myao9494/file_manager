@@ -35,7 +35,7 @@ import {
 } from "../hooks/useFiles";
 import { getIndexServiceUrl } from "../api/indexService";
 import { getFulltextIndexGuiUrl } from "../api/fulltextIndexService";
-import { getPdfViewUrl, openInObsidian, openInVSCode, openSmart } from "../api/files";
+import { buildFullPathUrl, getPdfViewUrl, openInObsidian, openInVSCode, openSmart } from "../api/files";
 import { getDefaultBasePath } from "../config";
 import type { FileItem, SearchParams } from "../types/file";
 import "./FileSearch.css";
@@ -499,23 +499,40 @@ export function FileSearch({
   // リンクをクリップボードにコピー
   const copyLinkToClipboard = useCallback(async (path: string) => {
     if (!path) return;
-    const url = new URL("/api/open-path", window.location.origin);
-    url.searchParams.set("path", path);
+    const url = buildFullPathUrl(path, {
+      textFileOpenMode,
+      markdownOpenMode,
+    });
     try {
-      await navigator.clipboard.writeText(url.toString());
+      await navigator.clipboard.writeText(url);
       showSuccess("リンクをコピーしました");
     } catch {
       showError("コピーに失敗しました");
     }
-  }, [showSuccess, showError]);
+  }, [markdownOpenMode, showError, showSuccess, textFileOpenMode]);
 
   // リンクを開く（ブラウザで開く）
   const openLink = useCallback((path: string) => {
     if (!path) return;
-    const url = new URL("/api/open-path", window.location.origin);
-    url.searchParams.set("path", path);
-    window.open(url.toString(), "_blank");
-  }, []);
+    window.open(
+      buildFullPathUrl(path, {
+        textFileOpenMode,
+        markdownOpenMode,
+      }),
+      "_blank"
+    );
+  }, [markdownOpenMode, textFileOpenMode]);
+
+  const openMarkdownInExternalApp = useCallback(async (path: string) => {
+    if (path.toLowerCase().includes("obsidian")) {
+      await openInObsidian(path);
+      showSuccess("Obsidianを開きました");
+      return;
+    }
+
+    await openInVSCode(path);
+    showSuccess("VS Codeで開きました");
+  }, [showSuccess]);
 
   const handleContextMenu = (e: React.MouseEvent, item: { name: string; path: string; type: "file" | "directory" }) => {
     e.preventDefault();
@@ -539,15 +556,8 @@ export function FileSearch({
       }
 
       if (lowerFileName.endsWith(".md")) {
-        if (markdownOpenMode === "obsidian") {
-          await openInObsidian(item.path);
-          showSuccess("Obsidianを開きました");
-          return;
-        }
-
-        if (markdownOpenMode === "vscode") {
-          await openInVSCode(item.path);
-          showSuccess("VS Codeで開きました");
+        if (markdownOpenMode === "external") {
+          await openMarkdownInExternalApp(item.path);
           return;
         }
       } else if (textFileOpenMode === "vscode" && isWebFileEditorTarget(item.name)) {
@@ -556,7 +566,9 @@ export function FileSearch({
         return;
       }
 
-      const result = await openSmart(item.path);
+      const result = await openSmart(item.path, {
+        preferEmbedded: lowerFileName.endsWith(".md") && markdownOpenMode === "web",
+      });
 
       if (result.action === "open_modal") {
         if (result.editor_mode === "markdown") {

@@ -3,7 +3,7 @@
  * ダウンロードURL・全文検索URL・PDF表示URLのエンコードを確認する
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl } from "./files";
+import { buildFullPathUrl, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl } from "./files";
 
 describe("file api url builders", () => {
   afterEach(() => {
@@ -43,6 +43,23 @@ describe("file api url builders", () => {
 
     expect(getPdfViewUrl("/Users/mine/Documents/資料.pdf")).toBe(
       "http://localhost:5173/api/view-pdf?path=%2FUsers%2Fmine%2FDocuments%2F%E8%B3%87%E6%96%99.pdf"
+    );
+  });
+
+  it("builds fullpath url with editor preferences", () => {
+    vi.stubGlobal("window", {
+      location: {
+        origin: "http://localhost:5173",
+      },
+    });
+
+    expect(
+      buildFullPathUrl("/Users/mine/Documents/note.md", {
+        textFileOpenMode: "web",
+        markdownOpenMode: "external",
+      })
+    ).toBe(
+      "http://localhost:5173/api/fullpath?path=%2FUsers%2Fmine%2FDocuments%2Fnote.md&text_mode=web&markdown_mode=external"
     );
   });
 });

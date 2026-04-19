@@ -59,6 +59,12 @@ class TestFullPath:
         note_path.write_text("# note\n", encoding="utf-8")
 
         monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        preferences_path = temp_dir / "settings.json"
+        preferences_path.write_text(
+            '{"textFileOpenMode": "web", "markdownOpenMode": "external"}\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(config.settings, "_preferences_file_override", preferences_path)
         monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
 
         popen_calls = []
@@ -96,8 +102,8 @@ class TestFullPath:
         assert response.status_code == 307
         assert response.headers["location"].startswith("/api/view-pdf?path=")
 
-    def test_fullpath_plain_markdown_opens_default_app_and_returns_html(self, client, temp_dir, monkeypatch):
-        """通常MarkdownではJSONを返さず、デフォルトアプリ起動後にタブを閉じるHTMLを返す"""
+    def test_fullpath_plain_markdown_external_mode_uses_vscode_and_returns_html(self, client, temp_dir, monkeypatch):
+        """通常Markdownの外部起動ではVS Codeを開きつつタブを閉じるHTMLを返す"""
         from app import config
         from app.routers import files
 
@@ -105,6 +111,12 @@ class TestFullPath:
         note_path.write_text("# note\n", encoding="utf-8")
 
         monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        preferences_path = temp_dir / "settings.json"
+        preferences_path.write_text(
+            '{"textFileOpenMode": "web", "markdownOpenMode": "external"}\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(config.settings, "_preferences_file_override", preferences_path)
         monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
 
         popen_calls = []
@@ -120,8 +132,157 @@ class TestFullPath:
         assert "text/html" in response.headers["content-type"]
         assert "window.close()" in response.text
         assert len(popen_calls) == 1
-        assert popen_calls[0][0] == "open"
+        assert "code" in popen_calls[0][0].lower()
         assert Path(popen_calls[0][1]).resolve() == note_path.resolve()
+
+    def test_fullpath_markdown_web_mode_redirects_to_frontend_editor(self, client, temp_dir, monkeypatch):
+        """MarkdownのWeb設定時はフロントエンドへリダイレクトして内蔵エディタで開く"""
+        from app import config
+        from app.routers import files
+
+        note_path = temp_dir / "note.md"
+        note_path.write_text("# note\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(note_path), "markdown_mode": "web"},
+            headers={"accept": "text/html"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 307
+        location = response.headers["location"]
+        assert location.startswith("/?path=")
+        assert urllib.parse.quote(str(note_path.parent)) in location
+        assert urllib.parse.quote(str(note_path)) in location
+        assert "open_file=" in location
+        assert popen_calls == []
+
+    def test_fullpath_markdown_web_config_redirects_to_frontend_editor(self, client, temp_dir, monkeypatch):
+        """Markdownモードを設定ファイルで受け取った場合もWebエディタへリダイレクトする"""
+        from app import config
+        from app.routers import files
+
+        note_path = temp_dir / "obsidian-vault" / "70_gantt_csv" / "gantt_diff_summary.md"
+        note_path.parent.mkdir(parents=True)
+        note_path.write_text("# summary\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        preferences_path = temp_dir / "settings.json"
+        preferences_path.write_text(
+            '{"textFileOpenMode": "web", "markdownOpenMode": "web"}\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(config.settings, "_preferences_file_override", preferences_path)
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(note_path)},
+            headers={"accept": "text/html"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 307
+        location = response.headers["location"]
+        assert location.startswith("/?path=")
+        assert urllib.parse.quote(str(note_path.parent)) in location
+        assert urllib.parse.quote(str(note_path)) in location
+        assert "open_file=" in location
+        assert popen_calls == []
+
+    def test_fullpath_text_web_mode_redirects_to_frontend_editor(self, client, temp_dir, monkeypatch):
+        """テキストのWeb設定時はフロントエンドへリダイレクトして内蔵エディタで開く"""
+        from app import config
+        from app.routers import files
+
+        text_path = temp_dir / "memo.txt"
+        text_path.write_text("hello\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(text_path), "text_mode": "web"},
+            headers={"accept": "text/html"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 307
+        location = response.headers["location"]
+        assert location.startswith("/?path=")
+        assert urllib.parse.quote(str(text_path.parent)) in location
+        assert urllib.parse.quote(str(text_path)) in location
+        assert "open_file=" in location
+        assert popen_calls == []
+
+    def test_fullpath_markdown_external_mode_uses_vscode_outside_obsidian(self, client, temp_dir, monkeypatch):
+        """Markdownの外部起動ではObsidian外のファイルをVS Codeで開く"""
+        from app import config
+        from app.routers import files
+
+        note_path = temp_dir / "note.md"
+        note_path.write_text("# note\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        vscode_calls = []
+
+        async def fake_open_in_vscode(request):
+            vscode_calls.append(request.path)
+            return {"status": "success"}
+
+        monkeypatch.setattr(files, "open_in_vscode", fake_open_in_vscode)
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(note_path), "markdown_mode": "external"},
+            headers={"accept": "text/html"},
+        )
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "window.close()" in response.text
+        assert [Path(call).resolve() for call in vscode_calls] == [note_path.resolve()]
+
+    def test_fullpath_markdown_external_mode_uses_obsidian_inside_vault(self, client, temp_dir, monkeypatch):
+        """Markdownの外部起動ではObsidian配下のファイルをObsidianで開く"""
+        from app import config
+        from app.routers import files
+
+        obsidian_dir = temp_dir / "obsidian-vault" / "2026" / "03" / "14"
+        obsidian_dir.mkdir(parents=True)
+        note_path = obsidian_dir / "note.md"
+        note_path.write_text("# note\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(note_path), "markdown_mode": "external"},
+            headers={"accept": "text/html"},
+        )
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "window.close()" in response.text
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0] == "open"
+        assert popen_calls[0][1].startswith("obsidian://open?vault=obsidian-vault&file=")
 
     def test_fullpath_api_clients_still_receive_json(self, client, temp_dir, monkeypatch):
         """APIクライアントでは従来どおりJSONレスポンスを返す"""
@@ -175,6 +336,33 @@ class TestOpenObsidian:
 
 class TestSmartOpenEditorFiles:
     """スマートオープン時の内蔵エディタ対象ファイル判定テスト"""
+
+    def test_open_smart_prefers_embedded_editor_for_obsidian_markdown(self, client, temp_dir, monkeypatch):
+        """prefer_embedded指定時はObsidian配下でもWebエディタ用レスポンスを返す"""
+        from app import config
+        from app.routers import files
+
+        note_dir = temp_dir / "obsidian-vault" / "2026" / "03" / "14"
+        note_dir.mkdir(parents=True)
+        note_path = note_dir / "note.md"
+        note_path.write_text("# note\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        response = client.post(
+            "/api/open/smart",
+            json={"path": str(note_path), "prefer_embedded": True},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "open_modal"
+        assert data["editor_mode"] == "markdown"
+        assert data["content"] == "# note\n"
+        assert popen_calls == []
 
     def test_open_smart_returns_modal_for_plain_text_file(self, client, temp_dir, monkeypatch):
         """txtファイルは内蔵テキストエディタ用レスポンスを返す"""

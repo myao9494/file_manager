@@ -5,6 +5,13 @@
  * PWA配信時は同一オリジンのため空文字列を使用
  */
 
+import {
+  normalizeMarkdownOpenMode,
+  normalizeTextFileOpenMode,
+  type MarkdownOpenMode,
+  type TextFileOpenMode,
+} from "./utils/editorPreferences";
+
 export const API_BASE_URL = "";
 
 /**
@@ -13,6 +20,8 @@ export const API_BASE_URL = "";
 interface AppConfig {
   defaultBasePath: string;
   isWindows: boolean;
+  textFileOpenMode: TextFileOpenMode;
+  markdownOpenMode: MarkdownOpenMode;
 }
 
 let configCache: AppConfig | null = null;
@@ -38,21 +47,56 @@ export async function getConfig(): Promise<AppConfig> {
       return res.json();
     })
     .then((data) => {
-      configCache = data;
-      return data;
+      configCache = {
+        defaultBasePath: data.defaultBasePath,
+        isWindows: data.isWindows,
+        textFileOpenMode: normalizeTextFileOpenMode(data.textFileOpenMode),
+        markdownOpenMode: normalizeMarkdownOpenMode(data.markdownOpenMode),
+      };
+      return configCache;
     })
     .catch((err) => {
       console.error("設定取得エラー:", err);
-      // フォールバック: プラットフォームに応じたデフォルト値
       const fallback: AppConfig = {
         defaultBasePath: getFallbackPath(),
         isWindows: navigator.userAgent.toLowerCase().includes("win"),
+        textFileOpenMode: "web",
+        markdownOpenMode: "web",
       };
       configCache = fallback;
       return fallback;
     });
 
   return configPromise;
+}
+
+/**
+ * エディタ設定をバックエンド設定ファイルへ保存する
+ */
+export async function saveEditorPreferences(
+  textFileOpenMode: TextFileOpenMode,
+  markdownOpenMode: MarkdownOpenMode
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/config/preferences`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      textFileOpenMode,
+      markdownOpenMode,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("設定の保存に失敗しました");
+  }
+
+  const data = await response.json();
+  configCache = {
+    defaultBasePath: configCache?.defaultBasePath ?? getFallbackPath(),
+    isWindows: configCache?.isWindows ?? navigator.userAgent.toLowerCase().includes("win"),
+    textFileOpenMode: normalizeTextFileOpenMode(data.textFileOpenMode),
+    markdownOpenMode: normalizeMarkdownOpenMode(data.markdownOpenMode),
+  };
 }
 
 /**
@@ -78,38 +122,31 @@ export function getDefaultBasePath(): string {
  * プラットフォームを判定してネットワークドライブのパスを返す
  */
 export function getNetworkDrivePath(): string {
-  // User-Agentからプラットフォームを判定
   const userAgent = window.navigator.userAgent.toLowerCase();
-  const isWindows = userAgent.includes('win');
-  const isMac = userAgent.includes('mac');
+  const isWindows = userAgent.includes("win");
+  const isMac = userAgent.includes("mac");
 
   if (isWindows) {
-    // Windowsの場合はUNCパス
-    // 環境変数からパス取得を試みる
-    return import.meta.env.VITE_NETWORK_DRIVE_PATH_WINDOWS || '\\\\vnau12\\xxx\\yyy';
+    return import.meta.env.VITE_NETWORK_DRIVE_PATH_WINDOWS || "\\\\vnau12\\xxx\\yyy";
   } else if (isMac) {
-    // macOSの場合はマウントポイント
-    // 環境変数からパス取得を試みる
-    return import.meta.env.VITE_NETWORK_DRIVE_PATH_MAC || '/Volumes/mine_nas';
+    return import.meta.env.VITE_NETWORK_DRIVE_PATH_MAC || "/Volumes/mine_nas";
   } else {
-    // その他のプラットフォーム（Linux等）はmacOSと同じ扱い
-    // 環境変数からパス取得を試みる
-    return import.meta.env.VITE_NETWORK_DRIVE_PATH_MAC || '/Volumes/mine_nas';
+    return import.meta.env.VITE_NETWORK_DRIVE_PATH_MAC || "/Volumes/mine_nas";
   }
 }
 
 /**
  * ネットワークドライブの表示名
  */
-export const NETWORK_DRIVE_LABEL = 'NAS';
+export const NETWORK_DRIVE_LABEL = "NAS";
 
 /**
  * 複合拡張子のリスト
  * これらに一致する末尾を持つファイルは、その部分全体を拡張子として扱う
  */
 export const COMPOUND_EXTENSIONS = [
-  '.excalidraw.md',
-  '.excalidraw.svg',
-  '.excalidraw.png',
-  '.ipynb.json', // 例: Jupyter NotebookをJSONとして保存した場合など
+  ".excalidraw.md",
+  ".excalidraw.svg",
+  ".excalidraw.png",
+  ".ipynb.json",
 ];

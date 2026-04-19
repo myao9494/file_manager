@@ -1,30 +1,12 @@
 /**
- * エディタ起動設定の永続化テスト
+ * エディタ起動設定の正規化テスト
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  getStoredMarkdownOpenMode,
-  getStoredTextFileOpenMode,
-  setStoredMarkdownOpenMode,
-  setStoredTextFileOpenMode,
+  normalizeMarkdownOpenMode,
+  normalizeTextFileOpenMode,
 } from "./editorPreferences";
-
-function createStorageMock() {
-  const store = new Map<string, string>();
-  return {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      store.set(key, value);
-    },
-    removeItem: (key: string) => {
-      store.delete(key);
-    },
-    clear: () => {
-      store.clear();
-    },
-  };
-}
 
 describe("editorPreferences", () => {
   afterEach(() => {
@@ -32,40 +14,28 @@ describe("editorPreferences", () => {
   });
 
   it("uses web editor as the default mode for text files", () => {
-    vi.stubGlobal("localStorage", createStorageMock());
-
-    expect(getStoredTextFileOpenMode()).toBe("web");
+    expect(normalizeTextFileOpenMode(null)).toBe("web");
   });
 
   it("uses web editor as the default mode for markdown files", () => {
-    vi.stubGlobal("localStorage", createStorageMock());
-
-    expect(getStoredMarkdownOpenMode()).toBe("web");
+    expect(normalizeMarkdownOpenMode(null)).toBe("web");
   });
 
-  it("persists the selected text file mode", () => {
-    vi.stubGlobal("localStorage", createStorageMock());
-
-    setStoredTextFileOpenMode("vscode");
-
-    expect(getStoredTextFileOpenMode()).toBe("vscode");
+  it("keeps a valid text file mode", () => {
+    expect(normalizeTextFileOpenMode("vscode")).toBe("vscode");
   });
 
-  it("persists the selected markdown mode", () => {
-    vi.stubGlobal("localStorage", createStorageMock());
-
-    setStoredMarkdownOpenMode("obsidian");
-
-    expect(getStoredMarkdownOpenMode()).toBe("obsidian");
+  it("keeps a valid markdown mode", () => {
+    expect(normalizeMarkdownOpenMode("external")).toBe("external");
   });
 
-  it("falls back to web editor for invalid stored values", () => {
-    const storage = createStorageMock();
-    storage.setItem("file_manager_text_file_open_mode", "unknown");
-    storage.setItem("file_manager_markdown_open_mode", "unknown");
-    vi.stubGlobal("localStorage", storage);
+  it("migrates legacy markdown modes to external", () => {
+    expect(normalizeMarkdownOpenMode("obsidian")).toBe("external");
+    expect(normalizeMarkdownOpenMode("vscode")).toBe("external");
+  });
 
-    expect(getStoredTextFileOpenMode()).toBe("web");
-    expect(getStoredMarkdownOpenMode()).toBe("web");
+  it("falls back to web editor for invalid values", () => {
+    expect(normalizeTextFileOpenMode("unknown")).toBe("web");
+    expect(normalizeMarkdownOpenMode("unknown")).toBe("web");
   });
 });

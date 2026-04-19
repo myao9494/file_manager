@@ -33,7 +33,7 @@ import struct
 import stat
 import time
 
-from app.config import settings
+from app.config import get_editor_preferences, settings
 from app.task_manager import task_manager, TaskInfo
 
 router = APIRouter()
@@ -3063,6 +3063,7 @@ async def copy_items_batch(request: BatchCopyRequest):
 
 class OpenRequest(BaseModel):
     path: str
+    prefer_embedded: bool = False
 
 
 PROGRAM_CODE_EXTENSIONS = {
@@ -3473,6 +3474,85 @@ def _close_tab_response(message: str = "Opened. Closing tab...") -> HTMLResponse
     </html>
     """)
 
+
+def _build_frontend_editor_redirect_url(path: Path) -> str:
+    """内蔵エディタで開くためのフロントエンドURLを組み立てる。"""
+    encoded_parent = urllib.parse.quote(str(path.parent))
+    encoded_file = urllib.parse.quote(str(path))
+    return f"/?path={encoded_parent}&open_file={encoded_file}&open_mode=web"
+
+
+def _should_use_web_editor_for_fullpath(
+    path: Path,
+    markdown_mode: Optional[str],
+    text_mode: Optional[str],
+) -> bool:
+    """fullpath APIでWebエディタに誘導すべきか判定する。"""
+    embedded_editor_language = _get_embedded_editor_language(path)
+    if embedded_editor_language == "markdown":
+        return markdown_mode == "web"
+    if embedded_editor_language:
+        return text_mode == "web"
+    return False
+
+
+def _should_use_external_markdown_app_for_fullpath(path: Path, markdown_mode: Optional[str]) -> bool:
+    """fullpath APIでMarkdownを外部アプリ起動すべきか判定する。"""
+    return _get_embedded_editor_language(path) == "markdown" and markdown_mode in {"external", "obsidian", "vscode"}
+
+
+def _resolve_fullpath_preference(
+    request: Request,
+    query_param_name: str,
+) -> Optional[str]:
+    """fullpath用の設定値をquery→設定ファイルの順で解決する。"""
+    query_value = request.query_params.get(query_param_name)
+    if query_value:
+        return query_value
+
+    preferences = get_editor_preferences()
+    if query_param_name == "markdown_mode":
+        return preferences["markdownOpenMode"]
+    if query_param_name == "text_mode":
+        return preferences["textFileOpenMode"]
+
+    return None
+
+
+async def _open_markdown_external_app_for_fullpath(path: Path) -> None:
+    """MarkdownをObsidian内外で適切な外部アプリへ振り分ける。"""
+    target_url = resolve_file_app_url(path)
+    if target_url and target_url.startswith("obsidian://"):
+        await open_smart(OpenRequest(path=str(path)))
+        return
+
+    await open_in_vscode(OpenRequest(path=str(path)))
+
+
+async def _handle_fullpath_html_preferences(request: Request, path: Path) -> Optional[Response]:
+    """ブラウザ直開き時の設定連動をfullpath APIに適用する。"""
+    markdown_mode = _resolve_fullpath_preference(
+        request,
+        "markdown_mode",
+    )
+    text_mode = _resolve_fullpath_preference(
+        request,
+        "text_mode",
+    )
+
+    if _should_use_web_editor_for_fullpath(path, markdown_mode, text_mode):
+        return RedirectResponse(_build_frontend_editor_redirect_url(path))
+
+    if _should_use_external_markdown_app_for_fullpath(path, markdown_mode):
+        await _open_markdown_external_app_for_fullpath(path)
+        return _close_tab_response()
+
+    if _get_embedded_editor_language(path) and text_mode == "vscode":
+        await open_in_vscode(OpenRequest(path=str(path)))
+        return _close_tab_response()
+
+    return None
+
 @router.post("/open/smart", response_model=SmartOpenResponse)
 async def open_smart(request: OpenRequest):
     """
@@ -3485,6 +3565,23 @@ async def open_smart(request: OpenRequest):
     
     if path.is_dir():
         raise HTTPException(status_code=400, detail="ディレクトリは開けません")
+
+    embedded_editor_language = _get_embedded_editor_language(path)
+
+    if request.prefer_embedded and embedded_editor_language:
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return SmartOpenResponse(
+                status="success",
+                action="open_modal",
+                message="エディタで開きます",
+                content=content,
+                editor_mode="markdown" if embedded_editor_language == "markdown" else "code",
+                language=embedded_editor_language,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"ファイル読み込み失敗: {str(e)}")
 
     # 共通ロジックでURL解決
     target_url = resolve_file_app_url(path)
@@ -3525,7 +3622,6 @@ async def open_smart(request: OpenRequest):
             raise HTTPException(status_code=500, detail=f"起動に失敗しました: {str(e)}")
 
     # --- 内蔵エディタ対象ファイル ---
-    embedded_editor_language = _get_embedded_editor_language(path)
     if embedded_editor_language:
         try:
             with open(path, 'r', encoding='utf-8') as f:
@@ -3737,6 +3833,13 @@ async def fullpath(
     # ネットワークパス（UNC）の処理
     if decoded_path.startswith('//'):
         decoded_path = decoded_path.replace('/', '\\')  # //server/share → \\server\share
+
+    normalized_path = normalize_path(decoded_path)
+
+    if _prefers_html_response(request):
+        preferred_response = await _handle_fullpath_html_preferences(request, normalized_path)
+        if preferred_response is not None:
+            return preferred_response
     
     # スマートオープンを呼び出し
     open_request = OpenRequest(path=decoded_path)

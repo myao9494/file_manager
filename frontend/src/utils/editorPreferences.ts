@@ -1,33 +1,21 @@
 /**
  * ファイルオープン時のエディタ選択設定
- * ハンバーガーメニューで選んだ起動先を localStorage に保持する
+ * サーバー設定ファイルと同期するための型・正規化関数を提供する
  */
 
 export type TextFileOpenMode = "web" | "vscode";
-export type MarkdownOpenMode = "web" | "obsidian" | "vscode";
-
-export const EDITOR_PREFERENCE_STORAGE_KEYS = {
-  TEXT_FILE_OPEN_MODE: "file_manager_text_file_open_mode",
-  MARKDOWN_OPEN_MODE: "file_manager_markdown_open_mode",
-} as const;
+export type MarkdownOpenMode = "web" | "external";
 
 const TEXT_FILE_MODES = new Set<TextFileOpenMode>(["web", "vscode"]);
-const MARKDOWN_MODES = new Set<MarkdownOpenMode>(["web", "obsidian", "vscode"]);
+const MARKDOWN_MODES = new Set<MarkdownOpenMode>(["web", "external"]);
 
-export function getStoredTextFileOpenMode(): TextFileOpenMode {
-  const value = localStorage.getItem(EDITOR_PREFERENCE_STORAGE_KEYS.TEXT_FILE_OPEN_MODE);
+export function normalizeTextFileOpenMode(value: string | null | undefined): TextFileOpenMode {
   return TEXT_FILE_MODES.has(value as TextFileOpenMode) ? (value as TextFileOpenMode) : "web";
 }
 
-export function setStoredTextFileOpenMode(mode: TextFileOpenMode): void {
-  localStorage.setItem(EDITOR_PREFERENCE_STORAGE_KEYS.TEXT_FILE_OPEN_MODE, mode);
-}
-
-export function getStoredMarkdownOpenMode(): MarkdownOpenMode {
-  const value = localStorage.getItem(EDITOR_PREFERENCE_STORAGE_KEYS.MARKDOWN_OPEN_MODE);
+export function normalizeMarkdownOpenMode(value: string | null | undefined): MarkdownOpenMode {
+  if (value === "obsidian" || value === "vscode") {
+    return "external";
+  }
   return MARKDOWN_MODES.has(value as MarkdownOpenMode) ? (value as MarkdownOpenMode) : "web";
-}
-
-export function setStoredMarkdownOpenMode(mode: MarkdownOpenMode): void {
-  localStorage.setItem(EDITOR_PREFERENCE_STORAGE_KEYS.MARKDOWN_OPEN_MODE, mode);
 }
