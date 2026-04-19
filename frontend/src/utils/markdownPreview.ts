@@ -40,19 +40,75 @@ function renderCodeBlock(code: string, language = ""): string {
 }
 
 function renderList(lines: string[], startLineIndex: number): string {
-  const items = lines.map((line, itemIndex) => {
+  // インデントの深さを計算するヘルパー
+  const getIndentLevel = (line: string) => {
+    const match = line.match(/^(\s*)/);
+    if (!match) return 0;
+    // タブは4スペース分として計算
+    return match[1].replace(/\t/g, "    ").length;
+  };
+
+  let html = "";
+  const indentStack: number[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const rawIndent = getIndentLevel(line);
+
+    // インデントレベルを2スペース=1レベルとして大まかに正規化（直前のレベルに基づいて判断）
+    let currentLevel = 0;
+    if (indentStack.length > 0) {
+        if (rawIndent > indentStack[indentStack.length - 1]) {
+            currentLevel = indentStack.length; // レベルアップ
+        } else {
+            // 現在のインデント以下になるまでスタックを下回る
+            while (indentStack.length > 0 && rawIndent < indentStack[indentStack.length - 1]) {
+                indentStack.pop();
+                html += "</ul></li>";
+            }
+            currentLevel = indentStack.length > 0 ? indentStack.length - 1 : 0;
+        }
+    }
+
+    if (currentLevel > indentStack.length - 1) {
+       indentStack.push(rawIndent);
+       if (i === 0) {
+           const hasTaskList = lines.some(l => /^\s*[-*+]\s+\[( |x|X)\]\s+/.test(l));
+           html += `<ul${hasTaskList ? ' class="contains-task-list"' : ""}>`;
+       } else {
+           html += "<ul>";
+       }
+    } else if (i === 0) {
+       indentStack.push(rawIndent);
+       const hasTaskList = lines.some(l => /^\s*[-*+]\s+\[( |x|X)\]\s+/.test(l));
+       html += `<ul${hasTaskList ? ' class="contains-task-list"' : ""}>`;
+    }
+
     const taskMatch = line.match(/^\s*[-*+]\s+\[( |x|X)\]\s+(.*)$/);
     if (taskMatch) {
       const checked = taskMatch[1].toLowerCase() === "x";
-      return `<li class="task-list-item" data-task-line="${startLineIndex + itemIndex}"><label><input type="checkbox" data-task-line="${startLineIndex + itemIndex}"${checked ? " checked" : ""} /><span>${renderInline(taskMatch[2])}</span></label></li>`;
+      html += `<li class="task-list-item" data-task-line="${startLineIndex + i}"><label><input type="checkbox" data-task-line="${startLineIndex + i}"${checked ? " checked" : ""} /><span>${renderInline(taskMatch[2])}</span></label>`;
+    } else {
+      const plainMatch = line.match(/^\s*[-*+]\s+(.*)$/);
+      html += `<li>${renderInline(plainMatch ? plainMatch[1] : line.replace(/^\s*[-*+]\s+/, ""))}`;
     }
 
-    const plainMatch = line.match(/^\s*[-*+]\s+(.*)$/);
-    return `<li>${renderInline(plainMatch ? plainMatch[1] : line.trim())}</li>`;
-  });
-  const hasTaskList = lines.some((line) => /^\s*[-*+]\s+\[( |x|X)\]\s+/.test(line));
-  const className = hasTaskList ? ' class="contains-task-list"' : "";
-  return `<ul${className}>${items.join("")}</ul>`;
+    // 次の行が同じかわからないため、</li>は閉じないでおき、インデントが上がるなら<ul>が続く。
+    // 同じインデントか下がるなら</li>を閉じる
+    const nextLine = i + 1 < lines.length ? lines[i + 1] : null;
+    const nextIndent = nextLine !== null ? getIndentLevel(nextLine) : -1;
+    if (nextIndent <= rawIndent) {
+        html += "</li>";
+    }
+  }
+
+  while (indentStack.length > 0) {
+    indentStack.pop();
+    html += "</ul>";
+    if (indentStack.length > 0) html += "</li>";
+  }
+
+  return html;
 }
 
 function renderBlockquote(lines: string[]): string {

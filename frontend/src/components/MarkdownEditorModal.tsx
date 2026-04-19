@@ -157,20 +157,24 @@ export function MarkdownEditorModal({
         }
     }, []);
 
-    // Cmd/Ctrl+Shift+[ ] による見出しレベルの変更判定
-    // event.code を主軸にすることでキーボードレイアウトによらず確実に動作する
+    // Cmd/Ctrl + Shift + [ ] または Cmd/Ctrl + [ ] による見出しレベルの変更判定
     const isHeadingShortcut = useCallback((event: KeyboardEvent | React.KeyboardEvent<HTMLTextAreaElement>, direction: "up" | "down") => {
         const nativeEvent = "nativeEvent" in event ? event.nativeEvent : event;
-        if ((!nativeEvent.metaKey && !nativeEvent.ctrlKey) || !nativeEvent.shiftKey || nativeEvent.altKey) {
+        // Shiftキーは必須としない（Mac版ChromeでCmd+Shift+[がシステム予約されていてフックできない問題の回避策としてCmd+[も許可）
+        if ((!nativeEvent.metaKey && !nativeEvent.ctrlKey) || nativeEvent.altKey) {
             return false;
         }
 
-        const code = nativeEvent.code;
-        if (direction === "up") {
-            return code === "BracketRight";
+        const key = nativeEvent.key.toLowerCase();
+        
+        // event.codeはUS配列の物理キー位置を返すため、JIS配列だと BracketRight が '[' キーになる等
+        // 判定が混線する原因となります。そのため、入力された文字(event.key)のみで判定します。
+        if (direction === "up") { // 見出しを下げる（#を増やす） / 右ブラケット系
+            return key === "]" || key === "}" || key === "」" || key === "』";
         }
-
-        return code === "BracketLeft";
+        
+        // 見出しを上げる（#を減らす） / 左ブラケット系
+        return key === "[" || key === "{" || key === "「" || key === "『";
     }, []);
 
     const isBulletShortcut = useCallback((event: KeyboardEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -214,8 +218,13 @@ export function MarkdownEditorModal({
         }
 
         // windowのキャプチャフェーズのみで処理する（textareaへの重複登録はしない）
-        // モーダル内のtextareaにフォーカスがある場合のみショートカットを発火する
         const handleDocumentKeyDown = (event: KeyboardEvent) => {
+            // エディタモーダル内でのCmd+Shift+[ ]によるタブ切り替えなどのブラウザ挙動を
+            // モーダルが開いている間は優先的に無効化する
+            if (isHeadingShortcut(event, "up") || isHeadingShortcut(event, "down")) {
+                stopNativeShortcut(event);
+            }
+
             const textarea = textareaRef.current;
             if (!textarea) {
                 return;
@@ -225,6 +234,8 @@ export function MarkdownEditorModal({
             const activeElement = document.activeElement;
             const isInEditor = activeElement === textarea
                 || textarea.closest(".markdown-editor-shell")?.contains(activeElement as Node);
+            
+            // ショートカットの実行はエディタ内にフォーカスがある時のみ
             if (!isInEditor) {
                 return;
             }
@@ -265,14 +276,15 @@ export function MarkdownEditorModal({
                 return;
             }
 
+            // ここで再度判定して処理を実行。上部で既にstopNativeShortcutは行っている
             if (isHeadingShortcut(event, "up")) {
-                stopNativeShortcut(event);
+                if (event.repeat) return; // 長押しでの連続発火（一気に######になる現象）を防ぐ
                 applySelectionTransform((text, start, end) => adjustHeadingLevel(text, start, end, 1));
                 return;
             }
 
             if (isHeadingShortcut(event, "down")) {
-                stopNativeShortcut(event);
+                if (event.repeat) return; // 長押しでの連続発火を防ぐ
                 applySelectionTransform((text, start, end) => adjustHeadingLevel(text, start, end, -1));
                 return;
             }

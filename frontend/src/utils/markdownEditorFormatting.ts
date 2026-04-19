@@ -55,15 +55,26 @@ function transformSelectedLines(
   const lineStart = findLineStart(text, start);
   const lineEnd = findLineEnd(text, end);
   const block = text.slice(lineStart, lineEnd);
+  const isCollapsed = start === end;
+
   const transformed = block
     .split("\n")
     .map((line) => lineTransformer(line))
     .join("\n");
 
+  let nextSelectionStart = lineStart;
+  let nextSelectionEnd = lineStart + transformed.length;
+
+  if (isCollapsed) {
+    const diff = transformed.length - block.length;
+    nextSelectionStart = Math.max(lineStart, start + diff);
+    nextSelectionEnd = nextSelectionStart;
+  }
+
   return {
     text: `${text.slice(0, lineStart)}${transformed}${text.slice(lineEnd)}`,
-    selectionStart: lineStart,
-    selectionEnd: lineStart + transformed.length,
+    selectionStart: nextSelectionStart,
+    selectionEnd: nextSelectionEnd,
   };
 }
 
