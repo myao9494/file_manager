@@ -96,7 +96,6 @@ def _bring_explorer_to_front(process_id: int, target_path: Path) -> None:
 
         target_name = target_path.name.lower()
         shell_window = user32.GetShellWindow()
-        current_thread_id = kernel32.GetCurrentThreadId()
 
         def try_focus_window(hwnd: int) -> bool:
             if not hwnd or hwnd == shell_window:
@@ -123,19 +122,7 @@ def _bring_explorer_to_front(process_id: int, target_path: Path) -> None:
                 and target_name not in window_title
             ):
                 return False
-
-            window_thread_id = user32.GetWindowThreadProcessId(hwnd, None)
-            attached = False
-            if window_thread_id and window_thread_id != current_thread_id:
-                attached = bool(user32.AttachThreadInput(current_thread_id, window_thread_id, True))
-
-            try:
-                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-                user32.BringWindowToTop(hwnd)
-                return bool(user32.SetForegroundWindow(hwnd))
-            finally:
-                if attached:
-                    user32.AttachThreadInput(current_thread_id, window_thread_id, False)
+            return _focus_window_handle(user32, kernel32, hwnd, restore_minimized=True)
 
         for _ in range(10):
             focused = False
@@ -178,7 +165,6 @@ def _bring_obsidian_to_front() -> None:
             return
 
         shell_window = user32.GetShellWindow()
-        current_thread_id = kernel32.GetCurrentThreadId()
         title_keywords = ("obsidian",)
 
         def try_focus_window(hwnd: int) -> bool:
@@ -192,19 +178,7 @@ def _bring_obsidian_to_front() -> None:
             window_title = title_buffer.value.lower()
             if not window_title or not any(keyword in window_title for keyword in title_keywords):
                 return False
-
-            window_thread_id = user32.GetWindowThreadProcessId(hwnd, None)
-            attached = False
-            if window_thread_id and window_thread_id != current_thread_id:
-                attached = bool(user32.AttachThreadInput(current_thread_id, window_thread_id, True))
-
-            try:
-                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-                user32.BringWindowToTop(hwnd)
-                return bool(user32.SetForegroundWindow(hwnd))
-            finally:
-                if attached:
-                    user32.AttachThreadInput(current_thread_id, window_thread_id, False)
+            return _focus_window_handle(user32, kernel32, hwnd, restore_minimized=True)
 
         for _ in range(15):
             focused = False
@@ -227,6 +201,33 @@ def _bring_obsidian_to_front() -> None:
             time.sleep(0.2)
 
     threading.Thread(target=worker, daemon=True).start()
+
+
+def _focus_window_handle(user32, kernel32, hwnd: int, restore_minimized: bool) -> bool:
+    """
+    Windowsウィンドウを前面化する。
+
+    非最小化ウィンドウに SW_RESTORE を送ると最大化や全画面状態が崩れることがあるため、
+    最小化時だけ復元して、それ以外は前面化のみ行う。
+    """
+    if not hwnd or not user32.IsWindowVisible(hwnd):
+        return False
+
+    current_thread_id = kernel32.GetCurrentThreadId()
+    window_thread_id = user32.GetWindowThreadProcessId(hwnd, None)
+    attached = False
+    if window_thread_id and window_thread_id != current_thread_id:
+        attached = bool(user32.AttachThreadInput(current_thread_id, window_thread_id, True))
+
+    try:
+        is_iconic = bool(getattr(user32, "IsIconic", lambda _hwnd: False)(hwnd))
+        if restore_minimized and is_iconic:
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+        user32.BringWindowToTop(hwnd)
+        return bool(user32.SetForegroundWindow(hwnd))
+    finally:
+        if attached:
+            user32.AttachThreadInput(current_thread_id, window_thread_id, False)
 
 
 # ---------------------------------------------------------
@@ -3357,6 +3358,12 @@ def _get_embedded_editor_language(path: Path) -> Optional[str]:
     return EMBEDDED_EDITOR_LANGUAGE_MAP.get(path.suffix.lower())
 
 
+def _is_excalidraw_markdown(path: Path) -> bool:
+    """Excalidraw用のMarkdownファイルか判定する。"""
+    lower_name = path.name.lower()
+    return ".excalidraw" in lower_name and lower_name.endswith(".md")
+
+
 def resolve_file_app_url(path_obj: Path) -> Optional[str]:
     """
     ファイルパスから、専用アプリで開くためのURL/URIを解決する
@@ -3488,6 +3495,9 @@ def _should_use_web_editor_for_fullpath(
     text_mode: Optional[str],
 ) -> bool:
     """fullpath APIでWebエディタに誘導すべきか判定する。"""
+    if _is_excalidraw_markdown(path):
+        return False
+
     embedded_editor_language = _get_embedded_editor_language(path)
     if embedded_editor_language == "markdown":
         return markdown_mode == "web"
@@ -3498,6 +3508,8 @@ def _should_use_web_editor_for_fullpath(
 
 def _should_use_external_markdown_app_for_fullpath(path: Path, markdown_mode: Optional[str]) -> bool:
     """fullpath APIでMarkdownを外部アプリ起動すべきか判定する。"""
+    if _is_excalidraw_markdown(path):
+        return False
     return _get_embedded_editor_language(path) == "markdown" and markdown_mode in {"external", "obsidian", "vscode"}
 
 
@@ -3568,7 +3580,7 @@ async def open_smart(request: OpenRequest):
 
     embedded_editor_language = _get_embedded_editor_language(path)
 
-    if request.prefer_embedded and embedded_editor_language:
+    if request.prefer_embedded and embedded_editor_language and not _is_excalidraw_markdown(path):
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 content = f.read()

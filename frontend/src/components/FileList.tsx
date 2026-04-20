@@ -92,6 +92,11 @@ let globalDragSourcePanelId: string | null = null;
 // グローバルクリップボード（アプリ内コピー＆ペースト用）
 let globalClipboard: { paths: string[]; op: 'copy' | 'move' } | null = null;
 
+function isExcalidrawMarkdownFile(fileName: string): boolean {
+  const lowerFileName = fileName.toLowerCase();
+  return lowerFileName.includes(".excalidraw") && lowerFileName.endsWith(".md");
+}
+
 export function FileList({
   initialPath,
   panelId = "main",
@@ -1858,7 +1863,7 @@ export function FileList({
         return;
       }
 
-      if (!forceWebEditor && lowerFileName.endsWith(".md")) {
+      if (!forceWebEditor && lowerFileName.endsWith(".md") && !isExcalidrawMarkdownFile(fileName)) {
         if (markdownOpenMode === "external") {
           await openMarkdownInExternalApp(path);
           return;
@@ -1870,7 +1875,11 @@ export function FileList({
       }
 
       const result = await openSmart(path, {
-        preferEmbedded: forceWebEditor || (lowerFileName.endsWith(".md") && markdownOpenMode === "web"),
+        preferEmbedded: forceWebEditor || (
+          lowerFileName.endsWith(".md")
+          && !isExcalidrawMarkdownFile(fileName)
+          && markdownOpenMode === "web"
+        ),
       });
 
       if (result.action === "open_modal") {

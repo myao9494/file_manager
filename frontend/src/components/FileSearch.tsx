@@ -53,6 +53,11 @@ const FileEditorModal = lazy(() =>
   import("./FileEditorModal").then((module) => ({ default: module.FileEditorModal }))
 );
 
+function isExcalidrawMarkdownFile(fileName: string): boolean {
+  const lowerFileName = fileName.toLowerCase();
+  return lowerFileName.includes(".excalidraw") && lowerFileName.endsWith(".md");
+}
+
 
 interface FileSearchProps {
   initialPath?: string;
@@ -555,7 +560,7 @@ export function FileSearch({
         return;
       }
 
-      if (lowerFileName.endsWith(".md")) {
+      if (lowerFileName.endsWith(".md") && !isExcalidrawMarkdownFile(item.name)) {
         if (markdownOpenMode === "external") {
           await openMarkdownInExternalApp(item.path);
           return;
@@ -567,7 +572,9 @@ export function FileSearch({
       }
 
       const result = await openSmart(item.path, {
-        preferEmbedded: lowerFileName.endsWith(".md") && markdownOpenMode === "web",
+        preferEmbedded: lowerFileName.endsWith(".md")
+          && !isExcalidrawMarkdownFile(item.name)
+          && markdownOpenMode === "web",
       });
 
       if (result.action === "open_modal") {

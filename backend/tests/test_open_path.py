@@ -226,6 +226,30 @@ class TestFullPath:
         assert "open_file=" in location
         assert popen_calls == []
 
+    def test_fullpath_excalidraw_markdown_ignores_markdown_web_mode(self, client, temp_dir, monkeypatch):
+        """excalidraw.md はMarkdown設定の対象外でExcalidrawへ流す"""
+        from app import config
+        from app.routers import files
+
+        excalidraw_path = temp_dir / "diagram.excalidraw.md"
+        excalidraw_path.write_text("# excalidraw\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        browser_calls = []
+        monkeypatch.setattr(files.webbrowser, "open", lambda url: browser_calls.append(url))
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(excalidraw_path), "markdown_mode": "web"},
+            headers={"accept": "text/html"},
+        )
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "window.close()" in response.text
+        assert len(browser_calls) == 1
+        assert browser_calls[0].startswith("http://localhost:3001/?filepath=")
+
     def test_fullpath_markdown_external_mode_uses_vscode_outside_obsidian(self, client, temp_dir, monkeypatch):
         """Markdownの外部起動ではObsidian外のファイルをVS Codeで開く"""
         from app import config
@@ -307,6 +331,104 @@ class TestFullPath:
 class TestOpenObsidian:
     """Obsidian起動時のWindows固有挙動を確認するテスト"""
 
+    def test_focus_window_keeps_obsidian_fullscreen_when_not_minimized(self, monkeypatch):
+        """前面化時に非最小化ウィンドウへSW_RESTOREを送らず全画面状態を維持する"""
+        from app.routers import files
+
+        class DummyUser32:
+            def __init__(self):
+                self.calls = []
+
+            def IsWindowVisible(self, hwnd):
+                self.calls.append(("IsWindowVisible", hwnd))
+                return True
+
+            def IsIconic(self, hwnd):
+                self.calls.append(("IsIconic", hwnd))
+                return False
+
+            def GetWindowThreadProcessId(self, hwnd, _):
+                self.calls.append(("GetWindowThreadProcessId", hwnd))
+                return 200
+
+            def AttachThreadInput(self, current_thread_id, window_thread_id, attach):
+                self.calls.append(("AttachThreadInput", current_thread_id, window_thread_id, attach))
+                return True
+
+            def ShowWindow(self, hwnd, flag):
+                self.calls.append(("ShowWindow", hwnd, flag))
+                return True
+
+            def BringWindowToTop(self, hwnd):
+                self.calls.append(("BringWindowToTop", hwnd))
+                return True
+
+            def SetForegroundWindow(self, hwnd):
+                self.calls.append(("SetForegroundWindow", hwnd))
+                return True
+
+        class DummyKernel32:
+            def GetCurrentThreadId(self):
+                return 100
+
+        user32 = DummyUser32()
+        kernel32 = DummyKernel32()
+
+        focused = files._focus_window_handle(user32, kernel32, hwnd=123, restore_minimized=True)
+
+        assert focused is True
+        assert ("ShowWindow", 123, 9) not in user32.calls
+        assert ("BringWindowToTop", 123) in user32.calls
+        assert ("SetForegroundWindow", 123) in user32.calls
+
+    def test_focus_window_restores_minimized_obsidian_window(self, monkeypatch):
+        """最小化済みウィンドウは前面化前に復元する"""
+        from app.routers import files
+
+        class DummyUser32:
+            def __init__(self):
+                self.calls = []
+
+            def IsWindowVisible(self, hwnd):
+                self.calls.append(("IsWindowVisible", hwnd))
+                return True
+
+            def IsIconic(self, hwnd):
+                self.calls.append(("IsIconic", hwnd))
+                return True
+
+            def GetWindowThreadProcessId(self, hwnd, _):
+                self.calls.append(("GetWindowThreadProcessId", hwnd))
+                return 200
+
+            def AttachThreadInput(self, current_thread_id, window_thread_id, attach):
+                self.calls.append(("AttachThreadInput", current_thread_id, window_thread_id, attach))
+                return True
+
+            def ShowWindow(self, hwnd, flag):
+                self.calls.append(("ShowWindow", hwnd, flag))
+                return True
+
+            def BringWindowToTop(self, hwnd):
+                self.calls.append(("BringWindowToTop", hwnd))
+                return True
+
+            def SetForegroundWindow(self, hwnd):
+                self.calls.append(("SetForegroundWindow", hwnd))
+                return True
+
+        class DummyKernel32:
+            def GetCurrentThreadId(self):
+                return 100
+
+        user32 = DummyUser32()
+        kernel32 = DummyKernel32()
+
+        focused = files._focus_window_handle(user32, kernel32, hwnd=123, restore_minimized=True)
+
+        assert focused is True
+        assert ("ShowWindow", 123, 9) in user32.calls
+
     def test_open_smart_tries_to_bring_obsidian_to_front_on_windows(self, client, temp_dir, monkeypatch):
         """WindowsではObsidian URI起動後に前面化処理を試みる"""
         from app import config
@@ -363,6 +485,24 @@ class TestSmartOpenEditorFiles:
         assert data["editor_mode"] == "markdown"
         assert data["content"] == "# note\n"
         assert popen_calls == []
+
+    def test_open_smart_prefer_embedded_does_not_capture_excalidraw_markdown(self, client, temp_dir, monkeypatch):
+        """prefer_embedded指定でもexcalidraw.mdはExcalidrawを優先する"""
+        from app import config
+
+        excalidraw_path = temp_dir / "diagram.excalidraw.md"
+        excalidraw_path.write_text("# excalidraw\n", encoding="utf-8")
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        response = client.post(
+            "/api/open/smart",
+            json={"path": str(excalidraw_path), "prefer_embedded": True},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "opened"
 
     def test_open_smart_returns_modal_for_plain_text_file(self, client, temp_dir, monkeypatch):
         """txtファイルは内蔵テキストエディタ用レスポンスを返す"""
