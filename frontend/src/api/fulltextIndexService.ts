@@ -171,7 +171,9 @@ export async function searchFulltextIndexService(params: IndexSearchParams & { d
   const url = new URL(baseUrl, window.location.origin);
 
   url.searchParams.set("search", params.query);
-  url.searchParams.set("path", params.path ?? "");
+  if (params.path) {
+    url.searchParams.set("path", params.path);
+  }
   url.searchParams.set("depth", String(params.depth ?? 1));
 
   if (params.count !== undefined) {

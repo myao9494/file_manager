@@ -1,6 +1,6 @@
 """
 全文検索プロキシ
-Local-fulltext-search のAPIを file_manager の Index(L) / Index(R) で扱いやすい形式に変換して返す
+Local-fulltext-search のAPIを file_manager の全文検索UIで扱いやすい形式に変換して返す
 """
 from datetime import datetime
 from typing import Optional
@@ -69,7 +69,7 @@ async def get_status() -> FulltextStatusResponse:
 @router.get("/fulltext-search", response_model=FulltextSearchResponse)
 async def search_fulltext(
     search: str = Query(..., min_length=1, description="検索クエリ"),
-    path: str = Query(..., min_length=1, description="検索対象フォルダ"),
+    path: str = Query("", description="検索対象フォルダ。空文字なら全体検索"),
     depth: int = Query(1, ge=0, description="検索階層"),
     count: int = Query(100, ge=1, le=1000, description="取得件数"),
     offset: int = Query(0, ge=0, description="オフセット"),

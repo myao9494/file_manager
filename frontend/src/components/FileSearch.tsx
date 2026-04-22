@@ -2,7 +2,7 @@
  * ファイル検索コンポーネント（Everything風 + インデックスベース高速検索）
  * 指定フォルダ以下のファイルを再帰的に検索
  * 検索階層と除外パターンを設定可能
- * 外部インデックスサービス対応（Everything互換）
+ * 外部インデックスサービス対応（Everything互換 / 全文検索）
  */
 import { useState, useMemo, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
@@ -69,10 +69,11 @@ interface FileSearchProps {
   onRequestFocus?: () => void;
   textFileOpenMode?: TextFileOpenMode;
   markdownOpenMode?: MarkdownOpenMode;
+  globalFulltextShortcutSeq?: number;
 }
 
 type TypeFilter = "all" | "file" | "directory";
-type SearchMode = "off" | "live-left" | "live-right" | "index-left" | "index-right" | "index-all";
+type SearchMode = "off" | "live-left" | "live-right" | "index-left" | "index-right" | "index-all" | "fulltext-all";
 
 export function FileSearch({
   initialPath,
@@ -84,6 +85,7 @@ export function FileSearch({
   onRequestFocus,
   textFileOpenMode = "web",
   markdownOpenMode = "web",
+  globalFulltextShortcutSeq = 0,
 }: FileSearchProps) {
   // initialPathが未指定の場合はバックエンドから取得した値を使用
   const effectiveInitialPath = initialPath ?? getDefaultBasePath();
@@ -113,7 +115,7 @@ export function FileSearch({
   type FocusSection = 'mode' | 'filter' | 'input' | 'results';
   const [focusedSection, setFocusedSection] = useState<FocusSection>('mode');
   // モードボタン内のフォーカスインデックス
-  const searchModes: SearchMode[] = ['off', 'live-left', 'live-right', 'index-left', 'index-right', 'index-all'];
+  const searchModes: SearchMode[] = ['off', 'live-left', 'live-right', 'index-left', 'index-right', 'index-all', 'fulltext-all'];
   const [modeButtonIndex, setModeButtonIndex] = useState(0);
   // フィルタボタン内のフォーカスインデックス (0:全, 1:F, 2:D, 3:深度-)
   const [filterButtonIndex, setFilterButtonIndex] = useState(0);
@@ -170,6 +172,7 @@ export function FileSearch({
     if (searchMode === "index-left" || searchMode === "live-left") return leftPanePath;
     if (searchMode === "index-right" || searchMode === "live-right") return rightPanePath;
     if (searchMode === "index-all") return undefined; // 全体検索
+    if (searchMode === "fulltext-all") return undefined; // 全文の全体検索
     return effectiveInitialPath; // Fallback
   }, [searchMode, leftPanePath, rightPanePath, effectiveInitialPath]);
 
@@ -191,7 +194,8 @@ export function FileSearch({
 
   // 外部サービス使用判定
   const useEverythingService = searchMode === "index-all";
-  const useFulltextService = searchMode === "index-left" || searchMode === "index-right";
+  const useFulltextService =
+    searchMode === "index-left" || searchMode === "index-right" || searchMode === "fulltext-all";
   const useIndexedService = useEverythingService || useFulltextService;
 
   useEffect(() => {
@@ -199,6 +203,20 @@ export function FileSearch({
       setCommittedFulltextSearch(null);
     }
   }, [useFulltextService, query, searchPath, depth, typeFilter]);
+
+  useEffect(() => {
+    if (globalFulltextShortcutSeq === 0) {
+      return;
+    }
+
+    setSearchMode("fulltext-all");
+    setFocusedSection("input");
+
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+  }, [globalFulltextShortcutSeq]);
 
   // 検索クエリのデバウンス
   useEffect(() => {
@@ -960,11 +978,11 @@ export function FileSearch({
   // 検索入力でのキーハンドリング
   const handleSearchInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-      if (useFulltextService && query.trim() && searchPath) {
+      if (useFulltextService && query.trim()) {
         e.preventDefault();
         setCommittedFulltextSearch({
           query: query.trim(),
-          path: searchPath,
+          path: searchPath ?? "",
           depth,
           fileType: typeFilter,
         });
@@ -1039,6 +1057,13 @@ export function FileSearch({
           title="全インデックス検索（Everything風）"
         >
           Index(ALL)
+        </button>
+        <button
+          className={`mode-toggle ${searchMode === "fulltext-all" ? "active" : ""} ${focusedSection === 'mode' && modeButtonIndex === 6 ? "keyboard-focused" : ""}`}
+          onClick={() => setSearchMode("fulltext-all")}
+          title="全文の全体検索"
+        >
+          Fulltext(ALL)
         </button>
 
         {/* ステータス表示 */}
@@ -1265,7 +1290,7 @@ export function FileSearch({
             {sortedResults.total} 件の結果
             {typeFilter !== "all" && ` (全${searchData.total}件中)`}
           </span>
-          {depth > 0 && !useEverythingService && <span>（{depth}階層まで）</span>}
+          {depth > 0 && !useEverythingService && searchMode !== "fulltext-all" && <span>（{depth}階層まで）</span>}
         </div>
       )}
 

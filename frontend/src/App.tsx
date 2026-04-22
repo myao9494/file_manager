@@ -21,7 +21,10 @@ import { OperationHistoryProvider, useOperationHistoryContext } from "./contexts
 import { FolderHistoryProvider } from "./contexts/FolderHistoryContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ZoomProvider, useZoomContext } from "./contexts/ZoomContext";
-import { isEditableEventTarget } from "./utils/globalShortcuts";
+import {
+  isEditableEventTarget,
+  matchesCmdOrCtrlShiftShortcut,
+} from "./utils/globalShortcuts";
 import {
   type MarkdownOpenMode,
   type TextFileOpenMode,
@@ -108,6 +111,7 @@ function AppContent() {
     cwd: null,
     seq: 0,
   });
+  const [globalFulltextShortcutSeq, setGlobalFulltextShortcutSeq] = useState(0);
 
   // テーマを適用
   useEffect(() => {
@@ -300,6 +304,15 @@ function AppContent() {
       // Ctrl/Cmdキーが押されている場合
       if (e.ctrlKey || e.metaKey) {
         const key = e.key.toLowerCase();
+
+        if (matchesCmdOrCtrlShiftShortcut(e, "p")) {
+          e.preventDefault();
+          if (isTerminalResidualFocus) clearActiveDomFocus();
+          lastInactivePaneRef.current = "right";
+          setFocusedPane("right");
+          setGlobalFulltextShortcutSeq((current) => current + 1);
+          return;
+        }
 
         // Redo: Ctrl+Shift+Z / Cmd+Shift+Z (Undoより先にチェック)
         if (key === 'z' && e.shiftKey) {
@@ -645,6 +658,7 @@ function AppContent() {
                     }}
                     textFileOpenMode={textFileOpenMode}
                     markdownOpenMode={markdownOpenMode}
+                    globalFulltextShortcutSeq={globalFulltextShortcutSeq}
                   />
                 </div>
                 <div

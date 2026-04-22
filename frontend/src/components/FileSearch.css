@@ -368,12 +368,13 @@
 .index-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: 5px;
+  padding: 4px 6px;
   margin-bottom: 4px;
   background-color: var(--hover-bg);
   border-radius: 4px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: hidden;
 }
 
 .index-toggle {
@@ -405,8 +406,9 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 4px 8px;
-  font-size: 11px;
+  padding: 3px 6px;
+  font-size: 10px;
+  line-height: 1.1;
   border: 1px solid var(--border-color);
   background-color: var(--pane-bg);
   color: var(--text-color);
@@ -414,6 +416,7 @@
   border-radius: 3px;
   transition: all 0.15s;
   white-space: nowrap;
+  flex-shrink: 1;
 }
 
 .mode-toggle:hover {
@@ -430,9 +433,11 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-color);
   opacity: 0.8;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .index-info .spin {
@@ -483,7 +488,9 @@
 .external-status {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .success-icon {
@@ -499,9 +506,10 @@
   align-items: center;
   color: var(--text-color);
   opacity: 0.6;
-  padding: 2px;
+  padding: 1px;
   border-radius: 2px;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
 .service-url:hover {

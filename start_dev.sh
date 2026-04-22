@@ -38,14 +38,14 @@ cd backend
 # バックエンド起動コマンドの決定
 if command -v uv >/dev/null 2>&1; then
     echo "Using uv for backend..."
-    # --host 0.0.0.0 を追加してIPv4/IPv6の両方でアクセス可能にする
-    uv run uvicorn app.main:app --reload --host 0.0.0.0 --port $BACKEND_PORT &
+    # --host 127.0.0.1 を追加してIPv4/IPv6の両方でアクセス可能にする
+    uv run uvicorn app.main:app --reload --host 127.0.0.1 --port $BACKEND_PORT &
 else
     echo "uv not found. Falling back to standard python..."
     if [ -d ".venv" ]; then
         source .venv/bin/activate
     fi
-    PYTHONPATH=. python -m uvicorn app.main:app --reload --host 0.0.0.0 --port $BACKEND_PORT &
+    PYTHONPATH=. python -m uvicorn app.main:app --reload --host 127.0.0.1 --port $BACKEND_PORT &
 fi
 BACKEND_PID=$!
 cd ..

@@ -50,6 +50,26 @@ describe("fulltextIndexService", () => {
     expect(requestUrl.searchParams.get("file_type")).toBe("file");
   });
 
+  it("omits the path parameter for global fulltext search", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ totalResults: 0, results: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await searchFulltextIndexService({
+      query: "議事録",
+      depth: 1,
+      count: 100,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const requestUrl = new URL(fetchMock.mock.calls[0][0]);
+    expect(requestUrl.pathname).toBe("/api/fulltext-search");
+    expect(requestUrl.searchParams.get("search")).toBe("議事録");
+    expect(requestUrl.searchParams.has("path")).toBe(false);
+  });
+
   it("normalizes object-like fulltext search fields into strings", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

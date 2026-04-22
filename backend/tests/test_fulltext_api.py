@@ -239,3 +239,30 @@ class TestFulltextSearch:
         assert calls[0][2]["limit"] == 1000
         assert calls[1][2]["limit"] == 100
         assert response.json()["results"][0]["snippet"] == "legacy"
+
+    def test_search_allows_omitting_path_for_global_search(self, client, monkeypatch):
+        """path 未指定時は全文検索サービスへフォルダ条件なしで中継する。"""
+        from app.routers import fulltext
+
+        calls = []
+        monkeypatch.setattr(
+            fulltext.httpx,
+            "AsyncClient",
+            lambda **kwargs: _MockAsyncClient(
+                post_payload={"total": 0, "items": []},
+                calls=calls,
+                **kwargs,
+            ),
+        )
+
+        response = client.get(
+            "/api/fulltext-search",
+            params={
+                "search": "横断検索",
+                "depth": 1,
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"totalResults": 0, "results": []}
+        assert calls[0][2]["full_path"] == ""

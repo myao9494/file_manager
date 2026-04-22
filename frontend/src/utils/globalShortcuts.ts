@@ -25,3 +25,18 @@ export function matchesCmdOrCtrlShortcut(
 
   return event.key.toLowerCase() === shortcutKey.toLowerCase();
 }
+
+export function matchesCmdOrCtrlShiftShortcut(
+  event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">,
+  shortcutKey: string
+): boolean {
+  if (!event.ctrlKey && !event.metaKey) {
+    return false;
+  }
+
+  if (!event.shiftKey || event.altKey) {
+    return false;
+  }
+
+  return event.key.toLowerCase() === shortcutKey.toLowerCase();
+}
