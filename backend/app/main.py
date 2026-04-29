@@ -4,9 +4,11 @@ FastAPI ファイルマネージャー メインアプリケーション
 - ファイル操作（コピー、移動、削除、リネーム）
 - CORS対応（個人利用・VPN内利用前提）
 - PWA: フロントエンドのビルド済みファイルを静的配信
+- PWA更新反映: HTML/Service Workerは再検証、ハッシュ付きアセットは長期キャッシュ
 
 注: インデックス検索機能は外部サービス（file_index_service）に移行
 """
+import re
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -26,12 +28,24 @@ mimetypes.add_type("image/svg+xml", ".svg")
 
 # フロントエンドのビルドディレクトリ（backend/の親ディレクトリ → frontend/dist）
 FRONTEND_DIST_DIR = Path(__file__).parent.parent.parent / "frontend" / "dist"
+HASHED_ASSET_PATTERN = re.compile(r".*-[0-9A-Za-z]{6,}\.(js|css|mjs)$")
 
 app = FastAPI(
     title="File Manager API",
     description="軽量ファイルマネージャー API",
     version="2.0.0",
 )
+
+
+def build_static_cache_headers(path: Path) -> dict[str, str]:
+    """配信ファイル種別ごとに適切なキャッシュヘッダーを返す"""
+    if path.name in {"index.html", "sw.js", "manifest.json"}:
+        return {"Cache-Control": "no-cache, no-store, must-revalidate"}
+
+    if HASHED_ASSET_PATTERN.fullmatch(path.name):
+        return {"Cache-Control": "public, max-age=31536000, immutable"}
+
+    return {"Cache-Control": "public, max-age=3600"}
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -109,12 +123,12 @@ if FRONTEND_DIST_DIR.is_dir():
         # 静的ファイルが存在すればそのファイルを返す
         file_path = FRONTEND_DIST_DIR / full_path
         if file_path.is_file():
-            return FileResponse(file_path)
+            return FileResponse(file_path, headers=build_static_cache_headers(file_path))
 
         # index.html を返す（SPAルーティング対応）
         index_path = FRONTEND_DIST_DIR / "index.html"
         if index_path.is_file():
-            return FileResponse(index_path)
+            return FileResponse(index_path, headers=build_static_cache_headers(index_path))
 
         return JSONResponse(status_code=404, content={"detail": "Not found"})
 
