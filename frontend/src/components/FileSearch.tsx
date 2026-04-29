@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { ContextMenu } from "./ContextMenu";
+import { PaneContextMenu } from "./PaneContextMenu";
 import { useToast } from "../hooks/useToast";
 import {
   useSearchFiles,
@@ -42,6 +43,7 @@ import "./FileSearch.css";
 import { updateFile } from "../api/files";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
+import { formatItemsAsMarkdownChecklist } from "../utils/markdownChecklist";
 import type { EditorLanguage } from "../utils/codeEditorHighlight";
 import { isWebFileEditorTarget } from "../utils/codeEditorHighlight";
 import type { MarkdownOpenMode, TextFileOpenMode } from "../utils/editorPreferences";
@@ -123,6 +125,10 @@ export function FileSearch({
     x: number;
     y: number;
     item: { name: string; path: string; type: "file" | "directory" };
+  } | null>(null);
+  const [paneContextMenu, setPaneContextMenu] = useState<{
+    x: number;
+    y: number;
   } | null>(null);
   const [hoverPreview, setHoverPreview] = useState<{
     x: number;
@@ -559,12 +565,43 @@ export function FileSearch({
 
   const handleContextMenu = (e: React.MouseEvent, item: { name: string; path: string; type: "file" | "directory" }) => {
     e.preventDefault();
+    e.stopPropagation();
+    setPaneContextMenu(null);
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
       item,
     });
   };
+
+  const handlePaneContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("tr")) {
+      return;
+    }
+    e.preventDefault();
+    setContextMenu(null);
+    setPaneContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
+  const copyVisibleItemsAsChecklist = useCallback(async () => {
+    const markdown = formatItemsAsMarkdownChecklist([...sortedResults.folders, ...sortedResults.files]);
+    if (!markdown) {
+      showError("コピーできる検索結果がありません");
+      setPaneContextMenu(null);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(markdown);
+      showSuccess("検索結果をチェックボックス形式でコピーしました");
+    } catch {
+      showError("検索結果のコピーに失敗しました");
+    }
+    setPaneContextMenu(null);
+  }, [showError, showSuccess, sortedResults.files, sortedResults.folders]);
 
   // ファイルクリックハンドラ（ファイルを開く処理）
   const handleFileClick = async (item: { name: string, path: string }) => {
@@ -1013,6 +1050,7 @@ export function FileSearch({
       className="file-search"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onContextMenu={handlePaneContextMenu}
     >
       {/* 1段目：検索モード選択 */}
       <div className="index-status">
@@ -1523,6 +1561,14 @@ export function FileSearch({
               }
             }
           }}
+        />
+      )}
+      {paneContextMenu && (
+        <PaneContextMenu
+          x={paneContextMenu.x}
+          y={paneContextMenu.y}
+          onClose={() => setPaneContextMenu(null)}
+          onCopyChecklist={copyVisibleItemsAsChecklist}
         />
       )}
 

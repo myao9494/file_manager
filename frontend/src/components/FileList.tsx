@@ -36,6 +36,7 @@ import { buildFullPathUrl, getPathInfo, openInVSCode, openInEditor, executeProgr
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
+import { PaneContextMenu } from "./PaneContextMenu";
 import { FilterBar } from "./FilterBar";
 // import { Toast } from "./Toast";
 import { FileIcon } from "./FileIcon";
@@ -47,6 +48,7 @@ import { getNetworkDrivePath, getDefaultBasePath } from "../config";
 import { useOperationHistoryContext } from "../contexts/OperationHistoryContext";
 import { useFolderHistory } from "../contexts/FolderHistoryContext";
 import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
+import { formatItemsAsMarkdownChecklist } from "../utils/markdownChecklist";
 import { isProgramCodeFile } from "../utils/codeFileActions";
 import { isEditableEventTarget, matchesCmdOrCtrlShortcut } from "../utils/globalShortcuts";
 import type { IndexedFolderSearchItem } from "../api/fulltextIndexService";
@@ -121,6 +123,10 @@ export function FileList({
     y: number;
     item: FileItem;
     startRename?: boolean;
+  } | null>(null);
+  const [paneContextMenu, setPaneContextMenu] = useState<{
+    x: number;
+    y: number;
   } | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [extFilter, setExtFilter] = useState<string>(() => {
@@ -513,7 +519,35 @@ export function FileList({
   // 右クリックメニュー
   const handleContextMenu = (e: React.MouseEvent, item: FileItem) => {
     e.preventDefault();
+    e.stopPropagation();
+    setPaneContextMenu(null);
     setContextMenu({ x: e.clientX, y: e.clientY, item });
+  };
+
+  const handlePaneContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("tr")) {
+      return;
+    }
+    e.preventDefault();
+    setContextMenu(null);
+    setPaneContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const copyVisibleItemsAsChecklist = async () => {
+    const markdown = formatItemsAsMarkdownChecklist([...folders, ...files]);
+    if (!markdown) {
+      showError("コピーできる項目がありません");
+      setPaneContextMenu(null);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(markdown);
+      showSuccess("一覧をチェックボックス形式でコピーしました");
+    } catch {
+      showError("一覧のコピーに失敗しました");
+    }
+    setPaneContextMenu(null);
   };
 
   // フルパスをコピー
@@ -2588,6 +2622,7 @@ export function FileList({
       className={`file-list ${isShiftDragSelecting ? 'shift-drag-selecting' : ''}`}
       tabIndex={0} // キーボードイベントのために必要
       onKeyDown={handleKeyDown}
+      onContextMenu={handlePaneContextMenu}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handlePanelDrop}
       onMouseDown={handleMouseDown}
@@ -3148,6 +3183,14 @@ export function FileList({
           onOpenInEditor={isProgramCodeFile(contextMenu.item.name) ? () => handleOpenProgramCodeInEditor(contextMenu.item) : undefined}
           onExecute={isProgramCodeFile(contextMenu.item.name) ? () => handleExecuteProgramCode(contextMenu.item) : undefined}
           onDeleteRequest={handleRequestDeleteFromMenu}
+        />
+      )}
+      {paneContextMenu && (
+        <PaneContextMenu
+          x={paneContextMenu.x}
+          y={paneContextMenu.y}
+          onClose={() => setPaneContextMenu(null)}
+          onCopyChecklist={copyVisibleItemsAsChecklist}
         />
       )}
 
