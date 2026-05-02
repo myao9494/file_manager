@@ -912,10 +912,8 @@ export function FileList({
 
   // エクスプローラー/Finderで開く
   const handleOpenExplorer = async () => {
-    // 選択されたフォルダまたはファイルがあればその場所、なければカレントパス
-    const targetPath = selectedItems.size > 0
-      ? Array.from(selectedItems)[0] // 最初の1つだけ開く
-      : currentPath;
+    // 選択状態に関わらず、常にカレントディレクトリを開く
+    const targetPath = currentPath;
 
     if (!targetPath) {
       return;
@@ -942,10 +940,8 @@ export function FileList({
 
   // Jupyterを開く
   const handleOpenJupyter = async () => {
-    // 選択なしならカレントディレクトリ、ありならそのパス
-    const targetPath = selectedItems.size > 0
-      ? Array.from(selectedItems)[0]
-      : currentPath;
+    // 選択状態に関わらず、常にカレントディレクトリを開く
+    const targetPath = currentPath;
 
     if (!targetPath) return;
 
@@ -1026,30 +1022,20 @@ export function FileList({
 
   // Antigravityで開く
   const handleOpenAntigravity = async () => {
-    const pathsToOpen = selectedItems.size > 0
-      ? Array.from(selectedItems)
-      : (currentPath ? [currentPath] : []);
+    // 選択状態に関わらず、常にカレントディレクトリを開く
+    const targetPath = currentPath;
 
-    if (pathsToOpen.length === 0) {
+    if (!targetPath) {
       showError("開く対象がありません");
       return;
     }
 
-    let successCount = 0;
-    for (const path of pathsToOpen) {
-      try {
-        await openInAntigravity(path);
-        successCount++;
-      } catch (e: any) {
-        console.error(`Error opening in Antigravity: ${path}`, e);
-        showError(`Antigravity起動エラー: ${e.message}`);
-      }
-    }
-
-    if (successCount > 0) {
-      showSuccess(`${successCount}件をAntigravityで開きました`);
-    } else if (pathsToOpen.length > 0 && successCount === 0) {
-      // 上記catchでエラー表示済み
+    try {
+      await openInAntigravity(targetPath);
+      showSuccess("Antigravityを開きました");
+    } catch (e: any) {
+      console.error(`Error opening in Antigravity: ${targetPath}`, e);
+      showError(`Antigravity起動エラー: ${e.message}`);
     }
   };
 
@@ -1179,28 +1165,20 @@ export function FileList({
 
   // Obsidianで開く
   const handleOpenObsidian = async () => {
-    const pathsToOpen = selectedItems.size > 0
-      ? Array.from(selectedItems)
-      : (currentPath ? [currentPath] : []);
+    // 選択状態に関わらず、常にカレントディレクトリを開く
+    const targetPath = currentPath;
 
-    if (pathsToOpen.length === 0) {
+    if (!targetPath) {
       showError("開く対象がありません");
       return;
     }
 
-    let successCount = 0;
-    for (const path of pathsToOpen) {
-      try {
-        await openInObsidian(path);
-        successCount++;
-      } catch (e: any) {
-        console.error(`Error opening in Obsidian: ${path}`, e);
-        showError(`Obsidian起動エラー: ${e.message}`);
-      }
-    }
-
-    if (successCount > 0) {
-      showSuccess(`${successCount}件をObsidianで開きました`);
+    try {
+      await openInObsidian(targetPath);
+      showSuccess("Obsidianを開きました");
+    } catch (e: any) {
+      console.error(`Error opening in Obsidian: ${targetPath}`, e);
+      showError(`Obsidian起動エラー: ${e.message}`);
     }
   };
 
