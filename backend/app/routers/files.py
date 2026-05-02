@@ -147,13 +147,32 @@ def _bring_explorer_to_front(process_id: int, target_path: Path) -> None:
     threading.Thread(target=worker, daemon=True).start()
 
 
+def _schedule_macos_obsidian_activation() -> None:
+    """
+    macOSでObsidianを少し遅らせて前面化する。
+
+    ブラウザで /api/fullpath を開いた直後は、レスポンス描画でブラウザが
+    再度アクティブになることがあるため、Obsidian URI 起動後に短い遅延を
+    入れてアプリをactivateする。
+    """
+    subprocess.Popen([
+        "/bin/sh",
+        "-c",
+        "sleep 0.35; /usr/bin/osascript -e 'tell application \"Obsidian\" to activate'",
+    ])
+
+
 def _bring_obsidian_to_front() -> None:
     """
-    WindowsでObsidianウィンドウを前面に出すことを試みる。
+    Obsidianウィンドウを前面に出すことを試みる。
 
     obsidian:// 起動では既存のObsidianウィンドウが別デスクトップに残ることがあるため、
     起動直後にタイトルからObsidianウィンドウを探して前面化を数回リトライする。
     """
+    if platform.system() == "Darwin":
+        _schedule_macos_obsidian_activation()
+        return
+
     if platform.system() != "Windows":
         return
 
@@ -3434,7 +3453,8 @@ def resolve_file_app_url(path_obj: Path) -> Optional[str]:
             vault_name = parts[obsidian_idx]
             relative_file_path = '/'.join(parts[obsidian_idx+1:])
             encoded_file = urllib.parse.quote(relative_file_path)
-            return f"obsidian://open?vault={vault_name}&file={encoded_file}"
+            encoded_vault = urllib.parse.quote(vault_name)
+            return f"obsidian://open?vault={encoded_vault}&file={encoded_file}"
 
     # --- PDF ---
     # PDFはプラットフォームに関係なくブラウザで別タブ表示する
@@ -3456,11 +3476,15 @@ def _prefers_html_response(request: Request) -> bool:
     return "text/html" in accept or "application/xhtml+xml" in accept
 
 
-def _close_tab_response(message: str = "Opened. Closing tab...") -> HTMLResponse:
+def _close_tab_response(
+    message: str = "Opened. Closing tab...",
+    delay_ms: int = 1500,
+) -> HTMLResponse:
     """
     外部アプリ起動後に一時タブを自動的に閉じるHTMLを返す。
     """
     escaped_message = html.escape(message)
+    safe_delay_ms = max(0, delay_ms)
     return HTMLResponse(f"""
     <!DOCTYPE html>
     <html>
@@ -3468,8 +3492,10 @@ def _close_tab_response(message: str = "Opened. Closing tab...") -> HTMLResponse
         <title>Closing...</title>
         <script>
             window.onload = function() {{
-                window.open('', '_self', '');
-                window.close();
+                setTimeout(function() {{
+                    window.open('', '_self', '');
+                    window.close();
+                }}, {safe_delay_ms});
             }};
         </script>
     </head>
@@ -3556,7 +3582,10 @@ async def _handle_fullpath_html_preferences(request: Request, path: Path) -> Opt
         return RedirectResponse(_build_frontend_editor_redirect_url(path))
 
     if _should_use_external_markdown_app_for_fullpath(path, markdown_mode):
+        target_url = resolve_file_app_url(path)
         await _open_markdown_external_app_for_fullpath(path)
+        if target_url and target_url.startswith("obsidian://"):
+            return _close_tab_response("Opened in Obsidian. Closing tab...", delay_ms=100)
         return _close_tab_response()
 
     if _get_embedded_editor_language(path) and text_mode == "vscode":
@@ -3614,7 +3643,11 @@ async def open_smart(request: OpenRequest):
             else:
                 # obsidian:// 等のカスタムURI
                 if platform.system() == 'Darwin':
-                    subprocess.Popen(['open', target_url])
+                    if target_url.startswith("obsidian://"):
+                        subprocess.Popen(['open', '-a', 'Obsidian', target_url])
+                        _bring_obsidian_to_front()
+                    else:
+                        subprocess.Popen(['open', target_url])
                 elif platform.system() == 'Windows':
                     os.startfile(target_url)
                     if target_url.startswith("obsidian://"):
@@ -3781,10 +3814,12 @@ async def open_in_obsidian(request: OpenRequest):
         
         # Obsidian URI を構築
         encoded_file = urllib.parse.quote(relative_file_path)
-        obsidian_uri = f"obsidian://open?vault={vault_name}&file={encoded_file}"
+        encoded_vault = urllib.parse.quote(vault_name)
+        obsidian_uri = f"obsidian://open?vault={encoded_vault}&file={encoded_file}"
         
         if platform.system() == 'Darwin':  # macOS
-            subprocess.Popen(['open', obsidian_uri])
+            subprocess.Popen(['open', '-a', 'Obsidian', obsidian_uri])
+            _bring_obsidian_to_front()
         elif platform.system() == 'Windows':
             os.startfile(obsidian_uri)
             _bring_obsidian_to_front()

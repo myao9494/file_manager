@@ -79,9 +79,11 @@ class TestFullPath:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "window.close()" in response.text
-        assert len(popen_calls) == 1
-        assert popen_calls[0][0] == "open"
-        assert popen_calls[0][1].startswith("obsidian://open?vault=obsidian-vault&file=")
+        assert len(popen_calls) == 2
+        assert popen_calls[0][:3] == ["open", "-a", "Obsidian"]
+        assert popen_calls[0][3].startswith("obsidian://open?vault=obsidian-vault&file=")
+        assert popen_calls[1][:2] == ["/bin/sh", "-c"]
+        assert "tell application \"Obsidian\" to activate" in popen_calls[1][2]
 
     def test_fullpath_pdf_redirects_to_viewer(self, client, temp_dir, monkeypatch):
         """PDFではブラウザ表示用URLへリダイレクトする"""
@@ -304,9 +306,11 @@ class TestFullPath:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "window.close()" in response.text
-        assert len(popen_calls) == 1
-        assert popen_calls[0][0] == "open"
-        assert popen_calls[0][1].startswith("obsidian://open?vault=obsidian-vault&file=")
+        assert len(popen_calls) == 2
+        assert popen_calls[0][:3] == ["open", "-a", "Obsidian"]
+        assert popen_calls[0][3].startswith("obsidian://open?vault=obsidian-vault&file=")
+        assert popen_calls[1][:2] == ["/bin/sh", "-c"]
+        assert "tell application \"Obsidian\" to activate" in popen_calls[1][2]
 
     def test_fullpath_api_clients_still_receive_json(self, client, temp_dir, monkeypatch):
         """APIクライアントでは従来どおりJSONレスポンスを返す"""
