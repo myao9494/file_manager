@@ -1246,7 +1246,7 @@ export function FileSearch({
           </div>
           <div className="external-link-container" style={{ marginLeft: '12px', fontSize: '12px' }}>
             <a
-              href={useFulltextService ? getFulltextIndexGuiUrl() : "http://localhost:8080"}
+              href={useFulltextService ? getFulltextIndexGuiUrl() : getIndexServiceUrl()}
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: '#3b82f6', textDecoration: 'underline' }}

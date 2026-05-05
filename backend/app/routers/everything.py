@@ -1,6 +1,6 @@
 """
 Everything検索プロキシ
-EverythingのHTTPサーバー(localhost:8080)にリクエストを転送し、
+WindowsではEverythingのHTTPサーバー(localhost:8080)、macOSではLocal-fulltext-searchにリクエストを転送し、
 フロントエンドが期待する形式に変換して返す
 """
 import httpx
@@ -9,10 +9,17 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional, Any
 
+from app.config import settings
+
 router = APIRouter()
 
 EVERYTHING_BASE_URL = "http://localhost:8080"
 TIMEOUT = 5.0
+
+
+def get_mac_index_base_url() -> str:
+    """macOS用の統合済みファイル検索APIのベースURLを返す"""
+    return settings.fulltext_service_url.rstrip("/")
 
 class EverythingItem(BaseModel):
     name: str
@@ -59,15 +66,17 @@ def windows_filetime_to_timestamp(filetime: Optional[str]) -> Optional[float]:
 @router.get("/index/status", response_model=StatusResponse)
 async def get_status():
     """
-    Everythingサービスのステータス確認
+    インデックスサービスのステータス確認
     """
+    is_windows = platform.system() == "Windows"
+    base_url = EVERYTHING_BASE_URL if is_windows else get_mac_index_base_url()
+    path = "/" if is_windows else "/api/index/status"
     try:
         async with httpx.AsyncClient(trust_env=False) as client:
             # 軽いクエリで接続確認
-            # 両OSともにJSONレスポンスを期待
-            params = {"search": "", "json": 1, "count": 1}
+            params = {"search": "", "json": 1, "count": 1} if is_windows else None
             response = await client.get(
-                f"{EVERYTHING_BASE_URL}/",
+                f"{base_url}{path}",
                 params=params, 
                 timeout=TIMEOUT
             )
@@ -95,20 +104,20 @@ async def search(
     offset: int = Query(0, description="オフセット"),
     sort: str = Query("name", description="ソート順"),
     ascending: int = Query(1, description="昇順(1)/降順(0)"),
-    path: Optional[str] = Query(None, description="検索対象フォルダ")
+    path: Optional[str] = Query(None, description="検索対象フォルダ"),
+    file_type: str = Query("all", description="ファイルタイプ（all/file/directory）"),
 ):
     """
-    Everythingでファイルを検索
-    Macの場合は単純にプロキシ、Windowsの場合はEverything APIを変換
+    インデックスでファイルを検索
+    Macの場合はLocal-fulltext-searchへプロキシ、Windowsの場合はEverything APIを変換
     """
     is_windows = platform.system() == "Windows"
 
     if not is_windows:
-        # Mac: パススループロキシ
+        # Mac: Local-fulltext-search の互換APIへプロキシ
         # パラメータはそのまま転送
         params = {
             "search": search,
-            "json": 1,
             "count": count,
             "offset": offset,
             "sort": sort,
@@ -116,11 +125,13 @@ async def search(
         }
         if path:
             params["path"] = path
+        if file_type != "all":
+            params["file_type"] = file_type
 
         try:
             async with httpx.AsyncClient(trust_env=False) as client:
                 response = await client.get(
-                    f"{EVERYTHING_BASE_URL}/",
+                    f"{get_mac_index_base_url()}/api/index",
                     params=params,
                     timeout=TIMEOUT
                 )
@@ -149,6 +160,8 @@ async def search(
         "sort": sort,
         "ascending": ascending
     }
+    if file_type != "all":
+        params["file_type"] = "folder" if file_type == "directory" else file_type
 
     try:
         async with httpx.AsyncClient(trust_env=False) as client:
