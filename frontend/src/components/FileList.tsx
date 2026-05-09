@@ -51,6 +51,7 @@ import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
 import { formatItemsAsMarkdownChecklist } from "../utils/markdownChecklist";
 import { isProgramCodeFile } from "../utils/codeFileActions";
 import { isEditableEventTarget, matchesCmdOrCtrlShortcut } from "../utils/globalShortcuts";
+import { formatFileDate } from "../utils/formatFileDate";
 import type { IndexedFolderSearchItem } from "../api/fulltextIndexService";
 import type { EditorLanguage } from "../utils/codeEditorHighlight";
 import { isWebFileEditorTarget } from "../utils/codeEditorHighlight";
@@ -2559,12 +2560,6 @@ export function FileList({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // 日付をフォーマット
-  const formatDate = (isoDate?: string) => {
-    if (!isoDate) return "-";
-    return new Date(isoDate).toLocaleDateString("ja-JP");
-  };
-
   const handleSort = (key: "name" | "size" | "date") => {
     if (sortKey === key) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -3056,7 +3051,7 @@ export function FileList({
                 </td>
                 <td className="date-col">
                   <div className="cell-content">
-                    {formatDate(item.modified)}
+                    {formatFileDate(item.modified)}
                   </div>
                 </td>
               </tr>
@@ -3135,7 +3130,7 @@ export function FileList({
                 </td>
                 <td className="date-col">
                   <div className="cell-content">
-                    {formatDate(item.modified)}
+                    {formatFileDate(item.modified)}
                   </div>
                 </td>
               </tr>
