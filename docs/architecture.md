@@ -5,7 +5,7 @@
 React + FastAPIによる軽量ファイルマネージャー。個人利用・VPN内利用を前提とした用途特化UI。
 3ペイン構成（左パネル + 中央パネル + 検索パネル、比率35:35:30）で、ドラッグ&ドロップによるファイル操作とEverything風の高速検索をサポート。
 
-**注**: `Index(L)` / `Index(R)` は Local-fulltext-search、`Index(ALL)` は file_index_service を利用します。
+**注**: `Index(L)` / `Index(R)` と `全文(ALL)` は Local-fulltext-search、`Index(ALL)` は file_index_service を利用します。
 
 ## システム構成
 
@@ -172,7 +172,7 @@ file_manager/
 - `?path=/absolute/path` でフォルダを指定可能
 - ファイルパスが指定された場合は親フォルダにリダイレクト
 - URLデコード処理により、WindowsのUNCパス（`\\server\share`）も対応
-- パラメータがない場合のデフォルト: `/Users/username/projects`
+- パラメータがない場合はバックエンド設定の開始ディレクトリを使用
 
 **ハンバーガーメニュー:**
 

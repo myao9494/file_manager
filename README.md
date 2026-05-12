@@ -10,6 +10,7 @@ React + FastAPI による軽量ファイルマネージャーです。3ペイン
   - `Live`: file_manager 内部 API によるディレクトリ走査
   - `Index(L)` / `Index(R)`: 外部の Local-fulltext-search (`http://localhost:8079`) を利用
   - `Index(ALL)`: 外部の file_index_service (`http://localhost:8080`) を利用
+  - `全文(ALL)`: 外部の Local-fulltext-search (`http://localhost:8079`) を利用
 - 配信モード:
   - 開発モード: Vite (`5173`) + FastAPI (`8001`)
   - PWA 配信モード: FastAPI (`8001`) が `frontend/dist/` を配信
@@ -129,6 +130,7 @@ http://localhost:5173/?path=\\server\share\folder
   - `Live`
   - `Index(L)` / `Index(R)`
   - `Index(ALL)`
+  - `全文(ALL)`
   - タイプフィルタ
   - 深さ指定
   - ファイル名フィルタ

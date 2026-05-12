@@ -1,30 +1,46 @@
-# 外部連携 (file_viewer Integration)
+# 外部連携
 
-このアプリケーション (`file_manager`) は、一部の機能について既存の `file_viewer` アプリケーションと連携しています。
+このアプリケーション (`file_manager`) は、現在は `file_viewer` の常時起動を前提にせず、FastAPI バックエンド自身が外部連携用 API を提供します。
 
 ## 連携の概要
 
-`file_manager` のフロントエンドから、ローカルホスト上の `file_viewer` (Port 5001) のAPIを呼び出すことで機能を実現しています。
+- `file_manager` のフロントエンドは、基本的に同一オリジンの `/api/...` を利用します
+- ブラウザや他ツールから直接呼べる互換エンドポイントも、`backend/app/routers/files.py` に実装されています
+- 検索系だけは外部サービスと連携します
+  - `Index(ALL)`: `file_index_service` (`http://localhost:8080`)
+  - `Index(L)` / `Index(R)` / `全文(ALL)`: `Local-fulltext-search` (`http://127.0.0.1:8079`)
 
-### ダウンロード機能
+## 互換 API
 
-ファイルリストからファイルを選択して「ダウンロード」ボタンを押すと、以下のエンドポイントを使用してファイルをダウンロードします。
+### フルパスで開く
 
-- **Endpoint**: `http://localhost:5001/download-fullpath`
-- **Method**: `GET`
-- **Query Param**: `path` (フルパス)
+- Endpoint: `GET /api/fullpath`
+- Query Param: `path`
+- 用途: ファイル種別に応じて、PDF ビューア、Obsidian、Jupyter、Excalidraw、OS 既定アプリなどへ振り分けます
 
-この機能を使用するためには、`file_viewer` 側に `/download-fullpath` エンドポイントが実装されている必要があります。
+例:
 
-### VS Codeで開く
+```text
+http://localhost:8001/api/fullpath?path=/path/to/file.pdf
+```
 
-ファイルリストからファイルまたはフォルダを選択して「VSCodeで開く」ボタンを押すと、以下のエンドポイントを使用します。
+### パスを開く
 
-- **Endpoint**: `http://localhost:5001/open-in-code`
-- **Method**: `POST`
-- **Body**: `{ "path": "..." }`
+- Endpoint: `GET /api/open-path`
+- Query Param: `path`
+- 用途:
+  - フォルダなら `/?path=...` へリダイレクト
+  - ファイルなら種別に応じたアプリ連携、または OS 既定アプリでオープン
+
+### フォルダを開く
+
+- Endpoint: `POST /api/open-folder`
+- Body: `{ "path": "..." }`
+- 用途: Finder / Explorer を開きます。ファイルパスが渡された場合は親フォルダを開きます
 
 ## 前提条件
 
-- `file_viewer` が `http://localhost:5001` で起動していること。
-- `file_viewer` がローカルマシン上で動作しており、`file_manager` と同じファイルシステムにアクセスできること（フルパスを使用するため）。
+- `file_manager` バックエンドが起動していること
+- 外部検索モードを使う場合のみ、対応サービスが起動していること
+  - `file_index_service`: `http://localhost:8080`
+  - `Local-fulltext-search`: `http://127.0.0.1:8079`

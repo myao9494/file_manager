@@ -32,7 +32,7 @@ import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useC
 import { copyFilesToClipboard } from "../api/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
-import { buildFullPathUrl, getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
+import { buildAppPathUrl, buildFullPathUrl, getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
@@ -94,6 +94,14 @@ let globalDragSourcePanelId: string | null = null;
 
 // グローバルクリップボード（アプリ内コピー＆ペースト用）
 let globalClipboard: { paths: string[]; op: 'copy' | 'move' } | null = null;
+
+function getFileExtension(name: string): string {
+  const lastDotIndex = name.lastIndexOf(".");
+  if (lastDotIndex < 0 || lastDotIndex === name.length - 1) {
+    return "";
+  }
+  return name.slice(lastDotIndex + 1).toLowerCase();
+}
 
 function isExcalidrawMarkdownFile(fileName: string): boolean {
   const lowerFileName = fileName.toLowerCase();
@@ -753,12 +761,17 @@ export function FileList({
   };
 
   // リンクをコピー
-  const copyLinkToClipboard = async (path: string) => {
+  const copyLinkToClipboard = async (
+    path: string,
+    itemType: "file" | "directory" = "directory",
+  ) => {
     if (!path) return;
-    const url = buildFullPathUrl(path, {
-      textFileOpenMode,
-      markdownOpenMode,
-    });
+    const url = itemType === "directory"
+      ? buildAppPathUrl(path)
+      : buildFullPathUrl(path, {
+          textFileOpenMode,
+          markdownOpenMode,
+        });
     try {
       await navigator.clipboard.writeText(url);
       showSuccess("リンクをコピーしました");
@@ -768,15 +781,18 @@ export function FileList({
   };
 
   // リンクを開く（ブラウザで開く）
-  const openLink = (path: string) => {
+  const openLink = (
+    path: string,
+    itemType: "file" | "directory" = "directory",
+  ) => {
     if (!path) return;
-    window.open(
-      buildFullPathUrl(path, {
-        textFileOpenMode,
-        markdownOpenMode,
-      }),
-      "_blank"
-    );
+    const url = itemType === "directory"
+      ? buildAppPathUrl(path)
+      : buildFullPathUrl(path, {
+          textFileOpenMode,
+          markdownOpenMode,
+        });
+    window.open(url, "_blank");
   };
 
   const openMarkdownInExternalApp = async (path: string) => {
@@ -1285,22 +1301,6 @@ export function FileList({
     extFilter === "all" ? null : new Set(extFilter.split("+").filter(Boolean))
   ), [extFilter]);
 
-  const compareItems = useMemo(() => {
-    return (a: FileItem, b: FileItem) => {
-      let res = 0;
-      if (sortKey === "name") {
-        res = a.name.localeCompare(b.name);
-      } else if (sortKey === "size") {
-        res = (a.size || 0) - (b.size || 0);
-      } else if (sortKey === "date") {
-        const dateA = a.modified ? Date.parse(a.modified) : 0;
-        const dateB = b.modified ? Date.parse(b.modified) : 0;
-        res = dateA - dateB;
-      }
-      return sortOrder === "asc" ? res : -res;
-    };
-  }, [sortKey, sortOrder]);
-
   // フィルタリング・分離・ソートを単一パスで実行
   const { folders, files } = useMemo(() => {
     const sourceItems = data?.items || [];
@@ -1321,7 +1321,7 @@ export function FileList({
       if (typeFilter === "files" && item.type !== "file") continue;
 
       if (allowedExtensions && item.type === "file") {
-        const ext = item.name.split(".").pop()?.toLowerCase() || "";
+        const ext = getFileExtension(item.name);
         if (!allowedExtensions.has(ext)) {
           continue;
         }
@@ -1334,11 +1334,35 @@ export function FileList({
       }
     }
 
-    nextFolders.sort(compareItems);
-    nextFiles.sort(compareItems);
+    const sortItems = (items: FileItem[]) => {
+      if (sortKey === "name") {
+        items.sort((a, b) => {
+          const res = a.name.localeCompare(b.name);
+          return sortOrder === "asc" ? res : -res;
+        });
+        return;
+      }
+
+      const decorated = items.map((item) => ({
+        item,
+        sortValue: sortKey === "size"
+          ? (item.size || 0)
+          : (item.modified ? Date.parse(item.modified) || 0 : 0),
+      }));
+
+      decorated.sort((a, b) => {
+        const res = a.sortValue - b.sortValue;
+        return sortOrder === "asc" ? res : -res;
+      });
+
+      items.splice(0, items.length, ...decorated.map(({ item }) => item));
+    };
+
+    sortItems(nextFolders);
+    sortItems(nextFiles);
 
     return { folders: nextFolders, files: nextFiles };
-  }, [data?.items, searchQuery, compiledSearchRegex, normalizedSearchQuery, typeFilter, allowedExtensions, compareItems]);
+  }, [data?.items, searchQuery, compiledSearchRegex, normalizedSearchQuery, typeFilter, allowedExtensions, sortKey, sortOrder]);
 
   // 全アイテム（フィルタとソート適用後）をメモ化
   const allSortedItems = useMemo(() => [...folders, ...files], [folders, files]);
@@ -2750,7 +2774,7 @@ export function FileList({
         <button onClick={copyCurrentPath} title="フルパスをコピー" className="path-button">
           <Copy size={14} />
         </button>
-        <button onClick={() => copyLinkToClipboard(currentPath || "")} title="リンクをコピー" className="path-button">
+        <button onClick={() => copyLinkToClipboard(currentPath || "", "directory")} title="リンクをコピー" className="path-button">
           <Link size={14} />
         </button>
         <form onSubmit={handlePathSubmit} className="path-form">
@@ -3029,7 +3053,7 @@ export function FileList({
                       className="row-copy-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        copyLinkToClipboard(item.path);
+                        copyLinkToClipboard(item.path, "directory");
                       }}
                       title="リンクをコピー"
                     >
@@ -3111,7 +3135,7 @@ export function FileList({
                       className="row-copy-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        copyLinkToClipboard(item.path);
+                        copyLinkToClipboard(item.path, "file");
                       }}
                       title="リンクをコピー"
                     >
@@ -3149,7 +3173,7 @@ export function FileList({
           currentPath={currentPath || ""}
           startRename={contextMenu.startRename}
           onOpenLink={() => {
-            openLink(contextMenu.item.path);
+            openLink(contextMenu.item.path, contextMenu.item.type);
             setContextMenu(null);
           }}
           onOpenInCode={isProgramCodeFile(contextMenu.item.name) ? () => handleOpenProgramCodeInVSCode(contextMenu.item) : undefined}

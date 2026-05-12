@@ -546,6 +546,16 @@ export function buildFullPathUrl(
   return url.toString();
 }
 
+/**
+ * このWebアプリで指定パスを開くURLを構築する
+ * ファイルパスでもアプリ側で親フォルダへ自動リダイレクトされる
+ */
+export function buildAppPathUrl(path: string): string {
+  const url = new URL(window.location.origin);
+  url.searchParams.set("path", path);
+  return url.toString();
+}
+
 // ----------------------------------------------------------------
 // ファイルオープンAPI
 // ----------------------------------------------------------------

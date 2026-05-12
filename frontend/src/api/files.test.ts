@@ -3,7 +3,7 @@
  * ダウンロードURL・全文検索URL・PDF表示URLのエンコードを確認する
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildFullPathUrl, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl } from "./files";
+import { buildAppPathUrl, buildFullPathUrl, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl } from "./files";
 
 describe("file api url builders", () => {
   afterEach(() => {
@@ -60,6 +60,18 @@ describe("file api url builders", () => {
       })
     ).toBe(
       "http://localhost:5173/api/fullpath?path=%2FUsers%2Fmine%2FDocuments%2Fnote.md&text_mode=web&markdown_mode=external"
+    );
+  });
+
+  it("builds app path url for directories in the web app", () => {
+    vi.stubGlobal("window", {
+      location: {
+        origin: "http://localhost:8001",
+      },
+    });
+
+    expect(buildAppPathUrl("/Users/mine/000_work/temp/image_diff")).toBe(
+      "http://localhost:8001/?path=%2FUsers%2Fmine%2F000_work%2Ftemp%2Fimage_diff"
     );
   });
 });

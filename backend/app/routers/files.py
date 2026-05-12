@@ -77,6 +77,20 @@ class ObsidianPathResponse(BaseModel):
     path: str
 
 
+def _is_recursive_symlink_target(path_str: str, search_root: str) -> bool:
+    """
+    ベース配下を指すシンボリックリンクを検出する。
+
+    再帰探索や一覧表示で同一ツリーへ戻るリンクを辿ると、
+    大量走査やループの原因になるため除外する。
+    """
+    try:
+        resolved = str(Path(path_str).resolve(strict=True))
+    except (OSError, RuntimeError):
+        return True
+    return resolved.startswith(search_root)
+
+
 def _bring_explorer_to_front(process_id: int, target_path: Path) -> None:
     """
     Windowsで起動したExplorerウィンドウを前面に出すことを試みる。
@@ -293,7 +307,7 @@ def convert_storage_path(path: str) -> str:
 def normalize_path(path: str) -> Path:
     """
     パスを正規化
-    - 絶対パス: そのまま使用（Windows UNCパス \\server\share\folder を含む）
+    - 絶対パス: そのまま使用（Windows UNCパス `\\\\server\\share\\folder` を含む）
     - 相対パス: ベースディレクトリからの相対パスとして扱う
     - パストラバーサル対策を実施
     """
@@ -362,40 +376,43 @@ async def get_files(path: str = "") -> DirectoryResponse:
         raise HTTPException(status_code=400, detail="指定されたパスはディレクトリではありません")
 
     items: List[FileItem] = []
+    target_root = str(target_path.resolve())
 
-    for item in target_path.iterdir():
-        try:
-            if item.is_symlink():
+    try:
+        with os.scandir(target_path) as entries:
+            for entry in entries:
                 try:
-                    resolved = item.resolve(strict=True)
-                    if str(resolved).startswith(str(target_path)):
+                    if entry.is_symlink() and _is_recursive_symlink_target(entry.path, target_root):
                         continue
-                except (OSError, RuntimeError):
+
+                    item_path = Path(entry.path)
+                    item_absolute_path = item_path.as_posix()
+                    is_dir = entry.is_dir()
+
+                    if is_dir:
+                        items.append(
+                            FileItem(
+                                name=entry.name,
+                                type="directory",
+                                path=item_absolute_path,
+                            )
+                        )
+                        continue
+
+                    stat_result = entry.stat()
+                    items.append(
+                        FileItem(
+                            name=entry.name,
+                            type="file",
+                            path=item_absolute_path,
+                            size=stat_result.st_size,
+                            modified=datetime.fromtimestamp(stat_result.st_mtime).isoformat(),
+                        )
+                    )
+                except (PermissionError, OSError):
                     continue
-
-            item_absolute_path = item.as_posix()
-
-            if item.is_dir():
-                items.append(
-                    FileItem(
-                        name=item.name,
-                        type="directory",
-                        path=item_absolute_path,
-                    )
-                )
-            else:
-                stat = item.stat()
-                items.append(
-                    FileItem(
-                        name=item.name,
-                        type="file",
-                        path=item_absolute_path,
-                        size=stat.st_size,
-                        modified=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    )
-                )
-        except (PermissionError, OSError):
-            continue
+    except (PermissionError, OSError):
+        raise HTTPException(status_code=403, detail="ディレクトリにアクセスできません")
 
     return DirectoryResponse(
         type="directory",
@@ -472,13 +489,8 @@ def search_files_recursive(
                         if should_ignore(entry_path, ignore_patterns):
                             continue
 
-                        if entry.is_symlink():
-                            try:
-                                resolved = str(entry_path.resolve(strict=True))
-                                if resolved.startswith(search_root):
-                                    continue
-                            except (OSError, RuntimeError):
-                                continue
+                        if entry.is_symlink() and _is_recursive_symlink_target(entry.path, search_root):
+                            continue
 
                         is_dir = entry.is_dir()
                         if query_lower in entry.name.lower():
@@ -3515,6 +3527,12 @@ def _build_frontend_editor_redirect_url(path: Path) -> str:
     return f"/?path={encoded_parent}&open_file={encoded_file}&open_mode=web"
 
 
+def _build_frontend_directory_redirect_url(path: Path) -> str:
+    """フォルダ表示用のフロントエンドURLを組み立てる。"""
+    encoded_path = urllib.parse.quote(str(path))
+    return f"/?path={encoded_path}"
+
+
 def _should_use_web_editor_for_fullpath(
     path: Path,
     markdown_mode: Optional[str],
@@ -3882,6 +3900,9 @@ async def fullpath(
         decoded_path = decoded_path.replace('/', '\\')  # //server/share → \\server\share
 
     normalized_path = normalize_path(decoded_path)
+
+    if normalized_path.exists() and normalized_path.is_dir():
+        return RedirectResponse(_build_frontend_directory_redirect_url(normalized_path))
 
     if _prefers_html_response(request):
         preferred_response = await _handle_fullpath_html_preferences(request, normalized_path)

@@ -36,7 +36,7 @@ import {
 } from "../hooks/useFiles";
 import { getIndexServiceUrl } from "../api/indexService";
 import { getFulltextIndexGuiUrl } from "../api/fulltextIndexService";
-import { buildFullPathUrl, getPdfViewUrl, openInObsidian, openInVSCode, openSmart } from "../api/files";
+import { buildAppPathUrl, buildFullPathUrl, getPdfViewUrl, openInObsidian, openInVSCode, openSmart } from "../api/files";
 import { getDefaultBasePath } from "../config";
 import type { FileItem, SearchParams } from "../types/file";
 import "./FileSearch.css";
@@ -452,20 +452,6 @@ export function FileSearch({
     }
   }, [debouncedFileNamePattern, useRegex]);
 
-  const compareSearchItems = useCallback((a: FileItem, b: FileItem) => {
-    let result = 0;
-    if (sortKey === "name") {
-      result = a.name.localeCompare(b.name);
-    } else if (sortKey === "size") {
-      result = (a.size || 0) - (b.size || 0);
-    } else if (sortKey === "date") {
-      const dateA = a.modified ? Date.parse(a.modified) : 0;
-      const dateB = b.modified ? Date.parse(b.modified) : 0;
-      result = dateA - dateB;
-    }
-    return sortOrder === "asc" ? result : -result;
-  }, [sortKey, sortOrder]);
-
   // フォルダとファイルを単一パスでフィルタ・分離・ソート
   const sortedResults = useMemo(() => {
     if (!searchData?.items) return { folders: [] as FileItem[], files: [] as FileItem[], total: 0 };
@@ -491,8 +477,32 @@ export function FileSearch({
       }
     }
 
-    folders.sort(compareSearchItems);
-    files.sort(compareSearchItems);
+    const sortItems = (items: FileItem[]) => {
+      if (sortKey === "name") {
+        items.sort((a, b) => {
+          const result = a.name.localeCompare(b.name);
+          return sortOrder === "asc" ? result : -result;
+        });
+        return;
+      }
+
+      const decorated = items.map((item) => ({
+        item,
+        sortValue: sortKey === "size"
+          ? (item.size || 0)
+          : (item.modified ? Date.parse(item.modified) || 0 : 0),
+      }));
+
+      decorated.sort((a, b) => {
+        const result = a.sortValue - b.sortValue;
+        return sortOrder === "asc" ? result : -result;
+      });
+
+      items.splice(0, items.length, ...decorated.map(({ item }) => item));
+    };
+
+    sortItems(folders);
+    sortItems(files);
 
     return {
       folders,
@@ -506,7 +516,8 @@ export function FileSearch({
     compiledFileNamePattern,
     matchesFileNamePattern,
     useRegex,
-    compareSearchItems,
+    sortKey,
+    sortOrder,
   ]);
 
 
@@ -526,12 +537,17 @@ export function FileSearch({
   }, [showSuccess]);
 
   // リンクをクリップボードにコピー
-  const copyLinkToClipboard = useCallback(async (path: string) => {
+  const copyLinkToClipboard = useCallback(async (
+    path: string,
+    itemType: "file" | "directory",
+  ) => {
     if (!path) return;
-    const url = buildFullPathUrl(path, {
-      textFileOpenMode,
-      markdownOpenMode,
-    });
+    const url = itemType === "directory"
+      ? buildAppPathUrl(path)
+      : buildFullPathUrl(path, {
+          textFileOpenMode,
+          markdownOpenMode,
+        });
     try {
       await navigator.clipboard.writeText(url);
       showSuccess("リンクをコピーしました");
@@ -541,15 +557,18 @@ export function FileSearch({
   }, [markdownOpenMode, showError, showSuccess, textFileOpenMode]);
 
   // リンクを開く（ブラウザで開く）
-  const openLink = useCallback((path: string) => {
+  const openLink = useCallback((
+    path: string,
+    itemType: "file" | "directory",
+  ) => {
     if (!path) return;
-    window.open(
-      buildFullPathUrl(path, {
-        textFileOpenMode,
-        markdownOpenMode,
-      }),
-      "_blank"
-    );
+    const url = itemType === "directory"
+      ? buildAppPathUrl(path)
+      : buildFullPathUrl(path, {
+          textFileOpenMode,
+          markdownOpenMode,
+        });
+    window.open(url, "_blank");
   }, [markdownOpenMode, textFileOpenMode]);
 
   const openMarkdownInExternalApp = useCallback(async (path: string) => {
@@ -1422,7 +1441,7 @@ export function FileSearch({
                       className="row-copy-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        copyLinkToClipboard(item.path);
+                        copyLinkToClipboard(item.path, "directory");
                       }}
                       title="リンクをコピー"
                     >
@@ -1488,7 +1507,7 @@ export function FileSearch({
                       className="row-copy-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        copyLinkToClipboard(item.path);
+                        copyLinkToClipboard(item.path, "file");
                       }}
                       title="リンクをコピー"
                     >
@@ -1534,7 +1553,7 @@ export function FileSearch({
           onOpenInLeft={onSelectFolder ? handleOpenInLeft : undefined}
           onOpenInRight={onSelectRightFolder ? handleOpenInRight : undefined}
           onOpenLink={() => {
-            openLink(contextMenu.item.path);
+            openLink(contextMenu.item.path, contextMenu.item.type);
             setContextMenu(null);
           }}
           onDeleteRequest={async (item) => {

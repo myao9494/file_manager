@@ -48,6 +48,24 @@ class TestOpenPath:
 class TestFullPath:
     """GET /api/fullpath エンドポイントのテスト"""
 
+    def test_fullpath_directory_redirects_to_frontend(self, client, temp_dir, monkeypatch):
+        """フォルダを指定した場合、従来リンクでもWebアプリへリダイレクトする"""
+        from app import config
+
+        target_dir = temp_dir / "folder1"
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        response = client.get(
+            "/api/fullpath",
+            params={"path": str(target_dir)},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 307
+        location = response.headers["location"]
+        assert location.startswith("/?path=")
+        assert urllib.parse.quote(str(target_dir)) in location
+
     def test_fullpath_obsidian_file_returns_html_instead_of_json(self, client, temp_dir, monkeypatch):
         """Obsidian対象ファイルでは専用アプリを起動しつつ、JSONではなくタブを閉じるHTMLを返す"""
         from app import config

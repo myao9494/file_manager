@@ -127,6 +127,21 @@ class TestGetFiles:
         assert Path(data["path"]).suffix == "" # フォルダ名
         assert str(Path(data["path"]).name) == "folder1"
 
+    def test_get_files_skips_recursive_symlink_entries(self, client, temp_dir, monkeypatch):
+        """ベースディレクトリ配下を指すシンボリックリンクは再帰事故防止のため一覧から除外する"""
+        from app import config
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        loop_link = temp_dir / "folder1_loop"
+        loop_link.symlink_to(temp_dir / "folder1", target_is_directory=True)
+
+        response = client.get("/api/files", params={"path": ""})
+
+        assert response.status_code == 200
+        data = response.json()
+        names = [item["name"] for item in data["items"]]
+        assert "folder1_loop" not in names
+
 import zipfile
 
 class TestUnzipFile:
@@ -206,6 +221,21 @@ class TestSearchFiles:
         assert data["total"] == 1
         assert data["items"][0]["name"] == "match_dir"
         assert data["items"][0]["type"] == "directory"
+
+    def test_search_files_skips_recursive_symlink_entries(self, client, temp_dir, monkeypatch):
+        """再帰検索でもベース配下を指すシンボリックリンクはたどらない"""
+        from app import config
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+
+        loop_link = temp_dir / "folder1_loop"
+        loop_link.symlink_to(temp_dir / "folder1", target_is_directory=True)
+
+        response = client.get("/api/search", params={"path": "", "query": "loop", "depth": 2})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["items"] == []
 
 
 class TestDeleteItem:
