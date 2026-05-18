@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # FastAPI ファイルマネージャー バックエンド依存関係
 # 注: インデックス検索機能は外部サービス（file_index_service）に移行
 fastapi>=0.104.0
@@ -10,6 +11,6 @@ pytest-asyncio>=0.21.0
 httpx>=0.25.0
 send2trash>=1.8.0
 pywinpty>=3.0.0; platform_system == "Windows"
+pywin32>=306; platform_system == "Windows"
 
 # Windows環境でのクリップボード共有用（オプション）
-# pywin32>=306

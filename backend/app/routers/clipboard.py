@@ -74,20 +74,11 @@ async def copy_files_to_clipboard(request: CopyFilesRequest):
         win32clipboard.OpenClipboard()
         try:
             win32clipboard.EmptyClipboard()
-            
-            # グローバルメモリの確保
-            h_global = win32clipboard.SetClipboardData(win32clipboard.CF_HDROP, None)
-            # win32clipboard.SetClipboardDataでハンドラを渡す必要があるため、
-            # pywin32の作法に従うと、データを直接渡すことも可能だが、CF_HDROPは特殊
-            
-            # pywin32のSetClipboardDataはバイト列を受け取ることもできるが、
-            # CF_HDROPの場合は構造体 + パスデータのバイナリが必要
-            
-            # バイナリデータの構築
+
+            # CF_HDROPはDROPFILES構造体 + UTF-16LEのNULL区切りパス列を一度だけ渡す
             structure_bytes = bytes(drop_files)
             data = structure_bytes + file_list_bytes
-            
-            win32clipboard.SetClipboardData(win32clipboard.CF_HDROP, data)
+            win32clipboard.SetClipboardData(win32con.CF_HDROP, data)
             
         finally:
             win32clipboard.CloseClipboard()

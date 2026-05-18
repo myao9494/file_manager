@@ -6,6 +6,16 @@ import pytest
 from pathlib import Path
 
 
+def create_directory_symlink_or_skip(link: Path, target: Path) -> None:
+    """Windowsで権限がない場合はsymlink系テストをskipする"""
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows環境でシンボリックリンク作成権限がありません")
+        raise
+
+
 class TestGetFiles:
     """GET /api/files エンドポイントのテスト"""
 
@@ -133,7 +143,7 @@ class TestGetFiles:
         monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
 
         loop_link = temp_dir / "folder1_loop"
-        loop_link.symlink_to(temp_dir / "folder1", target_is_directory=True)
+        create_directory_symlink_or_skip(loop_link, temp_dir / "folder1")
 
         response = client.get("/api/files", params={"path": ""})
 
@@ -228,7 +238,7 @@ class TestSearchFiles:
         monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
 
         loop_link = temp_dir / "folder1_loop"
-        loop_link.symlink_to(temp_dir / "folder1", target_is_directory=True)
+        create_directory_symlink_or_skip(loop_link, temp_dir / "folder1")
 
         response = client.get("/api/search", params={"path": "", "query": "loop", "depth": 2})
 
