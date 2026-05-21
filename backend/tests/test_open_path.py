@@ -768,7 +768,7 @@ class TestOpenAntigravity:
         
         # 特定のパスのみ True を返すモック exists
         def fake_exists(p):
-            return str(p) == '/Applications/Antigravity IDE.app/Contents/MacOS/Electron'
+            return str(p) == '/Applications/Antigravity IDE.app'
         monkeypatch.setattr(files.os.path, "exists", fake_exists)
 
         popen_calls = []
@@ -782,8 +782,8 @@ class TestOpenAntigravity:
         assert response.status_code == 200
         assert response.json()["status"] == "success"
         assert len(popen_calls) == 1
-        assert popen_calls[0][0] == '/Applications/Antigravity IDE.app/Contents/MacOS/Electron'
-        assert Path(popen_calls[0][1]).resolve() == target_file.resolve()
+        assert popen_calls[0][:3] == ['open', '-a', '/Applications/Antigravity IDE.app']
+        assert Path(popen_calls[0][3]).resolve() == target_file.resolve()
 
     def test_open_antigravity_success_macos_standard_app(self, client, temp_dir, monkeypatch):
         """macOS環境でAntigravity.appが存在する場合、正常に起動する"""
@@ -795,7 +795,7 @@ class TestOpenAntigravity:
         
         # 特定のパスのみ True を返すモック exists
         def fake_exists(p):
-            return str(p) == '/Applications/Antigravity.app/Contents/MacOS/Antigravity'
+            return str(p) == '/Applications/Antigravity.app'
         monkeypatch.setattr(files.os.path, "exists", fake_exists)
 
         popen_calls = []
@@ -809,8 +809,8 @@ class TestOpenAntigravity:
         assert response.status_code == 200
         assert response.json()["status"] == "success"
         assert len(popen_calls) == 1
-        assert popen_calls[0][0] == '/Applications/Antigravity.app/Contents/MacOS/Antigravity'
-        assert Path(popen_calls[0][1]).resolve() == target_file.resolve()
+        assert popen_calls[0][:3] == ['open', '-a', '/Applications/Antigravity.app']
+        assert Path(popen_calls[0][3]).resolve() == target_file.resolve()
 
     def test_open_antigravity_not_found_macos(self, client, temp_dir, monkeypatch):
         """macOS環境でAntigravityが存在しない場合、404エラーを返す"""
