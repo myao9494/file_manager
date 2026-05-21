@@ -3725,12 +3725,10 @@ async def open_in_antigravity(request: OpenRequest):
     path = normalize_path(request.path)
     
     if platform.system() == 'Darwin':
-        # 起動可能な実行ファイルの候補パス（大文字小文字の違いや、通常版とIDE版、実行ファイル名のバリエーションを考慮）
+        # 起動可能なアプリケーションパッケージ（.app）の候補パス
         candidates = [
-            '/Applications/Antigravity.app/Contents/MacOS/Antigravity',
-            '/Applications/Antigravity IDE.app/Contents/MacOS/Electron',
-            '/Applications/Antigravity.app/Contents/MacOS/Electron',
-            '/Applications/Antigravity IDE.app/Contents/MacOS/Antigravity'
+            '/Applications/Antigravity IDE.app',
+            '/Applications/Antigravity.app'
         ]
         antigravity_path = None
         for candidate in candidates:
@@ -3747,7 +3745,7 @@ async def open_in_antigravity(request: OpenRequest):
         raise HTTPException(status_code=404, detail="Antigravityが見つかりません")
 
     try:
-        subprocess.Popen([antigravity_path, str(target_path)])
+        subprocess.Popen(['open', '-a', antigravity_path, str(target_path)])
         return {"status": "success", "message": "Antigravityで開きました"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Antigravityの起動に失敗しました: {str(e)}")

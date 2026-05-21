@@ -71,10 +71,8 @@
     - 設定は localStorage に保存される。
 
 ### Antigravity起動仕様 (macOS)
-- **複数パス自動検出**:
-    - `POST /api/open/antigravity` APIにおいて、macOS上に存在する以下のインストールパス候補を自動検索し、実在する実行ファイルを優先して起動するように拡張。
-        - `/Applications/Antigravity.app/Contents/MacOS/Antigravity`
-        - `/Applications/Antigravity IDE.app/Contents/MacOS/Electron`
-        - `/Applications/Antigravity.app/Contents/MacOS/Electron`
-        - `/Applications/Antigravity IDE.app/Contents/MacOS/Antigravity`
-    - これにより、異なるエディション（通常版とIDE版）や実行名（Antigravity / Electron）の差を自動吸収して確実にアプリを開くことが可能となった。
+- **複数パッケージ自動検出とopenコマンドによる起動**:
+    - `POST /api/open/antigravity` APIにおいて、macOS上に存在する以下のインストールパッケージ候補を自動検索し、実在するアプリケーションパッケージ（`.app`）を `open -a` コマンドを使用して起動するように改善。
+        - `/Applications/Antigravity IDE.app`
+        - `/Applications/Antigravity.app`
+    - 以前はパッケージ内部の実行バイナリ（`Contents/MacOS/Electron`など）を直接起動していたため、Electronアプリとしての初期化やリソースの読み込みに失敗し、起動しない問題が発生していました。本修正により、macOS標準の安全な起動手段（`open` コマンド）を使用することで、確実にアプリが開くようになりました。
