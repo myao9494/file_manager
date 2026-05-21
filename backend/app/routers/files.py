@@ -3725,7 +3725,7 @@ async def open_in_antigravity(request: OpenRequest):
     path = normalize_path(request.path)
     
     if platform.system() == 'Darwin':
-        antigravity_path = '/Applications/Antigravity.app/Contents/MacOS/Electron'
+        antigravity_path = '/Applications/Antigravity IDE.app/Contents/MacOS/Electron'
     else:
         raise HTTPException(status_code=501, detail="AntigravityはmacOSでのみサポートされています")
 
