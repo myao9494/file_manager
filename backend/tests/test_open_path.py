@@ -753,3 +753,97 @@ class TestProgramCodeActions:
         assert Path(popen_calls[0][0][2]).resolve() == script_path.resolve()
         assert Path(popen_calls[0][1]).resolve() == temp_dir.resolve()
         assert popen_calls[0][2] == getattr(files.subprocess, "CREATE_NEW_CONSOLE", 0)
+
+
+class TestOpenAntigravity:
+    """POST /api/open/antigravity エンドポイントのテスト"""
+
+    def test_open_antigravity_success_macos_ide_app(self, client, temp_dir, monkeypatch):
+        """macOS環境でAntigravity IDE.appが存在する場合、正常に起動する"""
+        from app import config
+        from app.routers import files
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
+        
+        # 特定のパスのみ True を返すモック exists
+        def fake_exists(p):
+            return str(p) == '/Applications/Antigravity IDE.app/Contents/MacOS/Electron'
+        monkeypatch.setattr(files.os.path, "exists", fake_exists)
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        target_file = temp_dir / "test.txt"
+        target_file.touch()
+
+        response = client.post("/api/open/antigravity", json={"path": str(target_file)})
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0] == '/Applications/Antigravity IDE.app/Contents/MacOS/Electron'
+        assert Path(popen_calls[0][1]).resolve() == target_file.resolve()
+
+    def test_open_antigravity_success_macos_standard_app(self, client, temp_dir, monkeypatch):
+        """macOS環境でAntigravity.appが存在する場合、正常に起動する"""
+        from app import config
+        from app.routers import files
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
+        
+        # 特定のパスのみ True を返すモック exists
+        def fake_exists(p):
+            return str(p) == '/Applications/Antigravity.app/Contents/MacOS/Antigravity'
+        monkeypatch.setattr(files.os.path, "exists", fake_exists)
+
+        popen_calls = []
+        monkeypatch.setattr(files.subprocess, "Popen", lambda args: popen_calls.append(args))
+
+        target_file = temp_dir / "test.txt"
+        target_file.touch()
+
+        response = client.post("/api/open/antigravity", json={"path": str(target_file)})
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        assert len(popen_calls) == 1
+        assert popen_calls[0][0] == '/Applications/Antigravity.app/Contents/MacOS/Antigravity'
+        assert Path(popen_calls[0][1]).resolve() == target_file.resolve()
+
+    def test_open_antigravity_not_found_macos(self, client, temp_dir, monkeypatch):
+        """macOS環境でAntigravityが存在しない場合、404エラーを返す"""
+        from app import config
+        from app.routers import files
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Darwin")
+        
+        # すべて False を返す
+        monkeypatch.setattr(files.os.path, "exists", lambda p: False)
+
+        target_file = temp_dir / "test.txt"
+        target_file.touch()
+
+        response = client.post("/api/open/antigravity", json={"path": str(target_file)})
+
+        assert response.status_code == 404
+        assert "Antigravityが見つかりません" in response.json()["detail"]
+
+    def test_open_antigravity_not_supported_on_other_os(self, client, temp_dir, monkeypatch):
+        """macOS以外のOSでは501エラーを返す"""
+        from app import config
+        from app.routers import files
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(files.platform, "system", lambda: "Windows")
+
+        target_file = temp_dir / "test.txt"
+        target_file.touch()
+
+        response = client.post("/api/open/antigravity", json={"path": str(target_file)})
+
+        assert response.status_code == 501
+        assert "AntigravityはmacOSでのみサポートされています" in response.json()["detail"]
+

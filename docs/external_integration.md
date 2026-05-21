@@ -38,6 +38,12 @@ http://localhost:8001/api/fullpath?path=/path/to/file.pdf
 - Body: `{ "path": "..." }`
 - 用途: Finder / Explorer を開きます。ファイルパスが渡された場合は親フォルダを開きます
 
+### Antigravityで開く (macOS)
+
+- Endpoint: `POST /api/open/antigravity`
+- Body: `{ "path": "..." }`
+- 用途: 指定されたパスを macOS 上の Antigravity アプリで開きます。`Antigravity.app` / `Antigravity IDE.app` の両インストールパスを自動検出し、存在するほうを優先して起動します。
+
 ## 前提条件
 
 - `file_manager` バックエンドが起動していること

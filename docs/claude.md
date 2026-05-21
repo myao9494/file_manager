@@ -69,3 +69,12 @@
 - **エディタ選択設定**:
     - ハンバーガーメニューからテキストファイル/Markdownのオープン先を選択可能（Web App / VS Code / Obsidian）。
     - 設定は localStorage に保存される。
+
+### Antigravity起動仕様 (macOS)
+- **複数パス自動検出**:
+    - `POST /api/open/antigravity` APIにおいて、macOS上に存在する以下のインストールパス候補を自動検索し、実在する実行ファイルを優先して起動するように拡張。
+        - `/Applications/Antigravity.app/Contents/MacOS/Antigravity`
+        - `/Applications/Antigravity IDE.app/Contents/MacOS/Electron`
+        - `/Applications/Antigravity.app/Contents/MacOS/Electron`
+        - `/Applications/Antigravity IDE.app/Contents/MacOS/Antigravity`
+    - これにより、異なるエディション（通常版とIDE版）や実行名（Antigravity / Electron）の差を自動吸収して確実にアプリを開くことが可能となった。

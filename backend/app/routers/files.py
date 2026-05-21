@@ -3725,14 +3725,25 @@ async def open_in_antigravity(request: OpenRequest):
     path = normalize_path(request.path)
     
     if platform.system() == 'Darwin':
-        antigravity_path = '/Applications/Antigravity IDE.app/Contents/MacOS/Electron'
+        # 起動可能な実行ファイルの候補パス（大文字小文字の違いや、通常版とIDE版、実行ファイル名のバリエーションを考慮）
+        candidates = [
+            '/Applications/Antigravity.app/Contents/MacOS/Antigravity',
+            '/Applications/Antigravity IDE.app/Contents/MacOS/Electron',
+            '/Applications/Antigravity.app/Contents/MacOS/Electron',
+            '/Applications/Antigravity IDE.app/Contents/MacOS/Antigravity'
+        ]
+        antigravity_path = None
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                antigravity_path = candidate
+                break
     else:
         raise HTTPException(status_code=501, detail="AntigravityはmacOSでのみサポートされています")
 
     # ファイル/フォルダが存在するか確認
     target_path = path if path.exists() else path.parent
 
-    if not os.path.exists(antigravity_path):
+    if not antigravity_path:
         raise HTTPException(status_code=404, detail="Antigravityが見つかりません")
 
     try:
