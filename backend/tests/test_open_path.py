@@ -5,6 +5,18 @@ import pytest
 from pathlib import Path
 import urllib.parse
 
+
+def _query_value(location: str, key: str) -> str:
+    """リダイレクトURLのクエリ値を取り出す"""
+    values = urllib.parse.parse_qs(urllib.parse.urlparse(location).query)[key]
+    return values[0]
+
+
+def _assert_redirect_path(location: str, key: str, expected: Path) -> None:
+    """Windowsの8.3短縮パス差異を吸収してリダイレクト先パスを比較する"""
+    assert Path(_query_value(location, key)).resolve() == expected.resolve()
+
+
 class TestOpenPath:
     """GET /api/open-path エンドポイントのテスト"""
 
@@ -14,7 +26,6 @@ class TestOpenPath:
         monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
 
         path = str(temp_dir / "folder1")
-        encoded_path = urllib.parse.quote(path)
         
         # TestClientはデフォルトでリダイレクトを追跡するが、
         # ここではリダイレクト先そのものを確認したいため follow_redirects=False にする
@@ -26,7 +37,7 @@ class TestOpenPath:
         # 将来的にホスト名に依存しない形式か、リクエスト時のホストを使用するようにしたい
         # ここでは相対パスでのリダイレクトを期待するように修正する
         assert location.startswith("/?path=") or location.startswith("./?path=")
-        assert encoded_path in location
+        _assert_redirect_path(location, "path", temp_dir / "folder1")
 
 
     def test_open_path_file_returns_html(self, client, temp_dir, monkeypatch):
@@ -64,7 +75,7 @@ class TestFullPath:
         assert response.status_code == 307
         location = response.headers["location"]
         assert location.startswith("/?path=")
-        assert urllib.parse.quote(str(target_dir)) in location
+        _assert_redirect_path(location, "path", target_dir)
 
     def test_fullpath_obsidian_file_returns_html_instead_of_json(self, client, temp_dir, monkeypatch):
         """Obsidian対象ファイルでは専用アプリを起動しつつ、JSONではなくタブを閉じるHTMLを返す"""
@@ -178,8 +189,8 @@ class TestFullPath:
         assert response.status_code == 307
         location = response.headers["location"]
         assert location.startswith("/?path=")
-        assert urllib.parse.quote(str(note_path.parent)) in location
-        assert urllib.parse.quote(str(note_path)) in location
+        _assert_redirect_path(location, "path", note_path.parent)
+        _assert_redirect_path(location, "open_file", note_path)
         assert "open_file=" in location
         assert popen_calls == []
 
@@ -213,8 +224,8 @@ class TestFullPath:
         assert response.status_code == 307
         location = response.headers["location"]
         assert location.startswith("/?path=")
-        assert urllib.parse.quote(str(note_path.parent)) in location
-        assert urllib.parse.quote(str(note_path)) in location
+        _assert_redirect_path(location, "path", note_path.parent)
+        _assert_redirect_path(location, "open_file", note_path)
         assert "open_file=" in location
         assert popen_calls == []
 
@@ -241,8 +252,8 @@ class TestFullPath:
         assert response.status_code == 307
         location = response.headers["location"]
         assert location.startswith("/?path=")
-        assert urllib.parse.quote(str(text_path.parent)) in location
-        assert urllib.parse.quote(str(text_path)) in location
+        _assert_redirect_path(location, "path", text_path.parent)
+        _assert_redirect_path(location, "open_file", text_path)
         assert "open_file=" in location
         assert popen_calls == []
 
@@ -621,7 +632,7 @@ class TestOpenExplorer:
         assert popen_calls[0][1].endswith("\\folder1")
         assert len(focus_calls) == 1
         assert focus_calls[0][0] == 4321
-        assert str(focus_calls[0][1]).endswith("/folder1")
+        assert Path(focus_calls[0][1]).resolve() == (temp_dir / "folder1").resolve()
 
     def test_open_folder_tries_to_bring_window_to_front_on_windows(self, client, temp_dir, monkeypatch):
         """file_viewer互換APIでもExplorer前面化処理を試みる"""
@@ -652,7 +663,7 @@ class TestOpenExplorer:
         assert popen_calls[0][1].endswith("\\folder1")
         assert len(focus_calls) == 1
         assert focus_calls[0][0] == 9876
-        assert str(focus_calls[0][1]).endswith("/folder1")
+        assert Path(focus_calls[0][1]).resolve() == (temp_dir / "folder1").resolve()
 
 
 class TestProgramCodeActions:
@@ -741,4 +752,4 @@ class TestProgramCodeActions:
         assert popen_calls[0][0][:2] == ["cmd", "/c"]
         assert Path(popen_calls[0][0][2]).resolve() == script_path.resolve()
         assert Path(popen_calls[0][1]).resolve() == temp_dir.resolve()
-        assert popen_calls[0][2] == 0
+        assert popen_calls[0][2] == getattr(files.subprocess, "CREATE_NEW_CONSOLE", 0)

@@ -1,29 +1,18 @@
 """
 Obsidian関連のAPIテスト
 """
-import pytest
-from fastapi.testclient import TestClient
-from pathlib import Path
-from app.main import app
-from app.config import settings
-import os
-import shutil
 from datetime import datetime
 
-client = TestClient(app)
-
-def test_get_obsidian_daily_path():
+def test_get_obsidian_daily_path(client, tmp_path, monkeypatch):
     """
     今日のObsidianフォルダパス取得テスト
     """
     # モック用のディレクトリを作成
-    test_base = Path("/tmp/test_obsidian")
-    if test_base.exists():
-        shutil.rmtree(test_base)
+    test_base = tmp_path / "test_obsidian"
     test_base.mkdir(parents=True)
     
     # 環境変数を上書き
-    os.environ["FILE_MANAGER_OBSIDIAN_BASE_DIR"] = str(test_base)
+    monkeypatch.setenv("FILE_MANAGER_OBSIDIAN_BASE_DIR", str(test_base))
     
     # API呼び出し
     response = client.get("/api/obsidian/daily-path")
@@ -41,6 +30,3 @@ def test_get_obsidian_daily_path():
     assert expected_path.exists()
     assert expected_path.is_dir()
     
-    # クリーンアップ
-    shutil.rmtree(test_base)
-    del os.environ["FILE_MANAGER_OBSIDIAN_BASE_DIR"]
