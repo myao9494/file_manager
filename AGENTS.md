@@ -171,6 +171,8 @@ http://localhost:5173/?path=/Users/username/Documents
 
 - ヘッダーメニュー（ハンバーガーメニュー）
   - テーマ切り替え（Light/Dark）
+  - APIタイムアウト設定（設定値はバックエンド settings.json に保存、デフォルト10秒）
+  - リンク置換設定（パスマッピング編集モーダル、入力フォーム/JSONハイブリッド、新サーバー接続確認テスト機能付き）
   - ストレージリセット（localStorage初期化）
 
 ### FileList.tsx
@@ -278,6 +280,9 @@ SQLite FTS5を使用した高速検索システム。クエリ長に応じて最
 | POST | /api/clipboard/copy | クリップボードにコピー (Windows) | 済 |
 | POST | /api/upload | ファイルアップロード | 済 |
 | GET | /api/obsidian/daily-path | Obsidian今日のフォルダ取得・作成 | 済 |
+| GET | /api/config | 設定の取得（apiTimeout, pathMappings 含む） | 済 |
+| POST | /api/config/preferences | 設定の保存（apiTimeout, pathMappings 含む） | 済 |
+| POST | /api/config/test-connections | 新サーバーの接続確認テスト | 済 |
 
 #### インデックス管理（外部サービス）
 
@@ -327,7 +332,12 @@ npm test
     - **クリップボード連携**: アプリ内のコピー (Ctrl+C) をOSクリップボード (Explorer) に同期。
     - **外部アプリ**: VSCode, Explorer, Antigravity, Jupyter, Excalidraw, Obsidian, ゴミ箱, Test Folder
     - **ファイル削除**: Windows API (SHFileOperationW) を使用し、Explorerと同一の挙動 (確実なゴミ箱への移動、システムロックの対応) を実現。
-    - **削除失敗時の自動回復機能**: ファイルが他のプロセス（Excelなど）によりロックされて削除できない場合、`Rstrtmgr.dll` (Restart Manager API) を使用してロックしているプロセス(PIDおよびプロセス名)を自動検知します。ユーザーの同意ダイアログをフロントエンドで表示し、承認を得たうえでプロセスを強制終了 (TerminateProcess / SIGTERM) させてから削除をリトライする機能を有しています。
+    - 削除失敗時の自動回復機能: ファイルが他のプロセス（Excelなど）によりロックされて削除できない場合、`Rstrtmgr.dll` (Restart Manager API) を使用してロックしているプロセス(PIDおよびプロセス名)を自動検知します。ユーザーの同意ダイアログをフロントエンドで表示し、承認を得たうえでプロセスを強制終了 (TerminateProcess / SIGTERM) させてから削除をリトライする機能を有しています。
+ 6. **リンク置換（URL・パスマッピング）によるリンク切れ防止**:
+    - DNSがない社内ネットワークでのサーバーIP・ホスト名変更（5年周期など）に対応するため、古いリンク（UNCパスやWeb URLなど）を自動で最新の有効なリンクに変換する機能を実装。
+    - 設定は `{ "新サーバーのベースアドレス": "旧サーバーアドレス1,旧サーバーアドレス2" }` 形式で保持し、バックエンドで自動展開して適用。
+    - ハンバーガーメニュー内の「リンク置換設定の編集...」ボタンから、入力フォーム（簡易UI）とバリデーション機能付きのJSON直接編集（詳細UI）のハイブリッド形式で編集可能。右上の「新サーバーの接続確認」ボタンから、入力された新サーバーの接続テスト（ローディング、成功✅、失敗⚠️とツールチップによるエラー詳細表示）を実行できる。
+    - ファイルオープン時（`open_smart`等）にURLに変換された場合は、パス正規化をバイパスして即座にブラウザや外部アプリで直接開く処理へ移行。
 
 ## ドキュメント更新
 

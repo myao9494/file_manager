@@ -119,6 +119,7 @@ DEFAULT_EDITOR_PREFERENCES = {
     "textFileOpenMode": "web",
     "markdownOpenMode": "web",
     "apiTimeout": 10,
+    "pathMappings": {},
 }
 
 
@@ -150,10 +151,15 @@ def get_editor_preferences() -> dict[str, object]:
                 except (ValueError, TypeError):
                     api_timeout = 10
 
+                path_mappings = data.get("pathMappings")
+                if not isinstance(path_mappings, dict):
+                    path_mappings = {}
+
                 return {
                     "textFileOpenMode": _normalize_text_file_open_mode(data.get("textFileOpenMode")),
                     "markdownOpenMode": _normalize_markdown_open_mode(data.get("markdownOpenMode")),
                     "apiTimeout": api_timeout,
+                    "pathMappings": path_mappings,
                 }
     except (OSError, json.JSONDecodeError):
         pass
@@ -165,6 +171,7 @@ def save_editor_preferences(
     text_file_open_mode: TextFileOpenMode,
     markdown_open_mode: MarkdownOpenMode,
     api_timeout: int = 10,
+    path_mappings: Optional[dict[str, str]] = None,
 ) -> dict[str, object]:
     """UI設定ファイルへエディタ設定を書き込む"""
     path = settings.preferences_file_path
@@ -174,6 +181,7 @@ def save_editor_preferences(
         "textFileOpenMode": _normalize_text_file_open_mode(text_file_open_mode),
         "markdownOpenMode": _normalize_markdown_open_mode(markdown_open_mode),
         "apiTimeout": api_timeout if api_timeout > 0 else 10,
+        "pathMappings": path_mappings if isinstance(path_mappings, dict) else {},
     }
     path.write_text(
         json.dumps(preferences, ensure_ascii=False, indent=2) + "\n",

@@ -14,7 +14,7 @@ interface ModalProps {
     /** 閉じるコールバック */
     onClose: () => void;
     /** モーダルのタイトル */
-    title?: string;
+    title?: ReactNode;
     /** モーダルの内容 */
     children: ReactNode;
     /** モーダルの幅（デフォルト: 600px） */
@@ -74,8 +74,14 @@ export function Modal({
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ヘッダー */}
-                <div className="modal-header">
-                    {title && <h2 className="modal-title">{title}</h2>}
+                <div className="modal-header" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    {title && (
+                        typeof title === "string" ? (
+                            <h2 className="modal-title" style={{ margin: 0 }}>{title}</h2>
+                        ) : (
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{title}</div>
+                        )
+                    )}
                     <button
                         className="modal-close-btn"
                         onClick={onClose}

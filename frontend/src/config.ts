@@ -23,6 +23,7 @@ interface AppConfig {
   textFileOpenMode: TextFileOpenMode;
   markdownOpenMode: MarkdownOpenMode;
   apiTimeout: number;
+  pathMappings: Record<string, string>;
 }
 
 let configCache: AppConfig | null = null;
@@ -54,6 +55,7 @@ export async function getConfig(): Promise<AppConfig> {
         textFileOpenMode: normalizeTextFileOpenMode(data.textFileOpenMode),
         markdownOpenMode: normalizeMarkdownOpenMode(data.markdownOpenMode),
         apiTimeout: typeof data.apiTimeout === 'number' ? data.apiTimeout : 10,
+        pathMappings: typeof data.pathMappings === 'object' && data.pathMappings !== null ? data.pathMappings : {},
       };
       return configCache;
     })
@@ -65,6 +67,7 @@ export async function getConfig(): Promise<AppConfig> {
         textFileOpenMode: "web",
         markdownOpenMode: "web",
         apiTimeout: 10,
+        pathMappings: {},
       };
       configCache = fallback;
       return fallback;
@@ -79,9 +82,11 @@ export async function getConfig(): Promise<AppConfig> {
 export async function saveEditorPreferences(
   textFileOpenMode: TextFileOpenMode,
   markdownOpenMode: MarkdownOpenMode,
-  apiTimeout?: number
+  apiTimeout?: number,
+  pathMappings?: Record<string, string>
 ): Promise<void> {
   const currentTimeout = apiTimeout ?? getApiTimeout();
+  const currentMappings = pathMappings ?? getPathMappings();
   const response = await fetch(`${API_BASE_URL}/api/config/preferences`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -89,6 +94,7 @@ export async function saveEditorPreferences(
       textFileOpenMode,
       markdownOpenMode,
       apiTimeout: currentTimeout,
+      pathMappings: currentMappings,
     }),
   });
 
@@ -103,6 +109,7 @@ export async function saveEditorPreferences(
     textFileOpenMode: normalizeTextFileOpenMode(data.textFileOpenMode),
     markdownOpenMode: normalizeMarkdownOpenMode(data.markdownOpenMode),
     apiTimeout: typeof data.apiTimeout === 'number' ? data.apiTimeout : currentTimeout,
+    pathMappings: typeof data.pathMappings === 'object' && data.pathMappings !== null ? data.pathMappings : currentMappings,
   };
 }
 
@@ -111,6 +118,13 @@ export async function saveEditorPreferences(
  */
 export function getApiTimeout(): number {
   return configCache?.apiTimeout ?? 10;
+}
+
+/**
+ * 現在のリンク置換マッピングを取得
+ */
+export function getPathMappings(): Record<string, string> {
+  return configCache?.pathMappings ?? {};
 }
 
 /**

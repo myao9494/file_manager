@@ -10,6 +10,12 @@ FastAPI ファイルマネージャー メインアプリケーション
 """
 import re
 from pathlib import Path
+from typing import Optional
+import urllib.request
+import urllib.error
+import socket
+import os
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -85,6 +91,7 @@ class EditorPreferencesRequest(BaseModel):
     textFileOpenMode: str
     markdownOpenMode: str
     apiTimeout: int = 10
+    pathMappings: Optional[dict[str, str]] = None
 
 
 @app.get("/api/config")
@@ -108,7 +115,83 @@ async def update_editor_preferences(request: EditorPreferencesRequest):
         text_file_open_mode=request.textFileOpenMode,  # type: ignore[arg-type]
         markdown_open_mode=request.markdownOpenMode,  # type: ignore[arg-type]
         api_timeout=request.apiTimeout,
+        path_mappings=request.pathMappings,
     )
+
+
+class ConnectionTestRequest(BaseModel):
+    """接続性検証リクエスト"""
+    paths: list[str]
+
+
+@app.post("/api/config/test-connections")
+async def test_connections(request: ConnectionTestRequest):
+    """
+    指定された新サーバー（パスやURL）の接続性を検証する
+    """
+    results = {}
+    
+    def _test_single(path_or_url: str) -> dict:
+        path_or_url = path_or_url.strip()
+        if not path_or_url:
+            return {"alive": False, "error": "アドレスが空です"}
+            
+        # URLの検証 (http:// または https://)
+        if path_or_url.startswith(("http://", "https://")):
+            try:
+                # 3秒タイムアウトで接続を試みる
+                req = urllib.request.Request(path_or_url, method="HEAD")
+                req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                with urllib.request.urlopen(req, timeout=3.0) as response:
+                    status = response.status
+                    if 200 <= status < 400:
+                        return {"alive": True, "type": "url", "status": status}
+                    else:
+                        return {"alive": False, "type": "url", "error": f"HTTP ステータス {status}"}
+            except urllib.error.HTTPError as e:
+                # HTTPErrorでも接続はできている（ステータス応答あり）
+                return {"alive": True, "type": "url", "status": e.code, "note": f"HTTPError: {e.reason}"}
+            except (urllib.error.URLError, socket.timeout, Exception) as e:
+                return {"alive": False, "type": "url", "error": str(e)}
+        
+        # カスタムURI (obsidian://) の検証は形式チェックのみで True とする
+        elif "://" in path_or_url:
+            if path_or_url.startswith("obsidian://"):
+                return {"alive": True, "type": "custom_scheme"}
+            return {"alive": False, "type": "unsupported_scheme", "error": "サポートされていないスキームです"}
+
+        # ローカルパス・UNCパスの検証
+        else:
+            try:
+                expanded = os.path.expandvars(os.path.expanduser(path_or_url))
+                
+                # Windows UNCプレフィックスのバックスラッシュ統一
+                if settings.is_windows and expanded.startswith("//") and not expanded.startswith("///"):
+                    expanded = expanded.replace("/", "\\")
+                
+                path_obj = Path(expanded)
+                if path_obj.exists():
+                    ptype = "directory" if path_obj.is_dir() else "file"
+                    return {"alive": True, "type": ptype}
+                else:
+                    return {"alive": False, "type": "path", "error": "パスが見つかりません"}
+            except Exception as e:
+                return {"alive": False, "type": "path", "error": str(e)}
+
+    # 非同期スレッドプールで検証を実行
+    import asyncio
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor() as pool:
+        tasks = []
+        for path in request.paths:
+            tasks.append(loop.run_in_executor(pool, _test_single, path))
+        
+        task_results = await asyncio.gather(*tasks)
+        
+        for path, res in zip(request.paths, task_results):
+            results[path] = res
+            
+    return results
 
 
 # --- PWA: フロントエンド配信 ---

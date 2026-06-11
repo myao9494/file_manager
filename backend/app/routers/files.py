@@ -300,40 +300,74 @@ async def run_with_timeout(func, *args, **kwargs):
 
 def convert_storage_path(path: str) -> str:
     """
-    ストレージパスの変更（NAS更新など）に対応するための変換関数。
-    normalize_pathの冒頭で呼び出され、アプリ全体に適用されます。
+    ストレージパスやURLの変更に対応するための変換関数。
+    normalize_pathの冒頭などで呼び出され、アプリ全体に適用されます。
     
     引数:
-        path (str): 入力パス（/ や \\ が混在する可能性があります）
+        path (str): 入力パスまたはURL
         
     戻り値:
-        str: 変換後のパス
+        str: 変換後のパスまたはURL
     """
-    # Windows以外の場合は変換を行わない
-    if not settings.is_windows:
+    if not path:
         return path
 
-    # マッピング辞書の定義（正規化されたパスを使用）
-    path_mapping = {
-        r"\\vnna44\aaa": r"\\aaaa\svss",
-        r"\\vss56\hst": r"\\athaeth\sss",
-    }
-    
-    # 入力パスの正規化（¥を\に変換し、小文字化して比較しやすくする）
-    # 注意: 実際の置換は元のケースを保持するか、辞書の値をそのまま使うか検討が必要
-    # ここでは単純にプレフィックス置換を行います
-    
-    normalized_input = path.replace("¥", "\\")
-    
-    for old_path, new_path in path_mapping.items():
-        # 大文字小文字を区別せずに比較したい場合
-        if normalized_input.lower().startswith(old_path.lower()):
-            # マッチした部分を新しいパスに置き換え（残りのパスはそのまま結合）
-            # old_pathの長さ分を削除して結合
-            remainder = normalized_input[len(old_path):]
-            return new_path + remainder
-            
-    return normalized_input
+    preferences = get_editor_preferences()
+    raw_mappings = preferences.get("pathMappings", {})
+    if not raw_mappings:
+        return path
+
+    # 1. raw_mappings {新: 旧1,旧2} を {旧: 新} に展開・フラット化する
+    path_mappings = {}
+    for new_path, old_paths_str in raw_mappings.items():
+        if not new_path or not old_paths_str:
+            continue
+        # 旧サーバーが複数ある場合はカンマ区切りで展開
+        old_paths = [p.strip() for p in old_paths_str.split(",") if p.strip()]
+        for old_path in old_paths:
+            path_mappings[old_path] = new_path
+
+    # 2. URLかどうかの判定
+    is_url = path.startswith(("http://", "https://", "obsidian://"))
+
+    for old_path, new_path in path_mappings.items():
+        if is_url:
+            # URLの場合は大文字小文字を無視して前方一致比較
+            if path.lower().startswith(old_path.lower()):
+                return new_path + path[len(old_path):]
+        else:
+            # ファイルパス・UNCパスの場合
+            # Windowsの「¥」を「\」に統一
+            normalized_path = path.replace("¥", "\\")
+            normalized_old = old_path.replace("¥", "\\")
+            normalized_new = new_path.replace("¥", "\\")
+
+            # 比較用にスラッシュに統一
+            comp_path = normalized_path.replace("\\", "/")
+            comp_old = normalized_old.replace("\\", "/")
+
+            if comp_path.lower().startswith(comp_old.lower()):
+                remainder = comp_path[len(comp_old):]
+                base_new = normalized_new
+                
+                # 区切り文字スタイルを決定する（元の入力に \ が含まれていれば \）
+                sep = "\\" if "\\" in normalized_path else "/"
+                
+                # base_newとremainderを結合する（重複区切りの排除）
+                base_new_clean = base_new.replace("\\", "/")
+                combined = base_new_clean.rstrip("/") + "/" + remainder.lstrip("/")
+                
+                result = combined.replace("/", sep)
+                
+                # UNCパスまたはUnix絶対パスの先頭プレフィックスが壊れないように調整
+                if normalized_path.startswith("\\\\") and not result.startswith("\\\\"):
+                    result = "\\" + result.lstrip("\\")
+                elif normalized_path.startswith("//") and not result.startswith("//"):
+                    result = "/" + result.lstrip("/")
+                    
+                return result
+
+    return path
 
 
 def normalize_path(path: str) -> Path:
@@ -3645,7 +3679,37 @@ async def open_smart(request: OpenRequest):
     """
     ファイル種類に応じてスマートに開く
     """
-    path = normalize_path(request.path)
+    converted_path = convert_storage_path(request.path)
+
+    # 変換されたパスがURLの場合は直接ブラウザや外部アプリで開く (Pathの正規化エラー回避)
+    if converted_path.startswith(("http://", "https://", "obsidian://")):
+        try:
+            if converted_path.startswith("http"):
+                webbrowser.open(converted_path)
+            else:
+                # カスタムURI (obsidian 等)
+                if platform.system() == 'Darwin':
+                    if converted_path.startswith("obsidian://"):
+                        subprocess.Popen(['open', '-a', 'Obsidian', converted_path])
+                        _bring_obsidian_to_front()
+                    else:
+                        subprocess.Popen(['open', converted_path])
+                elif platform.system() == 'Windows':
+                    os.startfile(converted_path)
+                    if converted_path.startswith("obsidian://"):
+                        _bring_obsidian_to_front()
+                else:
+                    subprocess.Popen(['xdg-open', converted_path])
+            
+            return SmartOpenResponse(
+                status="success",
+                action="opened",
+                message="リンクを開きました"
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"起動に失敗しました: {str(e)}")
+
+    path = normalize_path(converted_path)
 
     def _open_smart_sync(t_path: Path, prefer_embedded: bool) -> SmartOpenResponse:
         if not t_path.exists():

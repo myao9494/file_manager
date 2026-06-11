@@ -1,5 +1,6 @@
 {
   "textFileOpenMode": "web",
   "markdownOpenMode": "external",
-  "apiTimeout": 10
+  "apiTimeout": 10,
+  "pathMappings": {}
 }
