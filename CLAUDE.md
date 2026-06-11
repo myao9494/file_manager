@@ -188,6 +188,7 @@ http://localhost:5173/?path=/Users/username/Documents
 
 - ヘッダーメニュー（ハンバーガーメニュー）
   - テーマ切り替え（Light/Dark）
+  - APIタイムアウト設定（設定値はバックエンド settings.json に保存、デフォルト10秒）
   - ストレージリセット（localStorage初期化）
 
 ### FileList.tsx
@@ -295,6 +296,8 @@ SQLite FTS5を使用した高速検索システム。クエリ長に応じて最
 | POST | /api/clipboard/copy | クリップボードにコピー (Windows) | 済 |
 | POST | /api/upload | ファイルアップロード | 済 |
 | GET | /api/obsidian/daily-path | Obsidian今日のフォルダ取得・作成 | 済 |
+| GET | /api/config | 設定の取得（apiTimeout含む） | 済 |
+| POST | /api/config/preferences | 設定の保存（apiTimeout含む） | 済 |
 
 #### インデックス管理（外部サービス）
 
@@ -350,6 +353,12 @@ npm test
     - 独立したUIコンポーネント (`FolderHistoryModal`) を使用し、フルテキスト検索と類似のUXを実現。
  7. **フィルタ機能の拡張**:
     - ファイル一覧の「常用」拡張子フィルタ（デフォルト設定含む）に `.bat` および `.sh` を追加。
+  8. **APIリクエスト タイムアウト制御とフリーズ防止**:
+     - ネットワークドライブ遅延対策として、APIリクエストにデフォルト10秒のタイムアウトを適用。
+     - バックエンドの `normalize_path` のファイルシステムアクセス（I/O）を排除し、文字列正規化に変更することでパス解決時のハングを防止。
+     - 主要API（一覧取得、種別判定、スマートオープン等）のI/O処理をスレッドプールに逃がし、設定した `apiTimeout` の秒数で `asyncio.wait_for` によるタイムアウト制限を適用。
+     - ハンバーガーメニューから設定変更でき、値はバックエンドの `settings.json` に保存される。
+     - `/api/upload` などの大容量アップロードリクエストは自動的にタイムアウト適用を除外。
 
 ## ドキュメント更新
 

@@ -1,4 +1,5 @@
 {
   "textFileOpenMode": "web",
-  "markdownOpenMode": "external"
+  "markdownOpenMode": "external",
+  "apiTimeout": 10
 }

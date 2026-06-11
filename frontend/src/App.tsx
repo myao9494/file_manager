@@ -70,6 +70,7 @@ function AppContent() {
   const [locationSearch, setLocationSearch] = useState(() => window.location.search);
   const [textFileOpenMode, setTextFileOpenMode] = useState<TextFileOpenMode>("web");
   const [markdownOpenMode, setMarkdownOpenMode] = useState<MarkdownOpenMode>("web");
+  const [apiTimeout, setApiTimeout] = useState<number>(10);
   const [editorPreferencesLoaded, setEditorPreferencesLoaded] = useState(false);
 
   // 起動時にバックエンドから設定を取得（キャッシュに保存）
@@ -78,6 +79,7 @@ function AppContent() {
       .then((config) => {
         setTextFileOpenMode(config.textFileOpenMode);
         setMarkdownOpenMode(config.markdownOpenMode);
+        setApiTimeout(config.apiTimeout);
       })
       .catch((error) => {
         console.error("設定取得エラー:", error);
@@ -134,11 +136,11 @@ function AppContent() {
       return;
     }
 
-    saveEditorPreferences(textFileOpenMode, markdownOpenMode).catch((error) => {
+    saveEditorPreferences(textFileOpenMode, markdownOpenMode, apiTimeout).catch((error) => {
       console.error("設定保存エラー:", error);
-      showError("エディタ設定の保存に失敗しました");
+      showError("設定の保存に失敗しました");
     });
-  }, [editorPreferencesLoaded, markdownOpenMode, showError, textFileOpenMode]);
+  }, [editorPreferencesLoaded, markdownOpenMode, apiTimeout, showError, textFileOpenMode]);
 
   // ハッシュルーティング（APIテストページ）
   const [currentPage, setCurrentPage] = useState(() => {
@@ -561,6 +563,35 @@ function AppContent() {
                 />
                 <span>Debug Mode</span>
               </label>
+              <div className="menu-divider" />
+              <div className="menu-section">
+                <div className="menu-section-title">Network Settings</div>
+                <div className="menu-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '6px 12px' }}>
+                  <span style={{ fontSize: '13px' }}>API Timeout (sec)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="300"
+                    value={apiTimeout}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (!isNaN(val) && val > 0) {
+                        setApiTimeout(val);
+                      }
+                    }}
+                    style={{
+                      width: '60px',
+                      padding: '4px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      textAlign: 'right',
+                      fontSize: '13px'
+                    }}
+                  />
+                </div>
+              </div>
               <div className="menu-divider" />
               <button className="menu-item" onClick={() => { handleResetSettings(); setShowMenu(false); }}>
                 <Trash2 size={16} /> Reset Storage

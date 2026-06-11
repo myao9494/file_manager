@@ -84,6 +84,7 @@ class EditorPreferencesRequest(BaseModel):
 
     textFileOpenMode: str
     markdownOpenMode: str
+    apiTimeout: int = 10
 
 
 @app.get("/api/config")
@@ -106,6 +107,7 @@ async def update_editor_preferences(request: EditorPreferencesRequest):
     return save_editor_preferences(
         text_file_open_mode=request.textFileOpenMode,  # type: ignore[arg-type]
         markdown_open_mode=request.markdownOpenMode,  # type: ignore[arg-type]
+        api_timeout=request.apiTimeout,
     )
 
 

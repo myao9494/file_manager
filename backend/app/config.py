@@ -118,6 +118,7 @@ MarkdownOpenMode = Literal["web", "external"]
 DEFAULT_EDITOR_PREFERENCES = {
     "textFileOpenMode": "web",
     "markdownOpenMode": "web",
+    "apiTimeout": 10,
 }
 
 
@@ -133,7 +134,7 @@ def _normalize_markdown_open_mode(value: object) -> MarkdownOpenMode:
     return "web"
 
 
-def get_editor_preferences() -> dict[str, str]:
+def get_editor_preferences() -> dict[str, object]:
     """UI設定ファイルからエディタ設定を読み込む"""
     path = settings.preferences_file_path
 
@@ -141,9 +142,18 @@ def get_editor_preferences() -> dict[str, str]:
         if path.exists():
             data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
+                timeout_val = data.get("apiTimeout")
+                try:
+                    api_timeout = int(timeout_val) if timeout_val is not None else 10
+                    if api_timeout <= 0:
+                        api_timeout = 10
+                except (ValueError, TypeError):
+                    api_timeout = 10
+
                 return {
                     "textFileOpenMode": _normalize_text_file_open_mode(data.get("textFileOpenMode")),
                     "markdownOpenMode": _normalize_markdown_open_mode(data.get("markdownOpenMode")),
+                    "apiTimeout": api_timeout,
                 }
     except (OSError, json.JSONDecodeError):
         pass
@@ -154,7 +164,8 @@ def get_editor_preferences() -> dict[str, str]:
 def save_editor_preferences(
     text_file_open_mode: TextFileOpenMode,
     markdown_open_mode: MarkdownOpenMode,
-) -> dict[str, str]:
+    api_timeout: int = 10,
+) -> dict[str, object]:
     """UI設定ファイルへエディタ設定を書き込む"""
     path = settings.preferences_file_path
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -162,6 +173,7 @@ def save_editor_preferences(
     preferences = {
         "textFileOpenMode": _normalize_text_file_open_mode(text_file_open_mode),
         "markdownOpenMode": _normalize_markdown_open_mode(markdown_open_mode),
+        "apiTimeout": api_timeout if api_timeout > 0 else 10,
     }
     path.write_text(
         json.dumps(preferences, ensure_ascii=False, indent=2) + "\n",

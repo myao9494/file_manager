@@ -5,8 +5,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { setupFetchTimeout } from "./utils/fetchTimeout.ts";
 import "./index.css";
 import App from "./App.tsx";
+
+// APIタイムアウトを初期化
+setupFetchTimeout();
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -22,6 +22,7 @@ interface AppConfig {
   isWindows: boolean;
   textFileOpenMode: TextFileOpenMode;
   markdownOpenMode: MarkdownOpenMode;
+  apiTimeout: number;
 }
 
 let configCache: AppConfig | null = null;
@@ -52,6 +53,7 @@ export async function getConfig(): Promise<AppConfig> {
         isWindows: data.isWindows,
         textFileOpenMode: normalizeTextFileOpenMode(data.textFileOpenMode),
         markdownOpenMode: normalizeMarkdownOpenMode(data.markdownOpenMode),
+        apiTimeout: typeof data.apiTimeout === 'number' ? data.apiTimeout : 10,
       };
       return configCache;
     })
@@ -62,6 +64,7 @@ export async function getConfig(): Promise<AppConfig> {
         isWindows: navigator.userAgent.toLowerCase().includes("win"),
         textFileOpenMode: "web",
         markdownOpenMode: "web",
+        apiTimeout: 10,
       };
       configCache = fallback;
       return fallback;
@@ -75,14 +78,17 @@ export async function getConfig(): Promise<AppConfig> {
  */
 export async function saveEditorPreferences(
   textFileOpenMode: TextFileOpenMode,
-  markdownOpenMode: MarkdownOpenMode
+  markdownOpenMode: MarkdownOpenMode,
+  apiTimeout?: number
 ): Promise<void> {
+  const currentTimeout = apiTimeout ?? getApiTimeout();
   const response = await fetch(`${API_BASE_URL}/api/config/preferences`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       textFileOpenMode,
       markdownOpenMode,
+      apiTimeout: currentTimeout,
     }),
   });
 
@@ -96,7 +102,23 @@ export async function saveEditorPreferences(
     isWindows: configCache?.isWindows ?? navigator.userAgent.toLowerCase().includes("win"),
     textFileOpenMode: normalizeTextFileOpenMode(data.textFileOpenMode),
     markdownOpenMode: normalizeMarkdownOpenMode(data.markdownOpenMode),
+    apiTimeout: typeof data.apiTimeout === 'number' ? data.apiTimeout : currentTimeout,
   };
+}
+
+/**
+ * 現在のAPIタイムアウト値（秒）を取得
+ */
+export function getApiTimeout(): number {
+  return configCache?.apiTimeout ?? 10;
+}
+
+/**
+ * テスト用に設定キャッシュをリセットする（テスト専用）
+ */
+export function resetConfigCacheForTesting(): void {
+  configCache = null;
+  configPromise = null;
 }
 
 /**
