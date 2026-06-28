@@ -40,3 +40,16 @@ export function matchesCmdOrCtrlShiftShortcut(
 
   return event.key.toLowerCase() === shortcutKey.toLowerCase();
 }
+
+/**
+ * 修飾キーなしの単体キーショートカットを判定する
+ */
+export function matchesPlainShortcut(
+  event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">,
+  shortcutKey: string
+): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
+    return false;
+  }
+  return event.key.toLowerCase() === shortcutKey.toLowerCase();
+}

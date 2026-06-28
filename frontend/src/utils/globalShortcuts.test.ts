@@ -8,6 +8,7 @@ import {
   isEditableEventTarget,
   matchesCmdOrCtrlShortcut,
   matchesCmdOrCtrlShiftShortcut,
+  matchesPlainShortcut,
 } from "./globalShortcuts";
 
 describe("globalShortcuts", () => {
@@ -92,5 +93,37 @@ describe("globalShortcuts", () => {
 
     expect(isEditableEventTarget(new FakeHTMLButtonElement())).toBe(false);
     expect(isEditableEventTarget(null)).toBe(false);
+  });
+
+  describe("matchesPlainShortcut", () => {
+    it("matches a key with no modifier keys", () => {
+      const event = { key: "a", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false } as KeyboardEvent;
+      expect(matchesPlainShortcut(event, "a")).toBe(true);
+    });
+
+    it("matches A key with no modifier keys (case insensitive)", () => {
+      const event = { key: "A", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false } as KeyboardEvent;
+      expect(matchesPlainShortcut(event, "a")).toBe(true);
+    });
+
+    it("does not match if ctrlKey is pressed", () => {
+      const event = { key: "a", ctrlKey: true, metaKey: false, altKey: false, shiftKey: false } as KeyboardEvent;
+      expect(matchesPlainShortcut(event, "a")).toBe(false);
+    });
+
+    it("does not match if metaKey is pressed", () => {
+      const event = { key: "a", ctrlKey: false, metaKey: true, altKey: false, shiftKey: false } as KeyboardEvent;
+      expect(matchesPlainShortcut(event, "a")).toBe(false);
+    });
+
+    it("does not match if altKey is pressed", () => {
+      const event = { key: "a", ctrlKey: false, metaKey: false, altKey: true, shiftKey: false } as KeyboardEvent;
+      expect(matchesPlainShortcut(event, "a")).toBe(false);
+    });
+
+    it("does not match if shiftKey is pressed", () => {
+      const event = { key: "a", ctrlKey: false, metaKey: false, altKey: false, shiftKey: true } as KeyboardEvent;
+      expect(matchesPlainShortcut(event, "a")).toBe(false);
+    });
   });
 });

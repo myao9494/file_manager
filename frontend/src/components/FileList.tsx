@@ -50,7 +50,7 @@ import { useFolderHistory } from "../contexts/FolderHistoryContext";
 import { sanitizePath, formatPathForClipboard } from "../utils/pathUtils";
 import { formatItemsAsMarkdownChecklist } from "../utils/markdownChecklist";
 import { isProgramCodeFile } from "../utils/codeFileActions";
-import { isEditableEventTarget, matchesCmdOrCtrlShortcut } from "../utils/globalShortcuts";
+import { isEditableEventTarget, matchesCmdOrCtrlShortcut, matchesPlainShortcut } from "../utils/globalShortcuts";
 import { formatFileDate } from "../utils/formatFileDate";
 import type { IndexedFolderSearchItem } from "../api/fulltextIndexService";
 import type { EditorLanguage } from "../utils/codeEditorHighlight";
@@ -444,6 +444,13 @@ export function FileList({
         return;
       }
 
+      if (matchesPlainShortcut(e, "a") && (panelId === "left" || panelId === "center")) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsCreateFolderModalOpen(true);
+        return;
+      }
+
       if (matchesCmdOrCtrlShortcut(e, "h")) {
         e.preventDefault();
         e.stopPropagation();
@@ -457,7 +464,7 @@ export function FileList({
     return () => {
       window.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
-  }, [navigateToFolder, panelId]);
+  }, [navigateToFolder, panelId, setIsCreateFolderModalOpen]);
 
   // 戻る
   const goBack = () => {

@@ -159,7 +159,8 @@ describe('apiTimeout configuration', () => {
                 body: JSON.stringify({
                     textFileOpenMode: 'web',
                     markdownOpenMode: 'web',
-                    apiTimeout: 25
+                    apiTimeout: 25,
+                    pathMappings: {}
                 })
             })
         );
