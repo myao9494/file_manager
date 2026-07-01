@@ -12,13 +12,13 @@ interface FilterBarProps {
   isFocused?: boolean;
 }
 
-const TYPE_FILTERS = [
+export const TYPE_FILTERS = [
   { id: "all", label: "全" },
   { id: "files", label: "F" },
   { id: "folders", label: "D" },
 ];
 
-const EXT_FILTERS = [
+export const EXT_FILTERS = [
   { id: "all", label: "全" },
   { id: "md+svg+csv+pdf+ipynb+py+bat+sh+excalidraw+excalidraw.md+excalidraw.svg+excalidraw.png+docx+xlsx+xlsm+pptx+msg+jpg+jpeg+png+gif+bmp+tiff", label: "常用" },
   { id: "md", label: "MD" },

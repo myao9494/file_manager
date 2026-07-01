@@ -37,7 +37,7 @@ import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
 import { PaneContextMenu } from "./PaneContextMenu";
-import { FilterBar } from "./FilterBar";
+import { EXT_FILTERS, FilterBar } from "./FilterBar";
 // import { Toast } from "./Toast";
 import { FileIcon } from "./FileIcon";
 import { InputModal } from "./InputModal";
@@ -138,13 +138,7 @@ export function FileList({
     y: number;
   } | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [extFilter, setExtFilter] = useState<string>(() => {
-    // 左ペインと真ん中ペインのデフォルトは「常用」
-    if (panelId === "left" || panelId === "center") {
-      return "md+svg+csv+pdf+ipynb+py+bat+sh+excalidraw+excalidraw.md+excalidraw.svg+excalidraw.png+docx+xlsx+xlsm+pptx+msg+jpg+jpeg+png+gif+bmp+tiff";
-    }
-    return "all";
-  });
+  const [extFilter, setExtFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isRegex, setIsRegex] = useState(true); // Default Regex ON
   const [sortKey, setSortKey] = useState<"name" | "size" | "date">("name");
@@ -196,6 +190,7 @@ export function FileList({
 
   // フォルダ作成モーダルの状態
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
+  const [isCreateTextFileModalOpen, setIsCreateTextFileModalOpen] = useState(false);
   const [isCreateMarkdownModalOpen, setIsCreateMarkdownModalOpen] = useState(false);
 
   // 削除確認モーダルの状態
@@ -451,6 +446,31 @@ export function FileList({
         return;
       }
 
+      if (matchesPlainShortcut(e, "t") && (panelId === "left" || panelId === "center")) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsCreateTextFileModalOpen(true);
+        return;
+      }
+
+      if (
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === "l" &&
+        (panelId === "left" || panelId === "center")
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        const currentFilterIndex = EXT_FILTERS.findIndex((filter) => filter.id === extFilter);
+        const nextFilterIndex = e.shiftKey
+          ? (currentFilterIndex - 1 + EXT_FILTERS.length) % EXT_FILTERS.length
+          : (currentFilterIndex + 1) % EXT_FILTERS.length;
+        setExtFilter(EXT_FILTERS[nextFilterIndex].id);
+        setFilterButtonIndex(3 + nextFilterIndex);
+        return;
+      }
+
       if (matchesCmdOrCtrlShortcut(e, "h")) {
         e.preventDefault();
         e.stopPropagation();
@@ -464,7 +484,7 @@ export function FileList({
     return () => {
       window.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
-  }, [navigateToFolder, panelId, setIsCreateFolderModalOpen]);
+  }, [extFilter, navigateToFolder, panelId, setIsCreateFolderModalOpen, setIsCreateTextFileModalOpen]);
 
   // 戻る
   const goBack = () => {
@@ -738,6 +758,46 @@ export function FileList({
       console.error("Folder creation failed:", e);
       showError(`フォルダ作成に失敗しました: ${e.message}`);
       throw e; // Keep modal open
+    }
+  };
+
+  // テキストファイル作成
+  const handleConfirmCreateTextFile = async (name: string) => {
+    if (!name || !name.trim()) return;
+
+    if (!currentPath) {
+      showError("作成先フォルダが特定できません");
+      return;
+    }
+
+    const trimmedName = name.trim();
+    const filename = trimmedName.toLowerCase().endsWith(".txt")
+      ? trimmedName
+      : `${trimmedName}.txt`;
+
+    try {
+      const result = await createFile(currentPath, filename, "");
+      showSuccess(`テキストファイル作成: ${filename}`);
+
+      addOperation({
+        type: "CREATE_FILE",
+        canUndo: true,
+        timestamp: Date.now(),
+        data: {
+          createdPath: result.path,
+          content: "",
+        },
+      });
+
+      refetch();
+      onRequestFocus?.();
+      setTimeout(() => {
+        containerRef.current?.focus();
+      }, 50);
+    } catch (e: any) {
+      console.error("Text file creation failed:", e);
+      showError(`テキストファイル作成に失敗しました: ${e.message}`);
+      throw e;
     }
   };
 
@@ -3267,6 +3327,17 @@ export function FileList({
         message="新しいフォルダの名前を入力してください"
         placeholder="フォルダ名"
         onConfirm={handleConfirmCreateFolder}
+        confirmLabel="作成"
+      />
+
+      {/* テキストファイル作成モーダル */}
+      <InputModal
+        isOpen={isCreateTextFileModalOpen}
+        onClose={() => setIsCreateTextFileModalOpen(false)}
+        title="テキストファイル作成"
+        message="メモ用のテキストファイル名を入力してください（.txt拡張子は自動付与）"
+        placeholder="ファイル名"
+        onConfirm={handleConfirmCreateTextFile}
         confirmLabel="作成"
       />
 
