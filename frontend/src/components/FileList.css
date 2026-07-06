@@ -101,6 +101,53 @@
   margin: 0 4px;
 }
 
+.help-modal-content {
+  display: grid;
+  gap: 18px;
+}
+
+.help-section h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--text-color);
+}
+
+.help-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.help-list > div {
+  display: grid;
+  grid-template-columns: minmax(128px, 180px) 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.help-list dt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.help-list dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .help-list > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+}
+
 /* ツールバーセクションフォーカス時 */
 .icon-toolbar.section-focused {
   outline: 2px solid #1976d2;
