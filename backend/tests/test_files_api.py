@@ -152,6 +152,106 @@ class TestGetFiles:
         names = [item["name"] for item in data["items"]]
         assert "folder1_loop" not in names
 
+
+class TestFolderLatestModified:
+    """フォルダ配下の最新更新日時を取得するAPIのテスト"""
+
+    def test_returns_the_latest_timestamp_including_nested_files(self, client, temp_dir, monkeypatch):
+        """深い階層のファイル更新日時をフォルダの最新日時として返す"""
+        from app import config
+        import os
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        target = temp_dir / "latest-target"
+        nested = target / "nested"
+        nested.mkdir(parents=True)
+        older = target / "older.txt"
+        latest = nested / "latest.txt"
+        older.write_text("old")
+        latest.write_text("new")
+        os.utime(older, (1_700_000_000, 1_700_000_000))
+        os.utime(latest, (1_800_000_000, 1_800_000_000))
+
+        response = client.post("/api/folder-latest-modified", json={"path": "latest-target"})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert Path(data["path"]).resolve() == target.resolve()
+        assert data["modified"].startswith("2027-01-15T")
+        assert data["scanned_entries"] >= 3
+        assert data["truncated"] is False
+
+    def test_stops_at_the_configured_entry_limit(self, client, temp_dir, monkeypatch):
+        """安全上限に達した不完全な集計結果はtruncatedとして返す"""
+        from app import config
+        from app.routers import files as files_router
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(
+            files_router,
+            "get_editor_preferences",
+            lambda: {"apiTimeout": 10, "folderLatestModifiedMaxEntries": 1},
+        )
+        target = temp_dir / "limited-target"
+        target.mkdir()
+        (target / "first.txt").write_text("first")
+        (target / "second.txt").write_text("second")
+
+        response = client.post("/api/folder-latest-modified", json={"path": "limited-target"})
+
+        assert response.status_code == 200
+        assert response.json()["scanned_entries"] == 1
+        assert response.json()["truncated"] is True
+
+
+class TestGitFolderStatus:
+    """ペイン内フォルダ向けGit状態一括取得APIのテスト"""
+
+    def test_returns_only_folders_with_uncommitted_changes(self, client, temp_dir, monkeypatch):
+        """Git変更の有無をフォルダごとに返す"""
+        from app import config
+        import subprocess
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        changed = temp_dir / "changed-repo"
+        clean = temp_dir / "clean-repo"
+        changed.mkdir()
+        clean.mkdir()
+        for repository in (changed, clean):
+            subprocess.run(["git", "init", "-q", str(repository)], check=True)
+        (changed / "untracked.txt").write_text("changed")
+
+        response = client.post(
+            "/api/git-folder-statuses",
+            json={"paths": ["changed-repo", "clean-repo"]},
+        )
+
+        assert response.status_code == 200
+        statuses = {item["path"]: item for item in response.json()["items"]}
+        assert statuses[str(changed.resolve())]["has_changes"] is True
+        assert statuses[str(changed.resolve())]["changed_files"] == ["untracked.txt"]
+        assert statuses[str(changed.resolve())]["has_more_changes"] is False
+        assert statuses[str(clean.resolve())]["has_changes"] is False
+
+    def test_limits_hover_file_names_to_twenty(self, client, temp_dir, monkeypatch):
+        """ホバー表示用の変更ファイル名は20件までに省略する"""
+        from app import config
+        import subprocess
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        repository = temp_dir / "many-changes"
+        repository.mkdir()
+        subprocess.run(["git", "init", "-q", str(repository)], check=True)
+        for index in range(21):
+            (repository / f"changed-{index:02}.txt").write_text("changed")
+
+        response = client.post("/api/git-folder-statuses", json={"paths": ["many-changes"]})
+
+        assert response.status_code == 200
+        status = response.json()["items"][0]
+        assert len(status["changed_files"]) == 20
+        assert status["has_more_changes"] is True
+
 import zipfile
 
 class TestUnzipFile:

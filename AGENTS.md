@@ -199,7 +199,7 @@ http://localhost:5173/?path=/Users/username/Documents
 - 右クリックメニュー
 - Markdownエディタモーダル（新規作成・編集）
 - **戻る/進むボタン**: カーソル位置と選択状態も履歴と一緒に保存・復元
-- **キーボードショートカット**: Ctrl+Left(戻る), Ctrl+Right(進む), Ctrl+Up(上の階層へ), a(フォルダ追加、左/中ペインのみ)
+- **キーボードショートカット**: Ctrl+Left / Ctrl+Down(戻る), Ctrl+Right(進む), Ctrl+Up(上の階層へ), a(フォルダ追加、左/中ペインのみ)
 
 ### FileSearch.tsx
 

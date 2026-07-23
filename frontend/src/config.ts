@@ -23,6 +23,7 @@ interface AppConfig {
   textFileOpenMode: TextFileOpenMode;
   markdownOpenMode: MarkdownOpenMode;
   apiTimeout: number;
+  folderLatestModifiedMaxEntries: number;
   pathMappings: Record<string, string>;
 }
 
@@ -55,6 +56,9 @@ export async function getConfig(): Promise<AppConfig> {
         textFileOpenMode: normalizeTextFileOpenMode(data.textFileOpenMode),
         markdownOpenMode: normalizeMarkdownOpenMode(data.markdownOpenMode),
         apiTimeout: typeof data.apiTimeout === 'number' ? data.apiTimeout : 10,
+        folderLatestModifiedMaxEntries: typeof data.folderLatestModifiedMaxEntries === 'number'
+          ? data.folderLatestModifiedMaxEntries
+          : 20_000,
         pathMappings: typeof data.pathMappings === 'object' && data.pathMappings !== null ? data.pathMappings : {},
       };
       return configCache;
@@ -67,6 +71,7 @@ export async function getConfig(): Promise<AppConfig> {
         textFileOpenMode: "web",
         markdownOpenMode: "web",
         apiTimeout: 10,
+        folderLatestModifiedMaxEntries: 20_000,
         pathMappings: {},
       };
       configCache = fallback;
@@ -83,10 +88,13 @@ export async function saveEditorPreferences(
   textFileOpenMode: TextFileOpenMode,
   markdownOpenMode: MarkdownOpenMode,
   apiTimeout?: number,
-  pathMappings?: Record<string, string>
+  pathMappings?: Record<string, string>,
+  folderLatestModifiedMaxEntries?: number,
 ): Promise<void> {
   const currentTimeout = apiTimeout ?? getApiTimeout();
   const currentMappings = pathMappings ?? getPathMappings();
+  const currentFolderLatestModifiedMaxEntries = folderLatestModifiedMaxEntries
+    ?? getFolderLatestModifiedMaxEntries();
   const response = await fetch(`${API_BASE_URL}/api/config/preferences`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -94,6 +102,7 @@ export async function saveEditorPreferences(
       textFileOpenMode,
       markdownOpenMode,
       apiTimeout: currentTimeout,
+      folderLatestModifiedMaxEntries: currentFolderLatestModifiedMaxEntries,
       pathMappings: currentMappings,
     }),
   });
@@ -109,6 +118,9 @@ export async function saveEditorPreferences(
     textFileOpenMode: normalizeTextFileOpenMode(data.textFileOpenMode),
     markdownOpenMode: normalizeMarkdownOpenMode(data.markdownOpenMode),
     apiTimeout: typeof data.apiTimeout === 'number' ? data.apiTimeout : currentTimeout,
+    folderLatestModifiedMaxEntries: typeof data.folderLatestModifiedMaxEntries === 'number'
+      ? data.folderLatestModifiedMaxEntries
+      : currentFolderLatestModifiedMaxEntries,
     pathMappings: typeof data.pathMappings === 'object' && data.pathMappings !== null ? data.pathMappings : currentMappings,
   };
 }
@@ -118,6 +130,11 @@ export async function saveEditorPreferences(
  */
 export function getApiTimeout(): number {
   return configCache?.apiTimeout ?? 10;
+}
+
+/** フォルダ最新日時の再帰走査上限を取得 */
+export function getFolderLatestModifiedMaxEntries(): number {
+  return configCache?.folderLatestModifiedMaxEntries ?? 20_000;
 }
 
 /**

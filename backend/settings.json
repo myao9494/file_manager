@@ -2,5 +2,6 @@
   "textFileOpenMode": "web",
   "markdownOpenMode": "external",
   "apiTimeout": 10,
+  "folderLatestModifiedMaxEntries": 20000,
   "pathMappings": {}
 }

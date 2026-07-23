@@ -32,7 +32,7 @@ import { useFiles, useDeleteItemsBatch, useCreateFolder, useMoveItemsBatch, useC
 import { copyFilesToClipboard } from "../api/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FileItem } from "../types/file";
-import { buildAppPathUrl, buildFullPathUrl, getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
+import { buildAppPathUrl, buildFullPathUrl, getPathInfo, openInVSCode, openInEditor, executeProgramCode, openInExplorer, getDownloadUrl, getFullTextSearchUrl, getPdfViewUrl, openInAntigravity, openInJupyter, openInExcalidraw, createFile, updateFile, openInObsidian, openSmart, countFiles, getFolderGitStatuses, getFolderLatestModified, openTrash, getTestFolderPath, uploadFiles, getObsidianDailyPath } from "../api/files";
 import { ProgressModal } from "./ProgressModal";
 import { useToast } from "../hooks/useToast";
 import { ContextMenu } from "./ContextMenu";
@@ -154,6 +154,14 @@ export function FileList({
   const [historyFilter, setHistoryFilter] = useState("");
   // ローカルフォーカス行インデックス（各ペインで独立）
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
+  // dキーで明示的に集計したフォルダだけを保持する（通常の一覧表示では走査しない）。
+  const [folderLatestModified, setFolderLatestModified] = useState<Record<string, string>>({});
+  const [folderLatestModifiedLoading, setFolderLatestModifiedLoading] = useState<Set<string>>(new Set());
+  const [foldersWithGitChanges, setFoldersWithGitChanges] = useState<Record<string, {
+    changedFiles: string[];
+    hasMoreChanges: boolean;
+  }>>({});
+  const [isGitStatusLoading, setIsGitStatusLoading] = useState(false);
   // フォーカス中のUIセクション
   type FocusSection = 'toolbar' | 'path' | 'filter' | 'history' | 'search' | 'list';
   const [focusedSection, setFocusedSection] = useState<FocusSection>('list');
@@ -210,6 +218,13 @@ export function FileList({
 
   // パスが検証済みの場合のみuseFilesを呼び出す
   const { data, isLoading, error, refetch } = useFiles(isPathValidated && currentPath ? currentPath : "");
+
+  useEffect(() => {
+    setFolderLatestModified({});
+    setFolderLatestModifiedLoading(new Set());
+    setFoldersWithGitChanges({});
+    setIsGitStatusLoading(false);
+  }, [currentPath]);
 
   const queryClient = useQueryClient();
   const deleteItemsBatch = useDeleteItemsBatch();
@@ -1423,7 +1438,9 @@ export function FileList({
         item,
         sortValue: sortKey === "size"
           ? (item.size || 0)
-          : (item.modified ? Date.parse(item.modified) || 0 : 0),
+          : (folderLatestModified[item.path] ?? item.modified
+            ? Date.parse(folderLatestModified[item.path] ?? item.modified!) || 0
+            : 0),
       }));
 
       decorated.sort((a, b) => {
@@ -1438,7 +1455,7 @@ export function FileList({
     sortItems(nextFiles);
 
     return { folders: nextFolders, files: nextFiles };
-  }, [data?.items, searchQuery, compiledSearchRegex, normalizedSearchQuery, typeFilter, allowedExtensions, sortKey, sortOrder]);
+  }, [data?.items, searchQuery, compiledSearchRegex, normalizedSearchQuery, typeFilter, allowedExtensions, sortKey, sortOrder, folderLatestModified]);
 
   // 全アイテム（フィルタとソート適用後）をメモ化
   const allSortedItems = useMemo(() => [...folders, ...files], [folders, files]);
@@ -2029,6 +2046,88 @@ export function FileList({
     await handleOpenPath(item.full_path, item.file_name);
   };
 
+  const calculateFocusedFolderLatestModified = async () => {
+    const selectedFolders = allSortedItems.filter(
+      (item) => item.type === "directory" && selectedItems.has(item.path)
+    );
+    const focusedItem = allSortedItems[focusedIndex];
+    const target = selectedFolders.length === 1
+      ? selectedFolders[0]
+      : selectedFolders.length === 0 && selectedItems.size === 0 && focusedItem?.type === "directory"
+        ? focusedItem
+        : null;
+
+    if (!target) {
+      showError("フォルダを1件選択するか、フォルダ行にカーソルを置いてください");
+      return;
+    }
+    if (folderLatestModifiedLoading.has(target.path)) return;
+
+    setFolderLatestModifiedLoading((previous) => new Set(previous).add(target.path));
+    try {
+      const result = await getFolderLatestModified(target.path);
+      if (result.truncated) {
+        showError(`「${target.name}」は項目数上限またはタイムアウトのため、Dateを更新しませんでした`);
+        return;
+      }
+      setFolderLatestModified((previous) => ({ ...previous, [target.path]: result.modified }));
+      showSuccess(`「${target.name}」の最新更新日を取得しました`);
+    } catch (err) {
+      showError(`最新更新日の取得に失敗しました: ${(err as Error).message}`);
+    } finally {
+      setFolderLatestModifiedLoading((previous) => {
+        const next = new Set(previous);
+        next.delete(target.path);
+        return next;
+      });
+    }
+  };
+
+  const checkPaneGitStatuses = async () => {
+    const folderPaths = (data?.items ?? [])
+      .filter((item) => item.type === "directory")
+      .map((item) => item.path);
+
+    if (folderPaths.length === 0 || isGitStatusLoading) return;
+
+    setIsGitStatusLoading(true);
+    try {
+      const statuses = await getFolderGitStatuses(folderPaths);
+      setFoldersWithGitChanges(Object.fromEntries(
+        statuses
+          .filter((item) => item.has_changes)
+          .map((item) => [item.path, {
+            changedFiles: item.changed_files,
+            hasMoreChanges: item.has_more_changes,
+          }])
+      ));
+    } catch (err) {
+      showError(`Git状態の取得に失敗しました: ${(err as Error).message}`);
+    } finally {
+      setIsGitStatusLoading(false);
+    }
+  };
+
+  const handleOpenGitFolderInVSCode = async (item: FileItem) => {
+    try {
+      await openInVSCode(item.path);
+    } catch (err) {
+      showError(`VS Code起動エラー: ${(err as Error).message}`);
+    }
+  };
+
+  const getGitStatusTitle = (path: string): string => {
+    const status = foldersWithGitChanges[path];
+    if (!status) return "";
+    return [
+      "変更ファイル:",
+      ...status.changedFiles,
+      ...(status.hasMoreChanges ? ["…"] : []),
+      "",
+      "クリックしてVS Codeで開く",
+    ].join("\n");
+  };
+
   // キーボードショートカット
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -2040,8 +2139,8 @@ export function FileList({
     // ペインがフォーカスされている場合のみ処理
     if (!isFocused) return;
 
-    // 戻る (Ctrl + Left)
-    if (isCmdOrCtrl && e.key === 'ArrowLeft') {
+    // 戻る (Ctrl + Left / Ctrl + Down)
+    if (isCmdOrCtrl && (e.key === 'ArrowLeft' || e.key === 'ArrowDown')) {
       e.preventDefault();
       e.stopPropagation();
       goBack();
@@ -2599,6 +2698,26 @@ export function FileList({
       }
     }
 
+    // Git状態確認 (G)
+    if (!isCmdOrCtrl && e.key.toLowerCase() === 'g') {
+      if (panelId === 'left' || panelId === 'center') {
+        e.preventDefault();
+        e.stopPropagation();
+        void checkPaneGitStatuses();
+      }
+      return;
+    }
+
+    // フォルダ最新日時の計算 (D)
+    if (!isCmdOrCtrl && e.key.toLowerCase() === 'd') {
+      if (panelId === 'left' || panelId === 'center') {
+        e.preventDefault();
+        e.stopPropagation();
+        void calculateFocusedFolderLatestModified();
+      }
+      return;
+    }
+
     // リネーム (R)
     if (!isCmdOrCtrl && e.key.toLowerCase() === 'r') {
       if ((panelId === 'left' || panelId === 'center') && selectedItems.size === 1) {
@@ -3070,6 +3189,9 @@ export function FileList({
               <th className="date-col" onClick={() => handleSort("date")}>
                 Date <SortIcon col="date" />
               </th>
+              <th className="git-col" title="Gキーでペイン内フォルダのGit変更を確認">
+                Git{isGitStatusLoading ? "…" : ""}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -3151,8 +3273,25 @@ export function FileList({
                 </td>
                 <td className="date-col">
                   <div className="cell-content">
-                    {formatFileDate(item.modified)}
+                    {folderLatestModifiedLoading.has(item.path)
+                      ? "…"
+                      : formatFileDate(folderLatestModified[item.path] ?? item.modified)}
                   </div>
+                </td>
+                <td className="git-col">
+                  {foldersWithGitChanges[item.path] && (
+                    <button
+                      className="git-status-button"
+                      type="button"
+                      title={getGitStatusTitle(item.path)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleOpenGitFolderInVSCode(item);
+                      }}
+                    >
+                      G
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -3233,6 +3372,7 @@ export function FileList({
                     {formatFileDate(item.modified)}
                   </div>
                 </td>
+                <td className="git-col" />
               </tr>
             ))}
           </tbody>
@@ -3344,10 +3484,12 @@ export function FileList({
               <div><dt>T</dt><dd>左・真ん中ペインで空のテキストファイル作成</dd></div>
               <div><dt>L</dt><dd>左・真ん中ペインの表示フィルタを次へ切り替え</dd></div>
               <div><dt>Shift + L</dt><dd>左・真ん中ペインの表示フィルタを前へ切り替え</dd></div>
+              <div><dt>D</dt><dd>左・真ん中ペインで、選択中またはカーソル位置のフォルダ配下を集計し、Date列に最新更新日を表示</dd></div>
+              <div><dt>G</dt><dd>左・真ん中ペイン内の全フォルダを並列にGit確認。変更があるフォルダはGit列のGをクリックしてVS Codeで開く</dd></div>
               <div><dt>Ctrl/Cmd + P</dt><dd>左・真ん中ペインのフォルダ内 indexed 検索を表示</dd></div>
               <div><dt>Ctrl/Cmd + R</dt><dd>左・真ん中ペインのフォルダ履歴検索を表示</dd></div>
               <div><dt>Ctrl/Cmd + H</dt><dd>ホームフォルダへ移動</dd></div>
-              <div><dt>Ctrl/Cmd + ← / →</dt><dd>戻る / 進む</dd></div>
+              <div><dt>Ctrl/Cmd + ← / ↓ / →</dt><dd>戻る / 戻る / 進む</dd></div>
               <div><dt>Ctrl/Cmd + ↑</dt><dd>上の階層へ移動</dd></div>
               <div><dt>Ctrl/Cmd + A</dt><dd>表示中のアイテムを全選択</dd></div>
               <div><dt>Ctrl/Cmd + Shift + A</dt><dd>選択解除</dd></div>
@@ -3363,6 +3505,7 @@ export function FileList({
               <div><dt>Verify Checksum</dt><dd>移動・コピー時にチェックサム検証を行う安全寄りの設定</dd></div>
               <div><dt>Debug Mode</dt><dd>ファイル操作時の詳細ログやデバッグ情報を有効化</dd></div>
               <div><dt>API Timeout</dt><dd>ネットワークドライブなどのAPI待ち時間上限を秒数で設定</dd></div>
+              <div><dt>Folder Date Max Items</dt><dd>Dで最新更新日を集計する際の最大項目数を設定</dd></div>
               <div><dt>リンク置換設定</dt><dd>古いサーバー名やUNCパスを新しいリンクへ置換するルールを編集</dd></div>
               <div><dt>Reset Storage</dt><dd>保存されたパス、履歴、テーマなどのローカル設定を初期化</dd></div>
               <div><dt>検索ペイン設定</dt><dd>インデックスサービスURLや監視パスを検索ペインの設定から管理</dd></div>

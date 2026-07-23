@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getNetworkDrivePath, getConfig, saveEditorPreferences, getApiTimeout, resetConfigCacheForTesting } from './config';
+import { getNetworkDrivePath, getConfig, saveEditorPreferences, getApiTimeout, getFolderLatestModifiedMaxEntries, resetConfigCacheForTesting } from './config';
 
 describe('getNetworkDrivePath', () => {
 
@@ -110,13 +110,15 @@ describe('apiTimeout configuration', () => {
                 isWindows: false,
                 textFileOpenMode: 'web',
                 markdownOpenMode: 'web',
-                apiTimeout: 15
+                apiTimeout: 15,
+                folderLatestModifiedMaxEntries: 50_000,
             })
         } as Response);
 
         const config = await getConfig();
         expect(config.apiTimeout).toBe(15);
         expect(getApiTimeout()).toBe(15);
+        expect(getFolderLatestModifiedMaxEntries()).toBe(50_000);
     });
 
     it('should fall back to default 10 seconds if apiTimeout is missing or invalid', async () => {
@@ -160,6 +162,7 @@ describe('apiTimeout configuration', () => {
                     textFileOpenMode: 'web',
                     markdownOpenMode: 'web',
                     apiTimeout: 25,
+                    folderLatestModifiedMaxEntries: 20_000,
                     pathMappings: {}
                 })
             })

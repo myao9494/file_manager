@@ -72,6 +72,7 @@ function AppContent() {
   const [textFileOpenMode, setTextFileOpenMode] = useState<TextFileOpenMode>("web");
   const [markdownOpenMode, setMarkdownOpenMode] = useState<MarkdownOpenMode>("web");
   const [apiTimeout, setApiTimeout] = useState<number>(10);
+  const [folderLatestModifiedMaxEntries, setFolderLatestModifiedMaxEntries] = useState<number>(20_000);
   const [pathMappings, setPathMappings] = useState<Record<string, string>>({});
   const [showPathMapModal, setShowPathMapModal] = useState(false);
   const [pathMapJsonStr, setPathMapJsonStr] = useState("");
@@ -85,6 +86,7 @@ function AppContent() {
         setTextFileOpenMode(config.textFileOpenMode);
         setMarkdownOpenMode(config.markdownOpenMode);
         setApiTimeout(config.apiTimeout);
+        setFolderLatestModifiedMaxEntries(config.folderLatestModifiedMaxEntries);
         setPathMappings(config.pathMappings || {});
       })
       .catch((error) => {
@@ -142,11 +144,17 @@ function AppContent() {
       return;
     }
 
-    saveEditorPreferences(textFileOpenMode, markdownOpenMode, apiTimeout, pathMappings).catch((error) => {
+    saveEditorPreferences(
+      textFileOpenMode,
+      markdownOpenMode,
+      apiTimeout,
+      pathMappings,
+      folderLatestModifiedMaxEntries,
+    ).catch((error) => {
       console.error("設定保存エラー:", error);
       showError("設定の保存に失敗しました");
     });
-  }, [editorPreferencesLoaded, markdownOpenMode, apiTimeout, showError, textFileOpenMode, pathMappings]);
+  }, [editorPreferencesLoaded, markdownOpenMode, apiTimeout, showError, textFileOpenMode, pathMappings, folderLatestModifiedMaxEntries]);
 
   const [viewMode, setViewMode] = useState<"form" | "json">("form");
   const [formRules, setFormRules] = useState<{
@@ -802,6 +810,33 @@ function AppContent() {
                     }}
                     style={{
                       width: '60px',
+                      padding: '4px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      textAlign: 'right',
+                      fontSize: '13px'
+                    }}
+                  />
+                </div>
+                <div className="menu-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '6px 12px' }}>
+                  <span style={{ fontSize: '13px' }}>Folder Date Max Items</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000000"
+                    step="1000"
+                    value={folderLatestModifiedMaxEntries}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (!isNaN(val) && val > 0) {
+                        setFolderLatestModifiedMaxEntries(Math.min(val, 1_000_000));
+                      }
+                    }}
+                    title="dキーでフォルダ配下の最新更新日を計算する際の最大項目数"
+                    style={{
+                      width: '82px',
                       padding: '4px',
                       borderRadius: '4px',
                       border: '1px solid var(--border-color)',

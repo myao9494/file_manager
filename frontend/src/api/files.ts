@@ -52,6 +52,52 @@ export async function getFiles(path: string = ""): Promise<DirectoryResponse> {
 }
 
 /**
+ * フォルダ自身と配下を走査し、最も新しい更新日時を取得する。
+ * 共有フォルダでの過負荷を避けるため、ユーザー操作時だけ呼び出す。
+ */
+export async function getFolderLatestModified(path: string): Promise<{
+  path: string;
+  modified: string;
+  scanned_entries: number;
+  truncated: boolean;
+}> {
+  const response = await fetch(`${API_URL}/folder-latest-modified`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "フォルダの最新更新日時取得に失敗しました");
+  }
+
+  return response.json();
+}
+
+/** ペイン内フォルダのGit未コミット変更有無を一括取得する。 */
+export async function getFolderGitStatuses(paths: string[]): Promise<Array<{
+  path: string;
+  has_changes: boolean;
+  changed_files: string[];
+  has_more_changes: boolean;
+}>> {
+  const response = await fetch(`${API_URL}/git-folder-statuses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ paths }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Git状態の取得に失敗しました");
+  }
+
+  const data = await response.json();
+  return data.items;
+}
+
+/**
  * ファイル/フォルダを削除
  */
 export async function deleteItem(

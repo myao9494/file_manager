@@ -61,6 +61,42 @@ class DirectoryResponse(BaseModel):
     items: List[FileItem]
 
 
+class FolderLatestModifiedRequest(BaseModel):
+    """フォルダ配下の最新更新日時を求めるリクエスト"""
+
+    path: str
+
+
+class FolderLatestModifiedResponse(BaseModel):
+    """フォルダ配下の最新更新日時の集計結果"""
+
+    path: str
+    modified: str
+    scanned_entries: int
+    truncated: bool = False
+
+
+class GitFolderStatusesRequest(BaseModel):
+    """ペイン内フォルダのGit状態を一括取得するリクエスト"""
+
+    paths: List[str]
+
+
+class GitFolderStatusItem(BaseModel):
+    """フォルダ単位のGit変更有無"""
+
+    path: str
+    has_changes: bool
+    changed_files: List[str] = []
+    has_more_changes: bool = False
+
+
+class GitFolderStatusesResponse(BaseModel):
+    """Git変更有無の一括取得結果"""
+
+    items: List[GitFolderStatusItem]
+
+
 class SearchResponse(BaseModel):
     """検索結果のレスポンススキーマ"""
 
@@ -484,6 +520,145 @@ async def get_files(path: str = "") -> DirectoryResponse:
         path=resolved_path.as_posix(),
         items=items
     )
+
+
+# 共有フォルダを意図せず長時間走査しないための既定上限。
+FOLDER_LATEST_MODIFIED_MAX_ENTRIES = 20_000
+
+
+@router.post("/folder-latest-modified", response_model=FolderLatestModifiedResponse)
+async def get_folder_latest_modified(request: FolderLatestModifiedRequest) -> FolderLatestModifiedResponse:
+    """指定フォルダ自身と配下の全項目から、最も新しい更新日時を取得する。"""
+    target_path = normalize_path(request.path)
+
+    def _get_latest_modified_sync(path: Path) -> FolderLatestModifiedResponse:
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="パスが見つかりません")
+        if not path.is_dir():
+            raise HTTPException(status_code=400, detail="フォルダを指定してください")
+
+        try:
+            latest_mtime = path.stat().st_mtime
+        except (PermissionError, OSError):
+            raise HTTPException(status_code=403, detail="フォルダにアクセスできません")
+
+        scanned_entries = 0
+        preferences = get_editor_preferences()
+        try:
+            configured_timeout = float(preferences.get("apiTimeout", 10))
+        except (TypeError, ValueError):
+            configured_timeout = 10.0
+        try:
+            max_entries = int(preferences.get("folderLatestModifiedMaxEntries", FOLDER_LATEST_MODIFIED_MAX_ENTRIES))
+        except (TypeError, ValueError):
+            max_entries = FOLDER_LATEST_MODIFIED_MAX_ENTRIES
+        max_entries = max(1, max_entries)
+        # run_with_timeoutの前に自発的に終了し、キャンセルできないワーカースレッドを残さない。
+        deadline = time.monotonic() + max(1.0, configured_timeout * 0.8)
+        directories = [path]
+        while directories:
+            current = directories.pop()
+            try:
+                with os.scandir(current) as entries:
+                    for entry in entries:
+                        if (
+                            scanned_entries >= max_entries
+                            or time.monotonic() >= deadline
+                        ):
+                            return FolderLatestModifiedResponse(
+                                path=path.as_posix(),
+                                modified=datetime.fromtimestamp(latest_mtime).isoformat(),
+                                scanned_entries=scanned_entries,
+                                truncated=True,
+                            )
+                        scanned_entries += 1
+                        try:
+                            # リンク先を辿らず、循環とネットワーク先への意図しない走査を防ぐ。
+                            if entry.is_symlink():
+                                continue
+                            entry_stat = entry.stat(follow_symlinks=False)
+                            latest_mtime = max(latest_mtime, entry_stat.st_mtime)
+                            if entry.is_dir(follow_symlinks=False):
+                                directories.append(Path(entry.path))
+                        except (PermissionError, OSError):
+                            continue
+            except (PermissionError, OSError):
+                continue
+
+        return FolderLatestModifiedResponse(
+            path=path.as_posix(),
+            modified=datetime.fromtimestamp(latest_mtime).isoformat(),
+            scanned_entries=scanned_entries,
+        )
+
+    return await run_with_timeout(_get_latest_modified_sync, target_path)
+
+
+GIT_STATUS_MAX_WORKERS = 8
+GIT_STATUS_COMMAND_TIMEOUT_SECONDS = 5
+GIT_STATUS_MAX_CHANGED_FILES = 20
+
+
+@router.post("/git-folder-statuses", response_model=GitFolderStatusesResponse)
+async def get_git_folder_statuses(request: GitFolderStatusesRequest) -> GitFolderStatusesResponse:
+    """指定フォルダ群を並列にGit確認し、未コミット変更の有無を返す。"""
+    target_paths = [normalize_path(path) for path in request.paths]
+
+    def _get_git_folder_statuses_sync(paths: List[Path]) -> GitFolderStatusesResponse:
+        def get_changed_files(status_output: str) -> List[str]:
+            """porcelain -z の出力から、変更後の相対パスだけを取り出す。"""
+            records = [record for record in status_output.split("\0") if record]
+            changed_files: List[str] = []
+            index = 0
+            while index < len(records):
+                record = records[index]
+                if len(record) >= 4 and record[2] == " ":
+                    changed_files.append(record[3:])
+                    # rename/copyは続く旧パスをスキップする。
+                    if "R" in record[:2] or "C" in record[:2]:
+                        index += 1
+                index += 1
+            return changed_files
+
+        def check_git_status(path: Path) -> GitFolderStatusItem:
+            if not path.is_dir():
+                return GitFolderStatusItem(path=path.as_posix(), has_changes=False)
+            try:
+                result = subprocess.run(
+                    ["git", "-C", str(path), "status", "--porcelain=v1", "-z", "--untracked-files=normal"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                    timeout=GIT_STATUS_COMMAND_TIMEOUT_SECONDS,
+                    check=False,
+                )
+                changed_files = get_changed_files(result.stdout) if result.returncode == 0 else []
+                return GitFolderStatusItem(
+                    path=path.as_posix(),
+                    has_changes=bool(changed_files),
+                    changed_files=changed_files[:GIT_STATUS_MAX_CHANGED_FILES],
+                    has_more_changes=len(changed_files) > GIT_STATUS_MAX_CHANGED_FILES,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return GitFolderStatusItem(path=path.as_posix(), has_changes=False)
+
+        if not paths:
+            return GitFolderStatusesResponse(items=[])
+
+        results: Dict[str, GitFolderStatusItem] = {}
+        max_workers = min(GIT_STATUS_MAX_WORKERS, len(paths))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(check_git_status, path): path for path in paths}
+            for future in as_completed(futures):
+                path = futures[future]
+                try:
+                    results[path.as_posix()] = future.result()
+                except Exception:
+                    results[path.as_posix()] = GitFolderStatusItem(path=path.as_posix(), has_changes=False)
+
+        return GitFolderStatusesResponse(items=[results[path.as_posix()] for path in paths])
+
+    return await run_with_timeout(_get_git_folder_statuses_sync, target_paths)
 
 
 def should_ignore(path: Path, ignore_patterns: List[str]) -> bool:

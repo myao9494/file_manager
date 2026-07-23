@@ -119,8 +119,12 @@ DEFAULT_EDITOR_PREFERENCES = {
     "textFileOpenMode": "web",
     "markdownOpenMode": "web",
     "apiTimeout": 10,
+    "folderLatestModifiedMaxEntries": 20_000,
     "pathMappings": {},
 }
+
+FOLDER_LATEST_MODIFIED_MAX_ENTRIES_DEFAULT = 20_000
+FOLDER_LATEST_MODIFIED_MAX_ENTRIES_MAX = 1_000_000
 
 
 def _normalize_text_file_open_mode(value: object) -> TextFileOpenMode:
@@ -133,6 +137,17 @@ def _normalize_markdown_open_mode(value: object) -> MarkdownOpenMode:
     if value in {"external", "obsidian", "vscode"}:
         return "external"
     return "web"
+
+
+def _normalize_folder_latest_modified_max_entries(value: object) -> int:
+    """フォルダ最新日時の走査上限を安全な範囲に正規化する。"""
+    try:
+        max_entries = int(value)
+    except (ValueError, TypeError):
+        return FOLDER_LATEST_MODIFIED_MAX_ENTRIES_DEFAULT
+    if max_entries < 1:
+        return FOLDER_LATEST_MODIFIED_MAX_ENTRIES_DEFAULT
+    return min(max_entries, FOLDER_LATEST_MODIFIED_MAX_ENTRIES_MAX)
 
 
 def get_editor_preferences() -> dict[str, object]:
@@ -159,6 +174,9 @@ def get_editor_preferences() -> dict[str, object]:
                     "textFileOpenMode": _normalize_text_file_open_mode(data.get("textFileOpenMode")),
                     "markdownOpenMode": _normalize_markdown_open_mode(data.get("markdownOpenMode")),
                     "apiTimeout": api_timeout,
+                    "folderLatestModifiedMaxEntries": _normalize_folder_latest_modified_max_entries(
+                        data.get("folderLatestModifiedMaxEntries")
+                    ),
                     "pathMappings": path_mappings,
                 }
     except (OSError, json.JSONDecodeError):
@@ -172,6 +190,7 @@ def save_editor_preferences(
     markdown_open_mode: MarkdownOpenMode,
     api_timeout: int = 10,
     path_mappings: Optional[dict[str, str]] = None,
+    folder_latest_modified_max_entries: int = FOLDER_LATEST_MODIFIED_MAX_ENTRIES_DEFAULT,
 ) -> dict[str, object]:
     """UI設定ファイルへエディタ設定を書き込む"""
     path = settings.preferences_file_path
@@ -181,6 +200,9 @@ def save_editor_preferences(
         "textFileOpenMode": _normalize_text_file_open_mode(text_file_open_mode),
         "markdownOpenMode": _normalize_markdown_open_mode(markdown_open_mode),
         "apiTimeout": api_timeout if api_timeout > 0 else 10,
+        "folderLatestModifiedMaxEntries": _normalize_folder_latest_modified_max_entries(
+            folder_latest_modified_max_entries
+        ),
         "pathMappings": path_mappings if isinstance(path_mappings, dict) else {},
     }
     path.write_text(
