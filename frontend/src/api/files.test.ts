@@ -106,6 +106,8 @@ describe("file api url builders", () => {
         has_changes: true,
         changed_files: ["src/App.tsx"],
         has_more_changes: false,
+        ahead_count: 1,
+        behind_count: 0,
       }] }),
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -116,6 +118,8 @@ describe("file api url builders", () => {
         has_changes: true,
         changed_files: ["src/App.tsx"],
         has_more_changes: false,
+        ahead_count: 1,
+        behind_count: 0,
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith("/api/git-folder-statuses", expect.objectContaining({

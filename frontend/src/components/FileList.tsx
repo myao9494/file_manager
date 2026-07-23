@@ -53,6 +53,7 @@ import { formatItemsAsMarkdownChecklist } from "../utils/markdownChecklist";
 import { isProgramCodeFile } from "../utils/codeFileActions";
 import { isEditableEventTarget, matchesCmdOrCtrlShortcut, matchesPlainShortcut } from "../utils/globalShortcuts";
 import { formatFileDate } from "../utils/formatFileDate";
+import { buildGitSyncCommand, type GitSyncAction } from "../utils/gitCommands";
 import type { IndexedFolderSearchItem } from "../api/fulltextIndexService";
 import type { EditorLanguage } from "../utils/codeEditorHighlight";
 import { isWebFileEditorTarget } from "../utils/codeEditorHighlight";
@@ -160,6 +161,8 @@ export function FileList({
   const [foldersWithGitChanges, setFoldersWithGitChanges] = useState<Record<string, {
     changedFiles: string[];
     hasMoreChanges: boolean;
+    aheadCount: number;
+    behindCount: number;
   }>>({});
   const [isGitStatusLoading, setIsGitStatusLoading] = useState(false);
   // フォーカス中のUIセクション
@@ -2095,10 +2098,12 @@ export function FileList({
       const statuses = await getFolderGitStatuses(folderPaths);
       setFoldersWithGitChanges(Object.fromEntries(
         statuses
-          .filter((item) => item.has_changes)
+          .filter((item) => item.has_changes || item.ahead_count > 0 || item.behind_count > 0)
           .map((item) => [item.path, {
             changedFiles: item.changed_files,
             hasMoreChanges: item.has_more_changes,
+            aheadCount: item.ahead_count,
+            behindCount: item.behind_count,
           }])
       ));
     } catch (err) {
@@ -2116,16 +2121,53 @@ export function FileList({
     }
   };
 
+  const handleGitStatusAction = async (item: FileItem) => {
+    const status = foldersWithGitChanges[item.path];
+    if (!status || (status.aheadCount === 0 && status.behindCount === 0)) {
+      await handleOpenGitFolderInVSCode(item);
+      return;
+    }
+
+    const action: GitSyncAction = status.aheadCount > 0 && status.behindCount > 0
+      ? "sync"
+      : status.aheadCount > 0
+        ? "push"
+        : "pull";
+    try {
+      await navigator.clipboard.writeText(buildGitSyncCommand(item.path, action));
+      showSuccess(`git ${action === "sync" ? "pull --rebase && git push" : action} コマンドをコピーしました`);
+    } catch {
+      showError("Gitコマンドのコピーに失敗しました");
+    }
+  };
+
   const getGitStatusTitle = (path: string): string => {
     const status = foldersWithGitChanges[path];
     if (!status) return "";
+    const lines: string[] = [];
+    if (status.aheadCount > 0) lines.push(`未Push: ${status.aheadCount}件`);
+    if (status.behindCount > 0) lines.push(`未Pull: ${status.behindCount}件`);
+    if (status.changedFiles.length > 0) {
+      if (lines.length > 0) lines.push("");
+      lines.push("変更ファイル:", ...status.changedFiles);
+      if (status.hasMoreChanges) lines.push("…");
+    }
+    const clickHint = status.aheadCount > 0 || status.behindCount > 0
+      ? "クリックしてターミナル用Gitコマンドをコピー"
+      : "クリックしてVS Codeで開く";
     return [
-      "変更ファイル:",
-      ...status.changedFiles,
-      ...(status.hasMoreChanges ? ["…"] : []),
+      ...lines,
       "",
-      "クリックしてVS Codeで開く",
+      clickHint,
     ].join("\n");
+  };
+
+  const getGitStatusLabel = (path: string): "G" | "Push" | "Pull" | "C" => {
+    const status = foldersWithGitChanges[path];
+    if (status.aheadCount > 0 && status.behindCount > 0) return "C";
+    if (status.aheadCount > 0) return "Push";
+    if (status.behindCount > 0) return "Pull";
+    return "G";
   };
 
   // キーボードショートカット
@@ -3286,10 +3328,10 @@ export function FileList({
                       title={getGitStatusTitle(item.path)}
                       onClick={(e) => {
                         e.stopPropagation();
-                        void handleOpenGitFolderInVSCode(item);
+                        void handleGitStatusAction(item);
                       }}
                     >
-                      G
+                      {getGitStatusLabel(item.path)}
                     </button>
                   )}
                 </td>
@@ -3485,7 +3527,7 @@ export function FileList({
               <div><dt>L</dt><dd>左・真ん中ペインの表示フィルタを次へ切り替え</dd></div>
               <div><dt>Shift + L</dt><dd>左・真ん中ペインの表示フィルタを前へ切り替え</dd></div>
               <div><dt>D</dt><dd>左・真ん中ペインで、選択中またはカーソル位置のフォルダ配下を集計し、Date列に最新更新日を表示</dd></div>
-              <div><dt>G</dt><dd>左・真ん中ペイン内の全フォルダを並列にGit確認。変更があるフォルダはGit列のGをクリックしてVS Codeで開く</dd></div>
+              <div><dt>G</dt><dd>左・真ん中ペイン内の全フォルダを並列にGit確認。Git列は作業ツリー変更ならG、未PushならPush、未PullならPull、両方ならCを表示。GのクリックはVS Codeを開き、Push・Pull・Cのクリックはcd付きGitコマンドをクリップボードへコピー</dd></div>
               <div><dt>Ctrl/Cmd + P</dt><dd>左・真ん中ペインのフォルダ内 indexed 検索を表示</dd></div>
               <div><dt>Ctrl/Cmd + R</dt><dd>左・真ん中ペインのフォルダ履歴検索を表示</dd></div>
               <div><dt>Ctrl/Cmd + H</dt><dd>ホームフォルダへ移動</dd></div>

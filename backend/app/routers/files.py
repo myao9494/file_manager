@@ -89,6 +89,8 @@ class GitFolderStatusItem(BaseModel):
     has_changes: bool
     changed_files: List[str] = []
     has_more_changes: bool = False
+    ahead_count: int = 0
+    behind_count: int = 0
 
 
 class GitFolderStatusesResponse(BaseModel):
@@ -633,11 +635,28 @@ async def get_git_folder_statuses(request: GitFolderStatusesRequest) -> GitFolde
                     check=False,
                 )
                 changed_files = get_changed_files(result.stdout) if result.returncode == 0 else []
+                ahead_count = 0
+                behind_count = 0
+                if result.returncode == 0:
+                    divergence = subprocess.run(
+                        ["git", "-C", str(path), "rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                        timeout=GIT_STATUS_COMMAND_TIMEOUT_SECONDS,
+                        check=False,
+                    )
+                    if divergence.returncode == 0:
+                        counts = divergence.stdout.split()
+                        if len(counts) == 2:
+                            behind_count, ahead_count = (int(counts[0]), int(counts[1]))
                 return GitFolderStatusItem(
                     path=path.as_posix(),
                     has_changes=bool(changed_files),
                     changed_files=changed_files[:GIT_STATUS_MAX_CHANGED_FILES],
                     has_more_changes=len(changed_files) > GIT_STATUS_MAX_CHANGED_FILES,
+                    ahead_count=ahead_count,
+                    behind_count=behind_count,
                 )
             except (OSError, subprocess.TimeoutExpired):
                 return GitFolderStatusItem(path=path.as_posix(), has_changes=False)

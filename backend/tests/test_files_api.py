@@ -231,7 +231,58 @@ class TestGitFolderStatus:
         assert statuses[str(changed.resolve())]["has_changes"] is True
         assert statuses[str(changed.resolve())]["changed_files"] == ["untracked.txt"]
         assert statuses[str(changed.resolve())]["has_more_changes"] is False
+        assert statuses[str(changed.resolve())]["ahead_count"] == 0
+        assert statuses[str(changed.resolve())]["behind_count"] == 0
         assert statuses[str(clean.resolve())]["has_changes"] is False
+
+    def test_returns_unpushed_commit_count(self, client, temp_dir, monkeypatch):
+        """追跡ブランチより進んだコミット数を未Push件数として返す"""
+        from app import config
+        import subprocess
+
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        remote = temp_dir / "remote.git"
+        repository = temp_dir / "push-repo"
+        subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+        subprocess.run(["git", "init", "-q", str(repository)], check=True)
+        for command in (
+            ["git", "-C", str(repository), "config", "user.email", "test@example.com"],
+            ["git", "-C", str(repository), "config", "user.name", "Test User"],
+            ["git", "-C", str(repository), "add", "."],
+        ):
+            subprocess.run(command, check=True)
+        (repository / "initial.txt").write_text("initial")
+        subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(repository), "commit", "-qm", "initial"], check=True)
+        subprocess.run(["git", "-C", str(repository), "branch", "-M", "main"], check=True)
+        subprocess.run(["git", "-C", str(repository), "remote", "add", "origin", str(remote)], check=True)
+        subprocess.run(["git", "-C", str(repository), "push", "-qu", "origin", "main"], check=True)
+        (repository / "unpushed.txt").write_text("unpushed")
+        subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(repository), "commit", "-qm", "unpushed"], check=True)
+
+        response = client.post("/api/git-folder-statuses", json={"paths": ["push-repo"]})
+
+        assert response.status_code == 200
+        status = response.json()["items"][0]
+        assert status["ahead_count"] == 1
+        assert status["behind_count"] == 0
+
+        remote_writer = temp_dir / "remote-writer"
+        subprocess.run(["git", "clone", "-q", "--branch", "main", str(remote), str(remote_writer)], check=True)
+        subprocess.run(["git", "-C", str(remote_writer), "config", "user.email", "test@example.com"], check=True)
+        subprocess.run(["git", "-C", str(remote_writer), "config", "user.name", "Test User"], check=True)
+        (remote_writer / "remote.txt").write_text("remote")
+        subprocess.run(["git", "-C", str(remote_writer), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(remote_writer), "commit", "-qm", "remote"], check=True)
+        subprocess.run(["git", "-C", str(remote_writer), "push", "-q"], check=True)
+        subprocess.run(["git", "-C", str(repository), "fetch", "-q", "origin"], check=True)
+
+        response = client.post("/api/git-folder-statuses", json={"paths": ["push-repo"]})
+
+        status = response.json()["items"][0]
+        assert status["ahead_count"] == 1
+        assert status["behind_count"] == 1
 
     def test_limits_hover_file_names_to_twenty(self, client, temp_dir, monkeypatch):
         """ホバー表示用の変更ファイル名は20件までに省略する"""

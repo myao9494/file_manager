@@ -81,6 +81,8 @@ export async function getFolderGitStatuses(paths: string[]): Promise<Array<{
   has_changes: boolean;
   changed_files: string[];
   has_more_changes: boolean;
+  ahead_count: number;
+  behind_count: number;
 }>> {
   const response = await fetch(`${API_URL}/git-folder-statuses`, {
     method: "POST",
