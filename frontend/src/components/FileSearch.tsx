@@ -37,7 +37,7 @@ import {
 import { getIndexServiceUrl } from "../api/indexService";
 import { getFulltextIndexGuiUrl } from "../api/fulltextIndexService";
 import { buildAppPathUrl, buildFullPathUrl, getPdfViewUrl, openInObsidian, openInVSCode, openSmart } from "../api/files";
-import { getDefaultBasePath } from "../config";
+import { getConfig, getDefaultBasePath } from "../config";
 import type { FileItem, SearchParams } from "../types/file";
 import "./FileSearch.css";
 import { updateFile } from "../api/files";
@@ -47,6 +47,7 @@ import { formatItemsAsMarkdownChecklist } from "../utils/markdownChecklist";
 import type { EditorLanguage } from "../utils/codeEditorHighlight";
 import { isWebFileEditorTarget } from "../utils/codeEditorHighlight";
 import type { MarkdownOpenMode, TextFileOpenMode } from "../utils/editorPreferences";
+import { getIndexGuiUrl } from "../utils/indexGuiUrl";
 
 const MarkdownEditorModal = lazy(() =>
   import("./MarkdownEditorModal").then((module) => ({ default: module.MarkdownEditorModal }))
@@ -91,6 +92,7 @@ export function FileSearch({
 }: FileSearchProps) {
   // initialPathが未指定の場合はバックエンドから取得した値を使用
   const effectiveInitialPath = initialPath ?? getDefaultBasePath();
+  const [isBackendWindows, setIsBackendWindows] = useState(() => navigator.userAgent.toLowerCase().includes("win"));
   const [query, setQuery] = useState("");
   const isComposing = useRef(false); // IME入力中フラグ
   const [fileNamePattern, setFileNamePattern] = useState(""); // ファイル名フィルタ
@@ -108,6 +110,18 @@ export function FileSearch({
   const [sortKey, setSortKey] = useState<"name" | "size" | "date">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [searchMode, setSearchMode] = useState<SearchMode>("off"); // デフォルトはoff
+
+  useEffect(() => {
+    let isMounted = true;
+    getConfig().then((config) => {
+      if (isMounted) setIsBackendWindows(config.isWindows);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const indexGuiUrl = getIndexGuiUrl(isBackendWindows, getFulltextIndexGuiUrl());
   const [useRegex, setUseRegex] = useState(true); // 正規表現モード
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set()); // 選択状態
   // ローカルフォーカス行インデックス（各ペインで独立）
@@ -1195,11 +1209,11 @@ export function FileSearch({
               </>
             )}
             <a
-              href={useEverythingService ? getIndexServiceUrl() : getFulltextIndexGuiUrl()}
+              href={indexGuiUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="service-url"
-              title={useEverythingService ? "インデックスサービスを開く" : "全文検索サービスを開く"}
+              title={isBackendWindows ? "Everything を開く" : "インデックス検索GUIを開く"}
             >
               <ExternalLink size={10} />
             </a>
@@ -1265,12 +1279,12 @@ export function FileSearch({
           </div>
           <div className="external-link-container" style={{ marginLeft: '12px', fontSize: '12px' }}>
             <a
-              href={useFulltextService ? getFulltextIndexGuiUrl() : getIndexServiceUrl()}
+              href={indexGuiUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: '#3b82f6', textDecoration: 'underline' }}
             >
-              {useFulltextService ? "全文検索のGUIへのリンク" : "index検索のGUIへのリンク"}
+              {isBackendWindows ? "EverythingのGUIへのリンク" : "index検索のGUIへのリンク"}
             </a>
           </div>
         </div>
