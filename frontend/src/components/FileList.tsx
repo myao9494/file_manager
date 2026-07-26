@@ -41,6 +41,7 @@ import { EXT_FILTERS, FilterBar } from "./FilterBar";
 // import { Toast } from "./Toast";
 import { FileIcon } from "./FileIcon";
 import { InputModal } from "./InputModal";
+import { TextFileCreateModal } from "./TextFileCreateModal";
 import { Modal } from "./Modal";
 import { ConfirmationModal } from "./ConfirmationModal";
 import { IndexedFolderSearchModal } from "./IndexedFolderSearchModal";
@@ -54,6 +55,7 @@ import { isProgramCodeFile } from "../utils/codeFileActions";
 import { isEditableEventTarget, matchesCmdOrCtrlShortcut, matchesPlainShortcut } from "../utils/globalShortcuts";
 import { formatFileDate } from "../utils/formatFileDate";
 import { buildGitSyncCommand, type GitSyncAction } from "../utils/gitCommands";
+import { buildTextFileName } from "../utils/textFileName";
 import type { IndexedFolderSearchItem } from "../api/fulltextIndexService";
 import type { EditorLanguage } from "../utils/codeEditorHighlight";
 import { isWebFileEditorTarget } from "../utils/codeEditorHighlight";
@@ -79,6 +81,7 @@ interface FileListProps {
   onRequestFocus?: () => void;
   textFileOpenMode?: TextFileOpenMode;
   markdownOpenMode?: MarkdownOpenMode;
+  defaultTextFileExtension?: string;
 }
 
 // ナビゲーション履歴エントリの型（カーソル・選択状態を含む）
@@ -122,6 +125,7 @@ export function FileList({
   onRequestFocus,
   textFileOpenMode = "web",
   markdownOpenMode = "web",
+  defaultTextFileExtension = "txt",
 }: FileListProps) {
   // initialPathが未指定の場合はバックエンドから取得した値を使用
   const effectiveInitialPath = initialPath ?? getDefaultBasePath();
@@ -473,6 +477,16 @@ export function FileList({
         return;
       }
 
+      if (matchesPlainShortcut(e, "o") && (panelId === "left" || panelId === "center")) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!currentPath) return;
+        openInExplorer(currentPath)
+          .then(() => showSuccess("フォルダを開きました"))
+          .catch((error: Error) => showError(`フォルダを開けませんでした: ${error.message}`));
+        return;
+      }
+
       if (matchesPlainShortcut(e, "h")) {
         e.preventDefault();
         e.stopPropagation();
@@ -511,7 +525,7 @@ export function FileList({
     return () => {
       window.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
-  }, [extFilter, navigateToFolder, panelId, setIsCreateFolderModalOpen, setIsCreateTextFileModalOpen]);
+  }, [currentPath, extFilter, navigateToFolder, panelId, setIsCreateFolderModalOpen, setIsCreateTextFileModalOpen, showError, showSuccess]);
 
   // 戻る
   const goBack = () => {
@@ -789,7 +803,7 @@ export function FileList({
   };
 
   // テキストファイル作成
-  const handleConfirmCreateTextFile = async (name: string) => {
+  const handleConfirmCreateTextFile = async (name: string, extension: string) => {
     if (!name || !name.trim()) return;
 
     if (!currentPath) {
@@ -797,10 +811,7 @@ export function FileList({
       return;
     }
 
-    const trimmedName = name.trim();
-    const filename = trimmedName.toLowerCase().endsWith(".txt")
-      ? trimmedName
-      : `${trimmedName}.txt`;
+    const filename = buildTextFileName(name, extension);
 
     try {
       const result = await createFile(currentPath, filename, "");
@@ -1230,6 +1241,11 @@ export function FileList({
     setMdEditorOpen(false);
     setMdEditorFileName("");
     setMdEditorFilePath(null);
+    // モーダル内の入力欄から、開く前にアクティブだったペインへキーボード操作を戻す。
+    onRequestFocus?.();
+    window.setTimeout(() => {
+      containerRef.current?.focus();
+    }, 50);
   };
 
   const handleSaveFileEditor = async (content: string) => {
@@ -1264,6 +1280,11 @@ export function FileList({
     setFileEditorOpen(false);
     setFileEditorFileName("");
     setFileEditorFilePath(null);
+    // モーダル内の入力欄から、開く前にアクティブだったペインへキーボード操作を戻す。
+    onRequestFocus?.();
+    window.setTimeout(() => {
+      containerRef.current?.focus();
+    }, 50);
   };
 
   const handleCloseIndexedSearch = () => {
@@ -1675,6 +1696,13 @@ export function FileList({
 
   // ドラッグ選択の状態
   const containerRef = useRef<HTMLDivElement>(null);
+  const closeContextMenuAndRestoreFocus = () => {
+    setContextMenu(null);
+    onRequestFocus?.();
+    requestAnimationFrame(() => {
+      containerRef.current?.focus({ preventScroll: true });
+    });
+  };
   const [isDragSelecting, setIsDragSelecting] = useState(false);
   const [selectionBox, setSelectionBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
 
@@ -2098,7 +2126,6 @@ export function FileList({
       const statuses = await getFolderGitStatuses(folderPaths);
       setFoldersWithGitChanges(Object.fromEntries(
         statuses
-          .filter((item) => item.has_changes || item.ahead_count > 0 || item.behind_count > 0)
           .map((item) => [item.path, {
             changedFiles: item.changed_files,
             hasMoreChanges: item.has_more_changes,
@@ -2162,8 +2189,9 @@ export function FileList({
     ].join("\n");
   };
 
-  const getGitStatusLabel = (path: string): "G" | "Push" | "Pull" | "C" => {
+  const getGitStatusLabel = (path: string): "-" | "G" | "Push" | "Pull" | "C" => {
     const status = foldersWithGitChanges[path];
+    if (!status || (!status.hasMoreChanges && status.changedFiles.length === 0 && status.aheadCount === 0 && status.behindCount === 0)) return "-";
     if (status.aheadCount > 0 && status.behindCount > 0) return "C";
     if (status.aheadCount > 0) return "Push";
     if (status.behindCount > 0) return "Pull";
@@ -2762,18 +2790,17 @@ export function FileList({
 
     // リネーム (R)
     if (!isCmdOrCtrl && e.key.toLowerCase() === 'r') {
-      if ((panelId === 'left' || panelId === 'center') && selectedItems.size === 1) {
+      if (panelId === 'left' || panelId === 'center') {
         e.preventDefault();
         e.stopPropagation();
 
-        const selectedPath = Array.from(selectedItems)[0];
-        const selectedItem = allSortedItems.find(item => item.path === selectedPath);
+        const focusedItem = allSortedItems[focusedIndex];
 
-        if (selectedItem) {
+        if (focusedItem) {
           setContextMenu({
             x: window.innerWidth / 2,
             y: window.innerHeight / 2,
-            item: selectedItem,
+            item: focusedItem,
             startRename: true
           });
         }
@@ -3321,19 +3348,24 @@ export function FileList({
                   </div>
                 </td>
                 <td className="git-col">
-                  {foldersWithGitChanges[item.path] && (
-                    <button
-                      className="git-status-button"
-                      type="button"
-                      title={getGitStatusTitle(item.path)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleGitStatusAction(item);
-                      }}
-                    >
-                      {getGitStatusLabel(item.path)}
-                    </button>
-                  )}
+                  {foldersWithGitChanges[item.path] && (() => {
+                    const label = getGitStatusLabel(item.path);
+                    return label === "-" ? (
+                      <span title="Gitリポジトリ外、または変更・リモートとの差分なし">-</span>
+                    ) : (
+                      <button
+                        className="git-status-button"
+                        type="button"
+                        title={getGitStatusTitle(item.path)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleGitStatusAction(item);
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })()}
                 </td>
               </tr>
             ))}
@@ -3427,7 +3459,7 @@ export function FileList({
           x={contextMenu.x}
           y={contextMenu.y}
           item={contextMenu.item}
-          onClose={() => setContextMenu(null)}
+          onClose={closeContextMenuAndRestoreFocus}
           currentPath={currentPath || ""}
           startRename={contextMenu.startRename}
           onOpenLink={() => {
@@ -3438,6 +3470,16 @@ export function FileList({
           onOpenInEditor={isProgramCodeFile(contextMenu.item.name) ? () => handleOpenProgramCodeInEditor(contextMenu.item) : undefined}
           onExecute={isProgramCodeFile(contextMenu.item.name) ? () => handleExecuteProgramCode(contextMenu.item) : undefined}
           onDeleteRequest={handleRequestDeleteFromMenu}
+          onRenamed={(oldPath, newPath) => {
+            setSelectedItems((previous) => {
+              if (!previous.has(oldPath)) return previous;
+              const next = new Set(previous);
+              next.delete(oldPath);
+              next.add(newPath);
+              return next;
+            });
+            setLastSelectedPath((previous) => previous === oldPath ? newPath : previous);
+          }}
         />
       )}
       {paneContextMenu && (
@@ -3523,11 +3565,13 @@ export function FileList({
             <dl className="help-list">
               <div><dt>H</dt><dd>この使い方を表示</dd></div>
               <div><dt>A</dt><dd>左・真ん中ペインでフォルダ作成</dd></div>
-              <div><dt>T</dt><dd>左・真ん中ペインで空のテキストファイル作成</dd></div>
+              <div><dt>T</dt><dd>左・真ん中ペインで空のテキストファイル作成。ファイル名と拡張子を個別に指定</dd></div>
+              <div><dt>O</dt><dd>左・真ん中ペインで現在のフォルダをFinder／Explorerで開く</dd></div>
+              <div><dt>R</dt><dd>左・真ん中ペインのアクティブカーソル行をリネーム。ファイル名と拡張子を個別に指定</dd></div>
               <div><dt>L</dt><dd>左・真ん中ペインの表示フィルタを次へ切り替え</dd></div>
               <div><dt>Shift + L</dt><dd>左・真ん中ペインの表示フィルタを前へ切り替え</dd></div>
               <div><dt>D</dt><dd>左・真ん中ペインで、選択中またはカーソル位置のフォルダ配下を集計し、Date列に最新更新日を表示</dd></div>
-              <div><dt>G</dt><dd>左・真ん中ペイン内の全フォルダを並列にGit確認。Git列は作業ツリー変更ならG、未PushならPush、未PullならPull、両方ならCを表示。GのクリックはVS Codeを開き、Push・Pull・Cのクリックはcd付きGitコマンドをクリップボードへコピー</dd></div>
+              <div><dt>G</dt><dd>左・真ん中ペイン内の全フォルダを並列にGit確認。Git列は作業ツリー変更ならG、未PushならPush、未PullならPull、両方ならC、Git管理外または差分なしなら-を表示。GのクリックはVS Codeを開き、Push・Pull・Cのクリックはcd付きGitコマンドをクリップボードへコピー</dd></div>
               <div><dt>Ctrl/Cmd + P</dt><dd>左・真ん中ペインのフォルダ内 indexed 検索を表示</dd></div>
               <div><dt>Ctrl/Cmd + R</dt><dd>左・真ん中ペインのフォルダ履歴検索を表示</dd></div>
               <div><dt>Ctrl/Cmd + H</dt><dd>ホームフォルダへ移動</dd></div>
@@ -3548,6 +3592,7 @@ export function FileList({
               <div><dt>Debug Mode</dt><dd>ファイル操作時の詳細ログやデバッグ情報を有効化</dd></div>
               <div><dt>API Timeout</dt><dd>ネットワークドライブなどのAPI待ち時間上限を秒数で設定</dd></div>
               <div><dt>Folder Date Max Items</dt><dd>Dで最新更新日を集計する際の最大項目数を設定</dd></div>
+              <div><dt>Default Text Extension</dt><dd>Tでテキストファイルを作成する際の既定拡張子を設定</dd></div>
               <div><dt>リンク置換設定</dt><dd>古いサーバー名やUNCパスを新しいリンクへ置換するルールを編集</dd></div>
               <div><dt>Reset Storage</dt><dd>保存されたパス、履歴、テーマなどのローカル設定を初期化</dd></div>
               <div><dt>検索ペイン設定</dt><dd>インデックスサービスURLや監視パスを検索ペインの設定から管理</dd></div>
@@ -3568,14 +3613,11 @@ export function FileList({
       />
 
       {/* テキストファイル作成モーダル */}
-      <InputModal
+      <TextFileCreateModal
         isOpen={isCreateTextFileModalOpen}
         onClose={() => setIsCreateTextFileModalOpen(false)}
-        title="テキストファイル作成"
-        message="メモ用のテキストファイル名を入力してください（.txt拡張子は自動付与）"
-        placeholder="ファイル名"
+        defaultExtension={defaultTextFileExtension}
         onConfirm={handleConfirmCreateTextFile}
-        confirmLabel="作成"
       />
 
       {/* Markdown作成モーダル */}

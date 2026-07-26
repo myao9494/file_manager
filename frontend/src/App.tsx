@@ -24,6 +24,7 @@ import { ToastProvider } from "./contexts/ToastContext";
 import { ZoomProvider, useZoomContext } from "./contexts/ZoomContext";
 import {
   isEditableEventTarget,
+  isModalEventTarget,
   matchesCmdOrCtrlShiftShortcut,
 } from "./utils/globalShortcuts";
 import {
@@ -73,6 +74,7 @@ function AppContent() {
   const [markdownOpenMode, setMarkdownOpenMode] = useState<MarkdownOpenMode>("web");
   const [apiTimeout, setApiTimeout] = useState<number>(10);
   const [folderLatestModifiedMaxEntries, setFolderLatestModifiedMaxEntries] = useState<number>(20_000);
+  const [defaultTextFileExtension, setDefaultTextFileExtension] = useState("txt");
   const [pathMappings, setPathMappings] = useState<Record<string, string>>({});
   const [showPathMapModal, setShowPathMapModal] = useState(false);
   const [pathMapJsonStr, setPathMapJsonStr] = useState("");
@@ -87,6 +89,7 @@ function AppContent() {
         setMarkdownOpenMode(config.markdownOpenMode);
         setApiTimeout(config.apiTimeout);
         setFolderLatestModifiedMaxEntries(config.folderLatestModifiedMaxEntries);
+        setDefaultTextFileExtension(config.defaultTextFileExtension);
         setPathMappings(config.pathMappings || {});
       })
       .catch((error) => {
@@ -150,11 +153,12 @@ function AppContent() {
       apiTimeout,
       pathMappings,
       folderLatestModifiedMaxEntries,
+      defaultTextFileExtension,
     ).catch((error) => {
       console.error("設定保存エラー:", error);
       showError("設定の保存に失敗しました");
     });
-  }, [editorPreferencesLoaded, markdownOpenMode, apiTimeout, showError, textFileOpenMode, pathMappings, folderLatestModifiedMaxEntries]);
+  }, [editorPreferencesLoaded, markdownOpenMode, apiTimeout, showError, textFileOpenMode, pathMappings, folderLatestModifiedMaxEntries, defaultTextFileExtension]);
 
   const [viewMode, setViewMode] = useState<"form" | "json">("form");
   const [formRules, setFormRules] = useState<{
@@ -516,7 +520,8 @@ function AppContent() {
         !e.ctrlKey &&
         !e.metaKey &&
         !e.altKey &&
-        !e.shiftKey
+        !e.shiftKey &&
+        !isModalEventTarget(e.target)
       ) {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -847,6 +852,25 @@ function AppContent() {
                     }}
                   />
                 </div>
+                <div className="menu-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '6px 12px' }}>
+                  <span style={{ fontSize: '13px' }}>Default Text Extension</span>
+                  <input
+                    type="text"
+                    value={defaultTextFileExtension}
+                    onChange={(e) => setDefaultTextFileExtension(e.target.value.replace(/^\.+/, ""))}
+                    title="Tキーで作成するテキストファイルの既定拡張子"
+                    style={{
+                      width: '82px',
+                      padding: '4px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      textAlign: 'right',
+                      fontSize: '13px'
+                    }}
+                  />
+                </div>
               </div>
               <div className="menu-divider" />
               <div className="menu-section">
@@ -898,6 +922,7 @@ function AppContent() {
                 }}
                 textFileOpenMode={textFileOpenMode}
                 markdownOpenMode={markdownOpenMode}
+                defaultTextFileExtension={defaultTextFileExtension}
               />
             </ErrorBoundary>
           </div>
@@ -922,6 +947,7 @@ function AppContent() {
                 }}
                 textFileOpenMode={textFileOpenMode}
                 markdownOpenMode={markdownOpenMode}
+                defaultTextFileExtension={defaultTextFileExtension}
               />
             </ErrorBoundary>
           </div>

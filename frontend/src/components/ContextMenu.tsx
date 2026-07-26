@@ -22,6 +22,7 @@ import { useOperationHistoryContext } from "../contexts/OperationHistoryContext"
 import type { FileItem } from "../types/file";
 import "./ContextMenu.css";
 import { COMPOUND_EXTENSIONS } from "../config";
+import { buildRenamedFileName } from "../utils/renameFileName";
 
 interface ContextMenuProps {
   x: number;
@@ -36,6 +37,7 @@ interface ContextMenuProps {
   onOpenInEditor?: () => void;
   onExecute?: () => void;
   onDeleteRequest: (item: FileItem) => void;
+  onRenamed?: (oldPath: string, newPath: string) => void;
   startRename?: boolean;
 }
 
@@ -82,9 +84,11 @@ export function ContextMenu({
   onOpenInEditor,
   onExecute,
   onDeleteRequest,
+  onRenamed,
   startRename,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const renameNameInputRef = useRef<HTMLInputElement>(null);
   const [renaming, setRenaming] = useState(startRename || false);
   const [newName, setNewName] = useState("");
   const [extension, setExtension] = useState("");
@@ -99,7 +103,11 @@ export function ContextMenu({
     if (renaming) {
       const { base, ext } = splitFileName(item.name);
       setNewName(base);
-      setExtension(ext);
+      setExtension(ext.replace(/^\./, ""));
+      setTimeout(() => {
+        renameNameInputRef.current?.focus();
+        renameNameInputRef.current?.select();
+      }, 0);
     }
   }, [renaming, item.name]);
 
@@ -130,7 +138,7 @@ export function ContextMenu({
   // リネーム実行
   const handleRename = async () => {
     // 拡張子を結合して完全なファイル名を作成
-    const fullNewName = newName + extension;
+    const fullNewName = buildRenamedFileName(newName, extension);
 
     if (fullNewName && fullNewName !== item.name) {
       const oldName = item.name;
@@ -139,6 +147,7 @@ export function ContextMenu({
       const newPath = `${parentPath}/${fullNewName}`;
 
       await renameItem.mutateAsync({ oldPath, newName: fullNewName });
+      onRenamed?.(oldPath, newPath);
 
       // 履歴に追加
       addOperation({
@@ -205,20 +214,40 @@ export function ContextMenu({
         style={{ left: adjustedX, top: adjustedY }}
       >
         <h4>ファイル名の変更</h4>
-        <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px' }}>
-          拡張子: {extension}
-        </div>
-        <input
-          type="text"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return;
-            if (e.key === "Enter") handleRename();
-            if (e.key === "Escape") onClose();
-          }}
-          autoFocus
-        />
+        <label className="rename-input-label">
+          ファイル名
+          <input
+            ref={renameNameInputRef}
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") onClose();
+              // IME変換確定のEnterでは実行せず、確定後のEnterでリネームする。
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void handleRename();
+              }
+            }}
+            autoFocus
+          />
+        </label>
+        <label className="rename-input-label">
+          拡張子
+          <input
+            type="text"
+            value={extension}
+            onChange={(e) => setExtension(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") onClose();
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void handleRename();
+              }
+            }}
+          />
+        </label>
         <div className="rename-buttons">
           <button className="ok-btn" onClick={handleRename}>
             OK

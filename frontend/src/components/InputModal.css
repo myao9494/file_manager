@@ -20,6 +20,14 @@
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
+.input-modal-label {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+}
+
 .input-modal-message {
     margin-bottom: 12px;
     font-size: 14px;

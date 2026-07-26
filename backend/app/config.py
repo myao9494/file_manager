@@ -120,6 +120,7 @@ DEFAULT_EDITOR_PREFERENCES = {
     "markdownOpenMode": "web",
     "apiTimeout": 10,
     "folderLatestModifiedMaxEntries": 20_000,
+    "defaultTextFileExtension": "txt",
     "pathMappings": {},
 }
 
@@ -150,6 +151,16 @@ def _normalize_folder_latest_modified_max_entries(value: object) -> int:
     return min(max_entries, FOLDER_LATEST_MODIFIED_MAX_ENTRIES_MAX)
 
 
+def _normalize_default_text_file_extension(value: object) -> str:
+    """テキストファイル作成用の拡張子を安全な形式に正規化する。"""
+    extension = str(value or "").strip().lstrip(".")
+    if not extension or len(extension) > 32:
+        return "txt"
+    if any(char in extension for char in "/\\\0") or any(char.isspace() for char in extension):
+        return "txt"
+    return extension
+
+
 def get_editor_preferences() -> dict[str, object]:
     """UI設定ファイルからエディタ設定を読み込む"""
     path = settings.preferences_file_path
@@ -177,6 +188,9 @@ def get_editor_preferences() -> dict[str, object]:
                     "folderLatestModifiedMaxEntries": _normalize_folder_latest_modified_max_entries(
                         data.get("folderLatestModifiedMaxEntries")
                     ),
+                    "defaultTextFileExtension": _normalize_default_text_file_extension(
+                        data.get("defaultTextFileExtension")
+                    ),
                     "pathMappings": path_mappings,
                 }
     except (OSError, json.JSONDecodeError):
@@ -191,6 +205,7 @@ def save_editor_preferences(
     api_timeout: int = 10,
     path_mappings: Optional[dict[str, str]] = None,
     folder_latest_modified_max_entries: int = FOLDER_LATEST_MODIFIED_MAX_ENTRIES_DEFAULT,
+    default_text_file_extension: str = "txt",
 ) -> dict[str, object]:
     """UI設定ファイルへエディタ設定を書き込む"""
     path = settings.preferences_file_path
@@ -203,6 +218,7 @@ def save_editor_preferences(
         "folderLatestModifiedMaxEntries": _normalize_folder_latest_modified_max_entries(
             folder_latest_modified_max_entries
         ),
+        "defaultTextFileExtension": _normalize_default_text_file_extension(default_text_file_extension),
         "pathMappings": path_mappings if isinstance(path_mappings, dict) else {},
     }
     path.write_text(

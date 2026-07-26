@@ -97,3 +97,25 @@ class TestConfigApi:
         assert response.status_code == 200
         assert response.json()["folderLatestModifiedMaxEntries"] == 50_000
         assert '"folderLatestModifiedMaxEntries": 50000' in preferences_path.read_text(encoding="utf-8")
+
+    def test_default_text_file_extension_is_saved_and_returned(self, client, temp_dir, monkeypatch):
+        """テキストファイル作成時の既定拡張子を設定として保存・取得できる"""
+        from app import config
+
+        preferences_path = temp_dir / "settings.json"
+        monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
+        monkeypatch.setattr(config.settings, "_preferences_file_override", preferences_path)
+
+        response = client.post(
+            "/api/config/preferences",
+            json={
+                "textFileOpenMode": "web",
+                "markdownOpenMode": "web",
+                "apiTimeout": 10,
+                "defaultTextFileExtension": "md",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["defaultTextFileExtension"] == "md"
+        assert '"defaultTextFileExtension": "md"' in preferences_path.read_text(encoding="utf-8")

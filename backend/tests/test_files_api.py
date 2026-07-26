@@ -207,23 +207,25 @@ class TestFolderLatestModified:
 class TestGitFolderStatus:
     """ペイン内フォルダ向けGit状態一括取得APIのテスト"""
 
-    def test_returns_only_folders_with_uncommitted_changes(self, client, temp_dir, monkeypatch):
-        """Git変更の有無をフォルダごとに返す"""
+    def test_returns_status_for_changed_clean_and_non_git_folders(self, client, temp_dir, monkeypatch):
+        """変更あり・変更なし・Git管理外の全フォルダについて状態を返す"""
         from app import config
         import subprocess
 
         monkeypatch.setattr(config.settings, "_base_dir_override", temp_dir)
         changed = temp_dir / "changed-repo"
         clean = temp_dir / "clean-repo"
+        non_git = temp_dir / "non-git-folder"
         changed.mkdir()
         clean.mkdir()
+        non_git.mkdir()
         for repository in (changed, clean):
             subprocess.run(["git", "init", "-q", str(repository)], check=True)
         (changed / "untracked.txt").write_text("changed")
 
         response = client.post(
             "/api/git-folder-statuses",
-            json={"paths": ["changed-repo", "clean-repo"]},
+            json={"paths": ["changed-repo", "clean-repo", "non-git-folder"]},
         )
 
         assert response.status_code == 200
@@ -234,6 +236,9 @@ class TestGitFolderStatus:
         assert statuses[str(changed.resolve())]["ahead_count"] == 0
         assert statuses[str(changed.resolve())]["behind_count"] == 0
         assert statuses[str(clean.resolve())]["has_changes"] is False
+        assert statuses[str(non_git.resolve())]["has_changes"] is False
+        assert statuses[str(non_git.resolve())]["ahead_count"] == 0
+        assert statuses[str(non_git.resolve())]["behind_count"] == 0
 
     def test_returns_unpushed_commit_count(self, client, temp_dir, monkeypatch):
         """追跡ブランチより進んだコミット数を未Push件数として返す"""

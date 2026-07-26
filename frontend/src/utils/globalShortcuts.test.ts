@@ -9,6 +9,7 @@ import {
   matchesCmdOrCtrlShortcut,
   matchesCmdOrCtrlShiftShortcut,
   matchesPlainShortcut,
+  isModalEventTarget,
 } from "./globalShortcuts";
 
 describe("globalShortcuts", () => {
@@ -78,6 +79,22 @@ describe("globalShortcuts", () => {
 
     expect(isEditableEventTarget(new FakeHTMLInputElement())).toBe(true);
     expect(isEditableEventTarget(new FakeHTMLTextAreaElement())).toBe(true);
+  });
+
+  it("detects keyboard events that originate inside a modal", () => {
+    class FakeHTMLElement {
+      constructor(private readonly inModal: boolean) {}
+
+      closest(selector: string) {
+        return selector === ".modal-overlay" && this.inModal ? this : null;
+      }
+    }
+
+    vi.stubGlobal("HTMLElement", FakeHTMLElement);
+
+    expect(isModalEventTarget(new FakeHTMLElement(true))).toBe(true);
+    expect(isModalEventTarget(new FakeHTMLElement(false))).toBe(false);
+    expect(isModalEventTarget(null)).toBe(false);
   });
 
   it("treats contenteditable elements as editable targets", () => {

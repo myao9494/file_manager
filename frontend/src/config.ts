@@ -24,6 +24,7 @@ interface AppConfig {
   markdownOpenMode: MarkdownOpenMode;
   apiTimeout: number;
   folderLatestModifiedMaxEntries: number;
+  defaultTextFileExtension: string;
   pathMappings: Record<string, string>;
 }
 
@@ -59,6 +60,9 @@ export async function getConfig(): Promise<AppConfig> {
         folderLatestModifiedMaxEntries: typeof data.folderLatestModifiedMaxEntries === 'number'
           ? data.folderLatestModifiedMaxEntries
           : 20_000,
+        defaultTextFileExtension: typeof data.defaultTextFileExtension === 'string'
+          ? data.defaultTextFileExtension
+          : "txt",
         pathMappings: typeof data.pathMappings === 'object' && data.pathMappings !== null ? data.pathMappings : {},
       };
       return configCache;
@@ -72,6 +76,7 @@ export async function getConfig(): Promise<AppConfig> {
         markdownOpenMode: "web",
         apiTimeout: 10,
         folderLatestModifiedMaxEntries: 20_000,
+        defaultTextFileExtension: "txt",
         pathMappings: {},
       };
       configCache = fallback;
@@ -90,11 +95,13 @@ export async function saveEditorPreferences(
   apiTimeout?: number,
   pathMappings?: Record<string, string>,
   folderLatestModifiedMaxEntries?: number,
+  defaultTextFileExtension?: string,
 ): Promise<void> {
   const currentTimeout = apiTimeout ?? getApiTimeout();
   const currentMappings = pathMappings ?? getPathMappings();
   const currentFolderLatestModifiedMaxEntries = folderLatestModifiedMaxEntries
     ?? getFolderLatestModifiedMaxEntries();
+  const currentDefaultTextFileExtension = defaultTextFileExtension ?? getDefaultTextFileExtension();
   const response = await fetch(`${API_BASE_URL}/api/config/preferences`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -103,6 +110,7 @@ export async function saveEditorPreferences(
       markdownOpenMode,
       apiTimeout: currentTimeout,
       folderLatestModifiedMaxEntries: currentFolderLatestModifiedMaxEntries,
+      defaultTextFileExtension: currentDefaultTextFileExtension,
       pathMappings: currentMappings,
     }),
   });
@@ -121,6 +129,9 @@ export async function saveEditorPreferences(
     folderLatestModifiedMaxEntries: typeof data.folderLatestModifiedMaxEntries === 'number'
       ? data.folderLatestModifiedMaxEntries
       : currentFolderLatestModifiedMaxEntries,
+    defaultTextFileExtension: typeof data.defaultTextFileExtension === 'string'
+      ? data.defaultTextFileExtension
+      : currentDefaultTextFileExtension,
     pathMappings: typeof data.pathMappings === 'object' && data.pathMappings !== null ? data.pathMappings : currentMappings,
   };
 }
@@ -135,6 +146,11 @@ export function getApiTimeout(): number {
 /** フォルダ最新日時の再帰走査上限を取得 */
 export function getFolderLatestModifiedMaxEntries(): number {
   return configCache?.folderLatestModifiedMaxEntries ?? 20_000;
+}
+
+/** テキストファイル作成ダイアログの既定拡張子を取得 */
+export function getDefaultTextFileExtension(): string {
+  return configCache?.defaultTextFileExtension ?? "txt";
 }
 
 /**

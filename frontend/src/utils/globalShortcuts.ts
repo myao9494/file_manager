@@ -11,6 +11,14 @@ export function isEditableEventTarget(target: EventTarget | null): boolean {
   );
 }
 
+/**
+ * モーダル内で発生したイベントかを判定する。
+ * モーダルを閉じるEscapeは、背後にあるペインのショートカットとして扱わない。
+ */
+export function isModalEventTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.closest(".modal-overlay") !== null;
+}
+
 export function matchesCmdOrCtrlShortcut(
   event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">,
   shortcutKey: string

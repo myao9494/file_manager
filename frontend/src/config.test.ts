@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getNetworkDrivePath, getConfig, saveEditorPreferences, getApiTimeout, getFolderLatestModifiedMaxEntries, resetConfigCacheForTesting } from './config';
+import { getNetworkDrivePath, getConfig, saveEditorPreferences, getApiTimeout, getDefaultTextFileExtension, getFolderLatestModifiedMaxEntries, resetConfigCacheForTesting } from './config';
 
 describe('getNetworkDrivePath', () => {
 
@@ -112,6 +112,7 @@ describe('apiTimeout configuration', () => {
                 markdownOpenMode: 'web',
                 apiTimeout: 15,
                 folderLatestModifiedMaxEntries: 50_000,
+                defaultTextFileExtension: 'md',
             })
         } as Response);
 
@@ -119,6 +120,7 @@ describe('apiTimeout configuration', () => {
         expect(config.apiTimeout).toBe(15);
         expect(getApiTimeout()).toBe(15);
         expect(getFolderLatestModifiedMaxEntries()).toBe(50_000);
+        expect(getDefaultTextFileExtension()).toBe('md');
     });
 
     it('should fall back to default 10 seconds if apiTimeout is missing or invalid', async () => {
@@ -163,6 +165,7 @@ describe('apiTimeout configuration', () => {
                     markdownOpenMode: 'web',
                     apiTimeout: 25,
                     folderLatestModifiedMaxEntries: 20_000,
+                    defaultTextFileExtension: 'txt',
                     pathMappings: {}
                 })
             })

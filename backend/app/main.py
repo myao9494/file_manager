@@ -92,6 +92,7 @@ class EditorPreferencesRequest(BaseModel):
     markdownOpenMode: str
     apiTimeout: int = 10
     folderLatestModifiedMaxEntries: int = 20_000
+    defaultTextFileExtension: str = "txt"
     pathMappings: Optional[dict[str, str]] = None
 
 
@@ -118,6 +119,7 @@ async def update_editor_preferences(request: EditorPreferencesRequest):
         api_timeout=request.apiTimeout,
         path_mappings=request.pathMappings,
         folder_latest_modified_max_entries=request.folderLatestModifiedMaxEntries,
+        default_text_file_extension=request.defaultTextFileExtension,
     )
 
 
